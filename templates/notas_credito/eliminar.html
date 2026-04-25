@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Nota de Crédito{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-exclamation-triangle text-danger"></i> Eliminar Nota de Crédito</h1>
+    </div>
+</div>
+
+<div class="card border-danger">
+    <div class="card-body">
+        <p>¿Está seguro que desea eliminar la Nota de Crédito <strong>{{ nota.serie }}-{{ nota.numero|stringformat:"08d" }}</strong>?</p>
+        <p class="text-muted">Comprobante ref: {{ nota.comprobante_referencia.serie.serie }}-{{ nota.comprobante_referencia.numero|stringformat:"08d" }} | Monto: S/ {{ nota.monto_afectado }}</p>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'notas_credito:lista' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-trash"></i> Eliminar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

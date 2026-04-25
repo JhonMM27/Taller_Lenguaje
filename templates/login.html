@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block title %}Iniciar Sesión - Facturación SUNAT{% endblock %}
+
+{% block extra_css %}
+<style>
+    .login-container {
+        max-width: 400px;
+        margin: 0 auto;
+        padding-top: 100px;
+    }
+    .card {
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="card">
+        <div class="card-header bg-primary text-white text-center py-4">
+            <h4 class="mb-0"><i class="bi bi-file-earmark-text"></i> Facturación SUNAT</h4>
+        </div>
+        <div class="card-body p-4">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
+            <form method="POST">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" name="email" required autofocus placeholder="admin@prueba.com">
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Contraseña</label>
+                    <input type="password" class="form-control" id="password" name="password" required placeholder="••••••••">
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-box-arrow-in-right"></i> Iniciar Sesión
+                    </button>
+                </div>
+            </form>
+        </div>
+        <div class="card-footer text-center text-muted">
+            <small>Sistema de Facturación Electrónica SUNAT</small>
+        </div>
+    </div>
+</div>
+{% endblock %}

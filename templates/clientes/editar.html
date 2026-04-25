@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Cliente{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-person-plus"></i> Editar Cliente</h1>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="tipo_doc" class="form-label">Tipo de Documento</label>
+                    <select class="form-select" name="tipo_doc" required>
+                        <option value="1" {% if cliente.tipo_doc == '1' %}selected{% endif %}>DNI</option>
+                        <option value="6" {% if cliente.tipo_doc == '6' %}selected{% endif %}>RUC</option>
+                        <option value="4" {% if cliente.tipo_doc == '4' %}selected{% endif %}>Carnet de Extranjería</option>
+                        <option value="7" {% if cliente.tipo_doc == '7' %}selected{% endif %}>Pasaporte</option>
+                        <option value="A" {% if cliente.tipo_doc == 'A' %}selected{% endif %}>Cédula de Identidad</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="num_doc" class="form-label">Número de Documento</label>
+                    <input type="text" class="form-control" name="num_doc" required maxlength="15" value="{{ cliente.num_doc }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="ubigeo" class="form-label">Ubigeo</label>
+                    <input type="text" class="form-control" name="ubigeo" maxlength="6" value="{{ cliente.ubigeo|default:'' }}">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="razon_social" class="form-label">Razón Social / Nombre</label>
+                <input type="text" class="form-control" name="razon_social" required maxlength="200" value="{{ cliente.razon_social }}">
+            </div>
+            <div class="mb-3">
+                <label for="direccion" class="form-label">Dirección</label>
+                <textarea class="form-control" name="direccion" rows="2">{{ cliente.direccion|default:'' }}</textarea>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" name="email" value="{{ cliente.email|default:'' }}">
+                </div>
+                <div class="col-md-6">
+                    <label for="telefono" class="form-label">Teléfono</label>
+                    <input type="text" class="form-control" name="telefono" maxlength="20" value="{{ cliente.telefono|default:'' }}">
+                </div>
+            </div>
+            {% if errors %}
+            <div class="alert alert-danger">
+                {% for field, errors in errors.items %}
+                    {% for error in errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'clientes:lista' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

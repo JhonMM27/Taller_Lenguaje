@@ -1,0 +1,14 @@
+from django.urls import path
+from . import views
+
+app_name = 'comprobantes'
+
+urlpatterns = [
+    path('', views.lista_comprobantes, name='lista'),
+    path('nuevo/', views.crear_comprobante, name='crear'),
+    path('<int:pk>/', views.detalle_comprobante, name='detalle'),
+    path('<int:pk>/pdf/', views.ver_pdf, name='pdf'),
+    path('<int:pk>/xml/', views.descargar_xml, name='xml'),
+    path('<int:pk>/emitir/', views.emitir_comprobante, name='emitir'),
+    path('<int:pk>/reenviar/', views.reenviar_comprobante, name='reenviar'),
+]

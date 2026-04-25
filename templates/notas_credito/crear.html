@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Nueva Nota de Crédito{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-journal-minus"></i> Nueva Nota de Crédito</h1>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label for="serie" class="form-label">Serie</label>
+                    <input type="text" class="form-control" name="serie" required maxlength="4" value="FF01">
+                </div>
+                <div class="col-md-3">
+                    <label for="numero" class="form-label">Número</label>
+                    <input type="number" class="form-control" name="numero" required min="1" value="1">
+                </div>
+                <div class="col-md-3">
+                    <label for="fecha" class="form-label">Fecha</label>
+                    <input type="date" class="form-control" name="fecha" required value="{{ today|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="comprobante_referencia" class="form-label">Comprobante de Referencia</label>
+                    <select class="form-select" name="comprobante_referencia" required>
+                        <option value="">Seleccionar...</option>
+                        {% for comp in comprobantes %}
+                        <option value="{{ comp.id }}">{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }} | {{ comp.cliente.razon_social|truncatechars:30 }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="tipo_nota" class="form-label">Motivo de la Nota</label>
+                    <select class="form-select" name="tipo_nota" required>
+                        {% for value, label in motivos %}
+                        <option value="{{ value }}">{{ value }} - {{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="monto_afectado" class="form-label">Monto Afectado</label>
+                    <input type="number" class="form-control" name="monto_afectado" required step="0.01" min="0">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="descripcion" class="form-label">Descripción</label>
+                <textarea class="form-control" name="descripcion" rows="3" placeholder="Descripción adicional (opcional)"></textarea>
+            </div>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'notas_credito:lista' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Crear Nota de Crédito
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

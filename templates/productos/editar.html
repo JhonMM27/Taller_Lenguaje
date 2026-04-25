@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Producto{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-box-seam"></i> Editar Producto</h1>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="codigo" class="form-label">Código</label>
+                    <input type="text" class="form-control" name="codigo" required maxlength="30" value="{{ producto.codigo }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="unidad_medida" class="form-label">Unidad de Medida</label>
+                    <select class="form-select" name="unidad_medida">
+                        <option value="NIU" {% if producto.unidad_medida == 'NIU' %}selected{% endif %}>NIU (Unidad)</option>
+                        <option value="KG" {% if producto.unidad_medida == 'KG' %}selected{% endif %}>KG (Kilogramo)</option>
+                        <option value="GR" {% if producto.unidad_medida == 'GR' %}selected{% endif %}>GR (Gramo)</option>
+                        <option value="LT" {% if producto.unidad_medida == 'LT' %}selected{% endif %}>LT (Litro)</option>
+                        <option value="ML" {% if producto.unidad_medida == 'ML' %}selected{% endif %}>ML (Mililitro)</option>
+                        <option value="M" {% if producto.unidad_medida == 'M' %}selected{% endif %}>M (Metro)</option>
+                        <option value="UM" {% if producto.unidad_medida == 'UM' %}selected{% endif %}>UM (Millar)</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="precio_unitario" class="form-label">Precio Unitario</label>
+                    <input type="number" class="form-control" name="precio_unitario" required step="0.01" min="0" value="{{ producto.precio_unitario }}">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="descripcion" class="form-label">Descripción</label>
+                <textarea class="form-control" name="descripcion" rows="2" required maxlength="500">{{ producto.descripcion }}</textarea>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="cod_tipo_afectacion" class="form-label">Tipo de Afectación IGV</label>
+                    <select class="form-select" name="cod_tipo_afectacion">
+                        <option value="10" {% if producto.cod_tipo_afectacion == '10' %}selected{% endif %}>10 - Gravado</option>
+                        <option value="11" {% if producto.cod_tipo_afectacion == '11' %}selected{% endif %}>11 - Gravado - Retiro por奖励</option>
+                        <option value="12" {% if producto.cod_tipo_afectacion == '12' %}selected{% endif %}>12 - Gravado - Rebaja</option>
+                        <option value="14" {% if producto.cod_tipo_afectacion == '14' %}selected{% endif %}>14 - Transacciones gratuitas</option>
+                        <option value="20" {% if producto.cod_tipo_afectacion == '20' %}selected{% endif %}>20 - Exonerado</option>
+                        <option value="30" {% if producto.cod_tipo_afectacion == '30' %}selected{% endif %}>30 - Inafecto</option>
+                        <option value="40" {% if producto.cod_tipo_afectacion == '40' %}selected{% endif %}>40 - Exportación</option>
+                    </select>
+                </div>
+                <div class="col-md-6 d-flex align-items-center">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" class="form-check-input" name="afecto_igv" id="afecto_igv" {% if producto.afecto_igv %}checked{% endif %}>
+                        <label class="form-check-label" for="afecto_igv">Afecto a IGV (18%)</label>
+                    </div>
+                </div>
+            </div>
+            {% if errors %}
+            <div class="alert alert-danger">
+                {% for field, errors in errors.items %}
+                    {% for error in errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'productos:lista' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

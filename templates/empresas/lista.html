@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Empresas{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1><i class="bi bi-building"></i> Empresas</h1>
+        <a href="{% url 'empresas:crear' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nueva Empresa
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body table-responsive">
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>RUC</th>
+                    <th>Razón Social</th>
+                    <th>Nombre Comercial</th>
+                    <th>Email</th>
+                    <th>Teléfono</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for empresa in empresas %}
+                <tr>
+                    <td><code>{{ empresa.ruc }}</code></td>
+                    <td>{{ empresa.razon_social }}</td>
+                    <td>{{ empresa.nombre_comercial|default:"-" }}</td>
+                    <td>{{ empresa.email|default:"-" }}</td>
+                    <td>{{ empresa.telefono|default:"-" }}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'empresas:editar' empresa.id %}" class="btn btn-outline-primary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'empresas:eliminar' empresa.id %}" class="btn btn-outline-danger" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        No hay empresas registradas
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

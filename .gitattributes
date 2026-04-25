@@ -1,0 +1,32 @@
+# ===========================================
+# Configuración de Git para este proyecto
+# ===========================================
+
+# Forzar finales de línea Unix (LF) para todos los archivos de texto
+# Esto evita errores como "Syntax error: end of file unexpected" en scripts de shell
+
+# Scripts de shell
+*.sh text eol=lf
+
+# Archivos Python
+*.py text eol=lf
+
+# Archivos de configuración
+*.txt text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+
+# Archivos que NO son de texto (binarios)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.sqlite3 binary
+*.db binary

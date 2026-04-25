@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}Lista de Comprobantes{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1><i class="bi bi-receipt"></i> Comprobantes</h1>
+        <a href="{% url 'comprobantes:crear' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nuevo Comprobante
+        </a>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-funnel"></i> Filtros
+    </div>
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-2">
+                <label for="tipo" class="form-label">Tipo</label>
+                <select class="form-select" name="tipo" id="tipo">
+                    <option value="">Todos</option>
+                    {% for value, label in tipos %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="estado" class="form-label">Estado</label>
+                <select class="form-select" name="estado" id="estado">
+                    <option value="">Todos</option>
+                    {% for value, label in estados %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="fecha_desde" class="form-label">Desde</label>
+                <input type="date" class="form-control" name="fecha_desde" id="fecha_desde">
+            </div>
+            <div class="col-md-2">
+                <label for="fecha_hasta" class="form-label">Hasta</label>
+                <input type="date" class="form-control" name="fecha_hasta" id="fecha_hasta">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body table-responsive">
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Número</th>
+                    <th>Tipo</th>
+                    <th>Cliente</th>
+                    <th>Fecha</th>
+                    <th>Subtotal</th>
+                    <th>IGV</th>
+                    <th>Total</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for comp in comprobantes %}
+                <tr>
+                    <td>{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}</td>
+                    <td>{{ comp.get_tipo_display }}</td>
+                    <td>{{ comp.cliente.razon_social|truncatechars:25 }}</td>
+                    <td>{{ comp.fecha|date:"d/m/Y" }}</td>
+                    <td class="text-end">S/ {{ comp.subtotal }}</td>
+                    <td class="text-end">S/ {{ comp.igv }}</td>
+                    <td class="text-end">S/ {{ comp.total }}</td>
+                    <td>
+                        {% if comp.estado == 'ACEPTADO' %}
+                            <span class="badge bg-success">{{ comp.estado }}</span>
+                        {% elif comp.estado == 'RECHAZADO' %}
+                            <span class="badge bg-danger">{{ comp.estado }}</span>
+                        {% elif comp.estado == 'ENVIADO' %}
+                            <span class="badge bg-info">{{ comp.estado }}</span>
+                        {% else %}
+                            <span class="badge bg-warning">{{ comp.estado }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'comprobantes:detalle' comp.id %}" class="btn btn-outline-primary" title="Ver">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{% url 'comprobantes:pdf' comp.id %}" class="btn btn-outline-success" title="PDF">
+                                <i class="bi bi-file-earmark-pdf"></i>
+                            </a>
+                            {% if comp.xml_firmado %}
+                            <a href="{% url 'comprobantes:xml' comp.id %}" class="btn btn-outline-secondary" title="XML">
+                                <i class="bi bi-file-code"></i>
+                            </a>
+                            {% endif %}
+                            {% if comp.estado == 'RECHAZADO' %}
+                            <a href="{% url 'comprobantes:reenviar' comp.id %}" class="btn btn-outline-danger" title="Reenviar">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-4">
+                        No hay comprobantes registrados
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

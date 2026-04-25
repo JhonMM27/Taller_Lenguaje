@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Detalle Nota de Crédito{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-journal-minus"></i> Detalle Nota de Crédito</h1>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">{{ nota.serie }}-{{ nota.numero|stringformat:"08d" }}</h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <strong>Fecha:</strong> {{ nota.fecha|date:"d/m/Y" }}
+            </div>
+            <div class="col-md-4">
+                <strong>Estado:</strong>
+                {% if nota.estado == 'ACEPTADO' %}
+                    <span class="badge bg-success">{{ nota.estado }}</span>
+                {% elif nota.estado == 'RECHAZADO' %}
+                    <span class="badge bg-danger">{{ nota.estado }}</span>
+                {% elif nota.estado == 'ENVIADO' %}
+                    <span class="badge bg-info">{{ nota.estado }}</span>
+                {% else %}
+                    <span class="badge bg-warning">{{ nota.estado }}</span>
+                {% endif %}
+            </div>
+            <div class="col-md-4">
+                <strong>Motivo:</strong> {{ nota.get_tipo_nota_display }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <strong>Comprobante de Referencia:</strong><br>
+                {{ nota.comprobante_referencia.serie.serie }}-{{ nota.comprobante_referencia.numero|stringformat:"08d" }}
+            </div>
+            <div class="col-md-6">
+                <strong>Monto Afectado:</strong> S/ {{ nota.monto_afectado }}
+            </div>
+        </div>
+        {% if nota.descripcion %}
+        <div class="mb-3">
+            <strong>Descripción:</strong>
+            <p>{{ nota.descripcion }}</p>
+        </div>
+        {% endif %}
+        <div class="row mb-3">
+            <div class="col-md-12">
+                <strong>Cliente:</strong> {{ nota.comprobante_referencia.cliente.razon_social }}<br>
+                <strong>Documento:</strong> {{ nota.comprobante_referencia.cliente.get_tipo_doc_display }} {{ nota.comprobante_referencia.cliente.num_doc }}
+            </div>
+        </div>
+        <hr>
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <a href="{% url 'notas_credito:lista' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Facturación SUNAT{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="h2">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </h1>
+        <p class="text-muted">Resumen del mes actual</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-primary">
+            <div class="card-body">
+                <h5 class="card-title text-primary">
+                    <i class="bi bi-file-earmark-text"></i> Facturas Mes
+                </h5>
+                <h2 class="mb-0">{{ facturas_mes|default:"0" }}</h2>
+                <small class="text-muted">Total emitidas</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body">
+                <h5 class="card-title text-success">
+                    <i class="bi bi-file-earmark-check"></i> Aceptadas
+                </h5>
+                <h2 class="mb-0">{{ aceptadas_mes|default:"0" }}</h2>
+                <small class="text-muted">Aceptadas por SUNAT</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-danger">
+            <div class="card-body">
+                <h5 class="card-title text-danger">
+                    <i class="bi bi-file-earmark-x"></i> Rechazadas
+                </h5>
+                <h2 class="mb-0">{{ rechazadas_mes|default:"0" }}</h2>
+                <small class="text-muted">Pendientes de reenvío</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h5 class="card-title text-warning">
+                    <i class="bi bi-currency-dollar"></i> Total Ventas
+                </h5>
+                <h2 class="mb-0">S/ {{ total_ventas|default:"0.00" }}</h2>
+                <small class="text-muted">Del mes actual</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <i class="bi bi-exclamation-triangle"></i> Alertas
+            </div>
+            <div class="card-body">
+                {% if comprobantes_rechazados %}
+                    <div class="alert alert-danger">
+                        <strong>{{ comprobantes_rechazados|length }}</strong> comprobante(s) rechazado(s) que requieren reenvío
+                    </div>
+                    <ul class="list-group">
+                        {% for comp in comprobantes_rechazados %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>
+                                    <strong>{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}</strong>
+                                    <br><small>{{ comp.cliente.razon_social|truncatechars:25 }}</small>
+                                </span>
+                                <a href="{% url 'comprobantes:detalle' comp.id %}" class="btn btn-sm btn-danger">
+                                    Revisar
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-success mb-0">
+                        <i class="bi bi-check-circle"></i> No hay alertas pendientes
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <i class="bi bi-lightning"></i> Acciones Rápidas
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'comprobantes:crear' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Nueva Factura
+                    </a>
+                    <a href="{% url 'comprobantes:crear' %}" class="btn btn-success">
+                        <i class="bi bi-plus-circle"></i> Nueva Boleta
+                    </a>
+                    <a href="{% url 'reportes:ventas' %}" class="btn btn-info">
+                        <i class="bi bi-graph-up"></i> Ver Reporte de Ventas
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history"></i> Últimos Comprobantes
+            </div>
+            <div class="card-body table-responsive">
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Tipo</th>
+                            <th>Cliente</th>
+                            <th>Fecha</th>
+                            <th>Total</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for comp in ultimos_comprobantes %}
+                            <tr>
+                                <td>{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}</td>
+                                <td>{{ comp.get_tipo_display }}</td>
+                                <td>{{ comp.cliente.razon_social|truncatechars:30 }}</td>
+                                <td>{{ comp.fecha|date:"d/m/Y" }}</td>
+                                <td>S/ {{ comp.total }}</td>
+                                <td>
+                                    {% if comp.estado == 'ACEPTADO' %}
+                                        <span class="badge bg-success">{{ comp.estado }}</span>
+                                    {% elif comp.estado == 'RECHAZADO' %}
+                                        <span class="badge bg-danger">{{ comp.estado }}</span>
+                                    {% elif comp.estado == 'ENVIADO' %}
+                                        <span class="badge bg-info">{{ comp.estado }}</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">{{ comp.estado }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'comprobantes:detalle' comp.id %}" class="btn btn-sm btn-outline-primary">
+                                        Ver
+                                    </a>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">No hay comprobantes registrados</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

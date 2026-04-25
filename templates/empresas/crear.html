@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Nueva Empresa{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-building"></i> Nueva Empresa</h1>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="ruc" class="form-label">RUC</label>
+                    <input type="text" class="form-control" name="ruc" required maxlength="11" placeholder="12345678901">
+                </div>
+                <div class="col-md-8">
+                    <label for="razon_social" class="form-label">Razón Social</label>
+                    <input type="text" class="form-control" name="razon_social" required maxlength="200">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="nombre_comercial" class="form-label">Nombre Comercial</label>
+                <input type="text" class="form-control" name="nombre_comercial" maxlength="200">
+            </div>
+            <div class="mb-3">
+                <label for="direccion" class="form-label">Dirección</label>
+                <textarea class="form-control" name="direccion" rows="2"></textarea>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" name="email">
+                </div>
+                <div class="col-md-6">
+                    <label for="telefono" class="form-label">Teléfono</label>
+                    <input type="text" class="form-control" name="telefono" maxlength="20">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="regimen_tributario" class="form-label">Régimen Tributario</label>
+                <select class="form-select" name="regimen_tributario">
+                    <option value="GENERAL">General</option>
+                    <option value="RER">RER (Régimen Especial de Renta)</option>
+                    <option value="MYPE">MYPE (Micro y Pequeña Empresa)</option>
+                    <option value="NRUS">NRUS (Régimen Unificado)</option>
+                </select>
+            </div>
+            {% if errors %}
+            <div class="alert alert-danger">
+                {% for field, errors in errors.items %}
+                    {% for error in errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'empresas:lista' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Guardar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

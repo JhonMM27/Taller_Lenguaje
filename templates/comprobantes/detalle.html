@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+
+{% block title %}Detalle Comprobante{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1>
+            <i class="bi bi-receipt"></i> {{ comprobante.serie.serie }}-{{ comprobante.numero|stringformat:"08d" }}
+        </h1>
+        <div>
+            {% if comprobante.estado == 'BORRADOR' %}
+            <a href="{% url 'comprobantes:emitir' comprobante.id %}" class="btn btn-warning">
+                <i class="bi bi-check-circle"></i> Emitir
+            </a>
+            <button type="button" class="btn btn-primary" id="btn-enviar-sunat" onclick="enviarSunat()" disabled>
+                <i class="bi bi-send"></i> Enviar a SUNAT
+            </button>
+            {% elif comprobante.estado == 'EMITIDO' %}
+            <button type="button" class="btn btn-primary" id="btn-enviar-sunat" onclick="enviarSunat()">
+                <i class="bi bi-send"></i> Enviar a SUNAT
+            </button>
+            {% endif %}
+            {% if comprobante.estado == 'ENVIADO' %}
+            <button type="button" class="btn btn-info" id="btn-consultar-ticket" onclick="consultarTicket()">
+                <i class="bi bi-search"></i> Consultar Ticket
+            </button>
+            {% endif %}
+            <a href="{% url 'comprobantes:pdf' comprobante.id %}" class="btn btn-success">
+                <i class="bi bi-file-earmark-pdf"></i> PDF
+            </a>
+            {% if comprobante.xml_firmado %}
+            <a href="{% url 'comprobantes:xml' comprobante.id %}" class="btn btn-info">
+                <i class="bi bi-file-code"></i> XML
+            </a>
+            {% endif %}
+            {% if comprobante.estado == 'RECHAZADO' %}
+            <a href="{% url 'comprobantes:reenviar' comprobante.id %}" class="btn btn-warning">
+                <i class="bi bi-arrow-clockwise"></i> Reenviar
+            </a>
+            {% endif %}
+            <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+</div>
+
+<div id="alerta-envio" class="alert d-none" role="alert"></div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                Datos del Comprobante
+            </div>
+            <div class="card-body">
+                <p><strong>Tipo:</strong> {{ comprobante.get_tipo_display }}</p>
+                <p><strong>Número:</strong> {{ comprobante.serie.serie }}-{{ comprobante.numero|stringformat:"08d" }}</p>
+                <p><strong>Fecha:</strong> {{ comprobante.fecha|date:"d/m/Y" }}</p>
+                <p><strong>Estado:</strong>
+                    {% if comprobante.estado == 'ACEPTADO' %}
+                        <span class="badge bg-success">{{ comprobante.estado }}</span>
+                    {% elif comprobante.estado == 'RECHAZADO' %}
+                        <span class="badge bg-danger">{{ comprobante.estado }}</span>
+                    {% elif comprobante.estado == 'ENVIADO' %}
+                        <span class="badge bg-info">{{ comprobante.estado }}</span>
+                    {% else %}
+                        <span class="badge bg-warning">{{ comprobante.estado }}</span>
+                    {% endif %}
+                </p>
+                {% if comprobante.sunat_ticket %}
+                <p><strong>Ticket SUNAT:</strong> <code>{{ comprobante.sunat_ticket }}</code></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header bg-secondary text-white">
+                Datos del Cliente
+            </div>
+            <div class="card-body">
+                <p><strong>Nombre/Razón Social:</strong> {{ comprobante.cliente.razon_social }}</p>
+                <p><strong>{{ comprobante.cliente.get_tipo_doc_display }}:</strong> {{ comprobante.cliente.num_doc }}</p>
+                <p><strong>Dirección:</strong> {{ comprobante.cliente.direccion|default:"N/A" }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <i class="bi bi-list-ul"></i> Detalles
+    </div>
+    <div class="card-body table-responsive">
+        <table class="table table-sm">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Precio Unit.</th>
+                    <th>IGV</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for detalle in comprobante.detalles.all %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ detalle.producto.descripcion }}</td>
+                    <td>{{ detalle.cantidad }}</td>
+                    <td class="text-end">S/ {{ detalle.precio_unitario }}</td>
+                    <td class="text-end">S/ {{ detalle.igv_linea }}</td>
+                    <td class="text-end">S/ {{ detalle.subtotal }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="table-light">
+                <tr>
+                    <td colspan="5" class="text-end"><strong>Subtotal:</strong></td>
+                    <td class="text-end">S/ {{ comprobante.subtotal }}</td>
+                </tr>
+                <tr>
+                    <td colspan="5" class="text-end"><strong>IGV (18%):</strong></td>
+                    <td class="text-end">S/ {{ comprobante.igv }}</td>
+                </tr>
+                <tr>
+                    <td colspan="5" class="text-end"><strong>Total:</strong></td>
+                    <td class="text-end"><strong>S/ {{ comprobante.total }}</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+{% if comprobante.logs.all %}
+<div class="card mb-3">
+    <div class="card-header">
+        <i class="bi bi-clock-history"></i> Historial de Envíos
+    </div>
+    <div class="card-body table-responsive">
+        <table class="table table-sm">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Código</th>
+                    <th>Estado</th>
+                    <th>Descripción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in comprobante.logs.all %}
+                <tr>
+                    <td>{{ log.fecha_envio|date:"d/m/Y H:i:s" }}</td>
+                    <td><code>{{ log.codigo_respuesta }}</code></td>
+                    <td>
+                        {% if log.estado_respuesta == 'ACEPTADO' %}
+                            <span class="badge bg-success">{{ log.estado_respuesta }}</span>
+                        {% elif log.estado_respuesta == 'RECHAZADO' %}
+                            <span class="badge bg-danger">{{ log.estado_respuesta }}</span>
+                        {% else %}
+                            <span class="badge bg-info">{{ log.estado_respuesta }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.descripcion }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function mostrarAlerta(tipo, mensaje) {
+    const alerta = document.getElementById('alerta-envio');
+    alerta.className = `alert alert-${tipo} alert-dismissible fade show`;
+    alerta.textContent = mensaje;
+    alerta.classList.remove('d-none');
+    setTimeout(() => alerta.classList.add('d-none'), 10000);
+}
+
+function enviarSunat() {
+    const btn = document.getElementById('btn-enviar-sunat');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
+    
+    mostrarAlerta('info', 'Enviando comprobante a SUNAT...');
+
+    fetch("{% url 'sunat_ose:enviar_comprobante' comprobante.id %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarAlerta('success', `Comprobante enviado. Ticket: ${data.ticket}`);
+            if (data.ticket) {
+                mostrarAlerta('info', 'Consultando estado del ticket...');
+                setTimeout(() => consultarTicket(), 2000);
+            }
+        } else {
+            mostrarAlerta('danger', `Error: ${data.error || data.descripcion || 'Error desconocido'}`);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send"></i> Reenviar a SUNAT';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarAlerta('danger', 'Error de conexión');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-send"></i> Reenviar a SUNAT';
+    });
+}
+
+function consultarTicket() {
+    const btn = document.getElementById('btn-consultar-ticket');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Consultando...';
+    }
+    
+    mostrarAlerta('info', 'Consultando estado del ticket...');
+
+    fetch("{% url 'sunat_ose:consultar_ticket' comprobante.id %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.estado === 'ACEPTADO') {
+                mostrarAlerta('success', 'Comprobante ACEPTADO por SUNAT');
+            } else if (data.estado === 'RECHAZADO') {
+                mostrarAlerta('danger', `Comprobante RECHAZADO: ${data.descripcion}`);
+            } else {
+                mostrarAlerta('warning', `Estado: ${data.estado} - ${data.descripcion}`);
+            }
+            setTimeout(() => location.reload(), 3000);
+        } else {
+            mostrarAlerta('danger', `Error: ${data.error || 'Error consultando ticket'}`);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-search"></i> Consultar Ticket';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarAlerta('danger', 'Error de conexión');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-search"></i> Consultar Ticket';
+        }
+    });
+}
+
+{% if comprobante.estado == 'ENVIADO' %}
+setTimeout(() => consultarTicket(), 1000);
+{% endif %}
+</script>
+{% endblock %}

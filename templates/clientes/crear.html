@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Nuevo Cliente{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-person-plus"></i> Nuevo Cliente</h1>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="tipo_doc" class="form-label">Tipo de Documento</label>
+                    <select class="form-select" name="tipo_doc" required>
+                        <option value="1">DNI</option>
+                        <option value="6" selected>RUC</option>
+                        <option value="4">Carnet de Extranjería</option>
+                        <option value="7">Pasaporte</option>
+                        <option value="A">Cédula de Identidad</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="num_doc" class="form-label">Número de Documento</label>
+                    <input type="text" class="form-control" name="num_doc" required maxlength="15">
+                </div>
+                <div class="col-md-4">
+                    <label for="ubigeo" class="form-label">Ubigeo</label>
+                    <input type="text" class="form-control" name="ubigeo" maxlength="6" placeholder="150101">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="razon_social" class="form-label">Razón Social / Nombre</label>
+                <input type="text" class="form-control" name="razon_social" required maxlength="200">
+            </div>
+            <div class="mb-3">
+                <label for="direccion" class="form-label">Dirección</label>
+                <textarea class="form-control" name="direccion" rows="2"></textarea>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" name="email">
+                </div>
+                <div class="col-md-6">
+                    <label for="telefono" class="form-label">Teléfono</label>
+                    <input type="text" class="form-control" name="telefono" maxlength="20">
+                </div>
+            </div>
+            {% if errors %}
+            <div class="alert alert-danger">
+                {% for field, errors in errors.items %}
+                    {% for error in errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'clientes:lista' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Guardar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

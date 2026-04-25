@@ -1,0 +1,160 @@
+# ============================================================
+# DOCKER COMPOSE - Stack Completo de Produccion
+# ============================================================
+# Este archivo define todos los servicios de la aplicacion:
+# - nginx: Reverse proxy y servidor HTTP/HTTPS
+# - backend: Aplicacion Django con Gunicorn
+# - postgres: Base de datos PostgreSQL
+# - pgadmin: Administrador de BD (persistente)
+#
+# Uso:
+#   docker compose up -d      (levantar todo)
+#   docker compose down       (detener todo)
+#   docker compose down -v    (detener y borrar datos)
+# ============================================================
+
+services:
+  # ============================================================
+  # NGINX - Reverse Proxy y Servidor Web
+  # ============================================================
+  # Nginx recibe todas las solicitudes externas y las redirige
+  # al backend Django. Tambien sirve archivos estaticos.
+  nginx:
+    image: nginx:alpine
+    container_name: sunat_nginx
+    ports:
+      - "80:80"      # HTTP
+      - "443:443"    # HTTPS
+    volumes:
+      # Configuracion principal de nginx
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Configuracion de virtual host
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # Volumenes compartidos con backend
+      - static_volume:/staticfiles
+      - media_volume:/media
+      # Certificados SSL
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+    networks:
+      - sunat_network
+    restart: unless-stopped
+
+  # ============================================================
+  # DJANGO BACKEND - Aplicacion con Gunicorn
+  # ============================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sunat_backend
+    expose:
+      - "8000"  # Puerto interno (solo accesible desde la red Docker)
+    volumes:
+      # Codigo fuente montado para hot-reload en desarrollo
+      - .:/app
+      # Volumenes persistentes
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    environment:
+      # Usa configuracion de produccion
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      # Credenciales PostgreSQL directas
+      POSTGRES_DB: facturacion_db
+      POSTGRES_USER: sunat_user
+      POSTGRES_PASSWORD: sunat_pass_2026
+      # Debug y seguridad
+      DEBUG: "False"
+      SECRET_KEY: django-insecure-change-me-in-production-abc123xyz-2026
+    depends_on:
+      postgres:
+        condition: service_healthy  # Espera a que postgres este listo
+    networks:
+      - sunat_network
+    restart: unless-stopped
+
+  # ============================================================
+  # POSTGRESQL - Base de Datos
+  # ============================================================
+  # PostgreSQL 16 en version Alpine (mas pequena y segura)
+  postgres:
+    image: postgres:16-alpine
+    container_name: sunat_postgres
+    environment:
+      # Credenciales - valores directos para evitar problemas con env_file
+      POSTGRES_DB: facturacion_db
+      POSTGRES_USER: sunat_user
+      POSTGRES_PASSWORD: sunat_pass_2026
+      # Configuracion de locale para Peru
+      LANG: es_PE.UTF-8
+      LC_ALL: es_PE.UTF-8
+    volumes:
+      # Datos persistentes de PostgreSQL
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sunat_network
+    healthcheck:
+      # Verifica que PostgreSQL acepte conexiones
+      test: ["CMD-SHELL", "pg_isready -U sunat_user -d facturacion_db || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ============================================================
+  # PGADMIN - Administrador de Base de Datos
+  # ============================================================
+  # Interfaz web para administrar PostgreSQL.
+  # Los datos de sesion persisten en el volumen pgadmin_data.
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sunat_pgadmin
+    ports:
+      - "5051:80"   # Puerto expuesto para acceso web
+    environment:
+      # Credenciales de acceso a pgAdmin
+      - PGADMIN_DEFAULT_EMAIL=admin@sunat.local.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+      # Modo servidor (False = modo desktop)
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      # Configuracion adicional
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+    volumes:
+      # Persistencia de configuraciones y sesiones de pgAdmin
+      - pgadmin_data:/var/lib/pgadmin
+      # Archivo de configuracion de servidores (opcional)
+      # - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      - postgres
+    networks:
+      - sunat_network
+    restart: unless-stopped
+
+# ============================================================
+# REDES DOCKER
+# ============================================================
+# Red interna bridge para comunicacion entre contenedores
+networks:
+  sunat_network:
+    driver: bridge
+
+# ============================================================
+# VOLUMENES PERSISTENTES
+# ============================================================
+# Estos volumenes persisten los datos aunque se detengan los
+# contenedores. Necesitas 'docker compose down -v' para borrarlos.
+volumes:
+  # Datos de PostgreSQL (base de datos)
+  postgres_data:
+    driver: local
+  # Configuracion y sesiones de pgAdmin
+  pgadmin_data:
+    driver: local
+  # Archivos estaticos de Django (CSS, JS)
+  static_volume:
+    driver: local
+  # Archivos media subidos por usuarios
+  media_volume:
+    driver: local

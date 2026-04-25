@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}Reporte de Ventas{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1><i class="bi bi-graph-up"></i> Reporte de Ventas</h1>
+        <div>
+            <a href="?mes={{ mes_actual }}&anio={{ anio_actual }}&formato=excel" class="btn btn-success">
+                <i class="bi bi-file-excel"></i> Exportar Excel
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-calendar-month"></i> Seleccionar Período
+    </div>
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label for="mes" class="form-label">Mes</label>
+                <select class="form-select" name="mes">
+                    {% for value, name in meses %}
+                    <option value="{{ value }}" {% if value == mes_actual|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="anio" class="form-label">Año</label>
+                <input type="number" class="form-control" name="anio" value="{{ anio_actual }}" min="2020" max="2030">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-primary">
+            <div class="card-body">
+                <h5 class="card-title text-primary"><i class="bi bi-file-earmark-text"></i> Facturas</h5>
+                <h2>{{ resumen.total_facturas }}</h2>
+                <small class="text-muted">Cantidad de facturas</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body">
+                <h5 class="card-title text-success"><i class="bi bi-file-earmark-check"></i> Boletas</h5>
+                <h2>{{ resumen.total_boletas }}</h2>
+                <small class="text-muted">Cantidad de boletas</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info">
+            <div class="card-body">
+                <h5 class="card-title text-info"><i class="bi bi-currency-dollar"></i> Subtotal</h5>
+                <h2>S/ {{ resumen.subtotal|floatformat:2 }}</h2>
+                <small class="text-muted">Base imponible</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h5 class="card-title text-warning"><i class="bi bi-percent"></i> IGV</h5>
+                <h2>S/ {{ resumen.igv|floatformat:2 }}</h2>
+                <small class="text-muted">18%</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-dark">
+            <div class="card-body">
+                <h5 class="card-title text-dark"><i class="bi bi-receipt"></i> Total Ventas</h5>
+                <h2 class="text-success">S/ {{ resumen.total|floatformat:2 }}</h2>
+                <small class="text-muted">Incluye IGV</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-list"></i> Detalle de Comprobantes
+    </div>
+    <div class="card-body table-responsive">
+        <table class="table table-hover table-sm">
+            <thead class="table-dark">
+                <tr>
+                    <th>Número</th>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Cliente</th>
+                    <th>RUC/DNI</th>
+                    <th>Subtotal</th>
+                    <th>IGV</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for comp in comprobantes %}
+                <tr>
+                    <td><code>{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}</code></td>
+                    <td>{{ comp.fecha|date:"d/m/Y" }}</td>
+                    <td>{{ comp.get_tipo_display }}</td>
+                    <td>{{ comp.cliente.razon_social|truncatechars:30 }}</td>
+                    <td>{{ comp.cliente.num_doc }}</td>
+                    <td class="text-end">S/ {{ comp.subtotal }}</td>
+                    <td class="text-end">S/ {{ comp.igv }}</td>
+                    <td class="text-end"><strong>S/ {{ comp.total }}</strong></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        No hay comprobantes en este período
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

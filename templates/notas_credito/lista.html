@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Notas de Crédito{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1><i class="bi bi-journal-minus"></i> Notas de Crédito</h1>
+        <a href="{% url 'notas_credito:crear' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nueva Nota de Crédito
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body table-responsive">
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Número</th>
+                    <th>Fecha</th>
+                    <th>Comprobante Ref.</th>
+                    <th>Cliente</th>
+                    <th>Motivo</th>
+                    <th>Monto Afectado</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for nota in notas %}
+                <tr>
+                    <td><code>{{ nota.serie }}-{{ nota.numero|stringformat:"08d" }}</code></td>
+                    <td>{{ nota.fecha|date:"d/m/Y" }}</td>
+                    <td>{{ nota.comprobante_referencia.serie.serie }}-{{ nota.comprobante_referencia.numero|stringformat:"08d" }}</td>
+                    <td>{{ nota.comprobante_referencia.cliente.razon_social|truncatechars:25 }}</td>
+                    <td>{{ nota.get_tipo_nota_display }}</td>
+                    <td class="text-end">S/ {{ nota.monto_afectado }}</td>
+                    <td>
+                        {% if nota.estado == 'ACEPTADO' %}
+                            <span class="badge bg-success">{{ nota.estado }}</span>
+                        {% elif nota.estado == 'RECHAZADO' %}
+                            <span class="badge bg-danger">{{ nota.estado }}</span>
+                        {% elif nota.estado == 'ENVIADO' %}
+                            <span class="badge bg-info">{{ nota.estado }}</span>
+                        {% else %}
+                            <span class="badge bg-warning">{{ nota.estado }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'notas_credito:detalle' nota.id %}" class="btn btn-outline-primary" title="Ver">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{% url 'notas_credito:eliminar' nota.id %}" class="btn btn-outline-danger" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        No hay notas de crédito registradas
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

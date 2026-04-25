@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+
+{% block title %}Nuevo Comprobante{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-plus-circle"></i> Nuevo Comprobante</h1>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if errors %}
+        <div class="alert alert-danger">
+            <ul>
+                {% for field, errors in errors.items %}
+                    {% for error in errors %}
+                        <li>{{ field }}: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="empresa_id" class="form-label">Empresa *</label>
+                    <select class="form-select" name="empresa_id" id="empresa_id" required>
+                        <option value="">-- Seleccionar empresa --</option>
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}">{{ empresa.razon_social }} ({{ empresa.ruc }})</option>
+                        {% empty %}
+                        <option value="">No hay empresas. <a href="{% url 'empresas:crear' %}">Crear empresa</a></option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="tipo" class="form-label">Tipo *</label>
+                    <select class="form-select" name="tipo" id="tipo" required>
+                        <option value="01">Factura</option>
+                        <option value="03">Boleta</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="fecha" class="form-label">Fecha *</label>
+                    <input type="date" class="form-control" name="fecha" id="fecha" value="{{ today }}" required>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="cliente_id" class="form-label">Cliente *</label>
+                    <select class="form-select" name="cliente_id" id="cliente_id" required>
+                        <option value="">-- Seleccionar cliente --</option>
+                        {% for cliente in clientes %}
+                        <option value="{{ cliente.id }}">{{ cliente.razon_social }} ({{ cliente.num_doc }})</option>
+                        {% empty %}
+                        <option value="">No hay clientes. <a href="{% url 'clientes:crear' %}">Crear cliente</a></option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <hr>
+
+            <h5>Detalles</h5>
+            <div id="detalles-container">
+                <div class="row detalle-item mb-2">
+                    <div class="col-md-4">
+                        <label class="form-label">Producto *</label>
+                        <select class="form-select producto-select" name="producto_id" required>
+                            <option value="">-- Seleccionar producto --</option>
+                            {% for producto in productos %}
+                            <option value="{{ producto.id }}" data-precio="{{ producto.precio_unitario }}">{{ producto.codigo }} - {{ producto.descripcion|truncatechars:40 }}</option>
+                            {% empty %}
+                            <option value="">No hay productos. <a href="{% url 'productos:crear' %}">Crear producto</a></option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Cantidad</label>
+                        <input type="number" class="form-control" name="cantidad" step="0.01" value="1" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Precio Unit.</label>
+                        <input type="number" class="form-control" name="precio_unitario" step="0.01" required>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="button" class="btn btn-danger btn-remove-detalle">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="btn btn-secondary mb-3" id="add-detalle">
+                <i class="bi bi-plus"></i> Agregar Línea
+            </button>
+
+            <hr>
+
+            <div class="d-flex justify-content-end">
+                <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary me-2">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Guardar Comprobante
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('add-detalle').addEventListener('click', function() {
+    const container = document.getElementById('detalles-container');
+    const newRow = container.querySelector('.detalle-item').cloneNode(true);
+    newRow.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
+    newRow.querySelectorAll('input[type="number"]').forEach(input => input.value = '1');
+    container.appendChild(newRow);
+});
+
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.btn-remove-detalle')) {
+        const row = e.target.closest('.detalle-item');
+        if (document.querySelectorAll('.detalle-item').length > 1) {
+            row.remove();
+        }
+    }
+});
+
+document.querySelectorAll('.producto-select').forEach(select => {
+    select.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const precio = selectedOption.getAttribute('data-precio');
+        if (precio) {
+            const row = this.closest('.detalle-item');
+            row.querySelector('input[name="precio_unitario"]').value = precio;
+        }
+    });
+});
+</script>
+{% endblock %}
