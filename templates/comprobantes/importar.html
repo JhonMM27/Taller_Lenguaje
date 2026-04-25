@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Importar Comprobantes desde CSV{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-upload"></i> Importar Comprobantes</h1>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Formato del Archivo CSV</h5>
+    </div>
+    <div class="card-body">
+        <p>El archivo CSV debe tener las siguientes columnas (separadas por <code>;</code>):</p>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Columna</th>
+                        <th>Descripción</th>
+                        <th>Ejemplo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>tipo</td><td>01=Factura, 03=Boleta</td><td>01</td></tr>
+                    <tr><td>serie</td><td>Serie del documento</td><td>F001</td></tr>
+                    <tr><td>numero</td><td>Número correlativo</td><td>1</td></tr>
+                    <tr><td>fecha</td><td>Fecha (YYYY-MM-DD)</td><td>2026-04-25</td></tr>
+                    <tr><td>cliente_tipo_doc</td><td>Tipo documento (6=RUC)</td><td>6</td></tr>
+                    <tr><td>cliente_num_doc</td><td>Número de documento</td><td>20123456789</td></tr>
+                    <tr><td>cliente_nombre</td><td>Nombre o razón social</td><td>Cliente SAC</td></tr>
+                    <tr><td>producto_codigo</td><td>Código del producto</td><td>P001</td></tr>
+                    <tr><td>producto_descripcion</td><td>Descripción del producto</td><td>Paracetamol 500mg</td></tr>
+                    <tr><td>cantidad</td><td>Cantidad</td><td>10</td></tr>
+                    <tr><td>precio_unitario</td><td>Precio unitario</td><td>15.50</td></tr>
+                    <tr><td>categoria</td><td>Nombre de categoría (opcional)</td><td>FARMACIA</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="alert alert-warning mt-3">
+            <strong>Nota:</strong> El delimitador es <code>;</code> (punto y coma). Si tus datos contienen comas, usa otro delimitador.
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="archivo_csv" class="form-label">Seleccionar archivo CSV</label>
+                <input type="file" class="form-control" name="archivo_csv" id="archivo_csv" accept=".csv" required>
+            </div>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-upload"></i> Importar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Ejemplo de archivo CSV</h5>
+            </div>
+    <div class="card-body">
+        <pre class="bg-light p-3 border">tipo;serie;numero;fecha;cliente_tipo_doc;cliente_num_doc;cliente_nombre;producto_codigo;producto_descripcion;cantidad;precio_unitario;categoria
+01;F001;1;2026-04-25;6;20123456789;Empresa ABC S.A.;MED001;Paracetamol 500mg;10;15.50;FARMACIA
+01;F001;2;2026-04-25;6;20123456789;Empresa ABC S.A.;MED002;Ibuprofeno 400mg;5;22.00;FARMACIA
+03;B001;1;2026-04-25;1;12345678;Juan Perez;CON001;Consulta médica;1;80.00;CONSULTAS</pre>
+    </div>
+</div>
+{% endblock %}

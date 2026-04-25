@@ -272,7 +272,13 @@ def generar_xml_ubl(comprobante):
         line_tax_category_id.set('schemeID', 'UN/ECE 5305')
         line_tax_category_id.text = 'S'
 
-        # Schema de impuesto (TaxScheme) - IGV 18%
+        cod_afectacion = getattr(detalle, 'cod_tipo_afectacion', '10')
+        if cod_afectacion not in ['10', '11', '14', '15']:
+            tax_exemption = etree.SubElement(line_tax_category, f'{{{CBC}}}TaxExemptionReasonCode')
+            tax_exemption.set('listAgencyName', 'PE:SUNAT')
+            tax_exemption.set('listURI', 'urn:pe:sunat:catalog:07')
+            tax_exemption.text = cod_afectacion
+
         line_tax_scheme = etree.SubElement(line_tax_category, f'{{{CAC}}}TaxScheme')
         line_tax_scheme_id = etree.SubElement(line_tax_scheme, f'{{{CBC}}}ID')
         line_tax_scheme_id.set('schemeID', 'UN/ECE 5305')

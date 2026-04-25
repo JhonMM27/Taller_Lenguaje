@@ -167,6 +167,48 @@ class OSEClient:
             logger.error(f"Error consultando CDR: {str(e)}")
             raise
 
+    def send_pack(self, zip_content, file_name):
+        """
+        Envía lote de comprobantes al OSE (SendPack).
+        
+        Args:
+            zip_content: Contenido del ZIP con múltiples XML (base64)
+            file_name: Nombre del archivo (ej: 20123456789-LT-20260425-1.zip)
+        
+        Returns:
+            dict: Respuesta del OSE con ticket para consulta
+        
+        Según Manual SUNAT, SendPack permite hasta 1000 archivos por lote.
+        """
+        from zeep.exceptions import Fault
+        try:
+            logger.info(f"Enviando lote: {file_name}")
+            
+            response = self.client.service.sendPack(
+                zipContent=zip_content,
+                fileName=file_name
+            )
+            
+            logger.info(f"Respuesta SendPack - status: {response.status}, ticket: {response.ticket}")
+            
+            return {
+                'status': response.status,
+                'ticket': response.ticket,
+                'faultcode': getattr(response, 'faultcode', None),
+                'faultstring': getattr(response, 'faultstring', None)
+            }
+            
+        except Fault as e:
+            logger.error(f"Fault del OSE: {e.message}")
+            return {
+                'status': -1,
+                'faultcode': e.message.get('faultcode', 'UNKNOWN'),
+                'faultstring': str(e)
+            }
+        except Exception as e:
+            logger.error(f"Error enviando lote a OSE: {str(e)}")
+            raise
+
 
 class MockOSEClient:
     """
@@ -234,6 +276,33 @@ class MockOSEClient:
             'faultcode': None,
             'faultstring': None
         }
+    
+    def send_pack(self, zip_content, file_name):
+        """Simula envío de lote - 90% aceptación, 10% rechazo"""
+        import random
+        import uuid
+        import time
+        
+        time.sleep(random.uniform(1.0, 2.0))
+        
+        if random.random() < 0.9:
+            return {
+                'status': 0,
+                'ticket': f"LOTE-{uuid.uuid4().hex[:10].upper()}",
+                'faultcode': None,
+                'faultstring': None
+            }
+        else:
+            return {
+                'status': 99,
+                'ticket': None,
+                'faultcode': '3000',
+                'faultstring': random.choice([
+                    "Error de lote: Archivos duplicados",
+                    "Error de lote: Fecha de emisión不一致",
+                    "Error de lote: Estructura ZIP inválida",
+                ])
+            }
 
 
 def get_ose_client(use_mock=None):

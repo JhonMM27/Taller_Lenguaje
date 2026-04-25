@@ -10,7 +10,7 @@ Sistema de facturación electrónica desarrollado en Django para cumplir con las
 - [Instalación Rápida](#-instalación-rápida)
 - [Configuración de Variables de Entorno](#-configuración-de-variables-de-entorno)
 - [Ejecutar con Docker](#-ejecutar-con-docker)
-- [Ejecutar sin Docker (Local)](#-ejecutar-sin-docker-local)
+- [Nuevas Funcionalidades](#-nuevas-funcionalidades)
 - [Estructura del Proyecto](#-estructura-del-proyecto)
 - [Flujo de Comprobantes](#-flujo-de-comprobantes)
 - [API REST](#-api-rest)
@@ -25,6 +25,7 @@ Sistema de facturación electrónica desarrollado en Django para cumplir con las
 - Docker y Docker Compose
 - Python 3.11+ (para desarrollo local sin Docker)
 - Git
+- OpenSSL (para generar certificados SSL)
 
 ---
 
@@ -36,19 +37,33 @@ Sistema de facturación electrónica desarrollado en Django para cumplir con las
 cd "tu_directorio"
 ```
 
-### 2. Crear archivo .env
+### 2. Generar certificados SSL
 
 ```bash
-cp .env.example .env
+# Crear directorio de certificados
+mkdir -p certs
+
+# Generar certificado autofirmado (Linux/Mac)
+openssl req -x509 -newkey rsa:2048 -keyout certs/server.key -out certs/server.crt -days 365 -nodes -subj "/C=PE/ST=Lima/L=Lima/O=SUNAT/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+
+# En Windows (PowerShell):
+mkdir -p certs
+openssl req -x509 -newkey rsa:2048 -keyout certs/server.key -out certs/server.crt -days 365 -nodes -subj "/C=PE/ST=Lima/L=Lima/O=SUNAT/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 ```
 
 ### 3. Levantar con Docker
 
 ```bash
-docker-compose up --build
+docker compose up -d --build
 ```
 
-¡Listo! Accede a http://localhost:8000
+> **Nota:** El entrypoint ejecuta automáticamente: espera PostgreSQL, crea migraciones, aplica migraciones, recolecta estáticos y crea superusuario.
+
+### 4. Acceder a la aplicación
+
+- **Aplicación:** http://localhost
+- **HTTPS:** https://localhost (aceptar certificado autofirmado)
+- **pgAdmin:** http://localhost:5051
 
 ---
 
@@ -78,125 +93,132 @@ SUNAT_CERT_PASSWORD=password_certificado
 ### Levantar todos los servicios
 
 ```bash
-docker-compose up --build
+docker compose up -d --build
 ```
-
-> **Nota:** `docker-compose up --build` rebuild la imagen pero las migraciones se ejecutan automáticamente en el entrypoint.
 
 ### Detener servicios
 
 ```bash
-docker-compose down
+docker compose down
+```
+
+### Detener y eliminar volúmenes (limpieza completa)
+
+```bash
+docker compose down -v
 ```
 
 ### Ver logs
 
 ```bash
-docker-compose logs -f
+docker compose logs -f
+docker compose logs backend --tail=50
 ```
 
 ### Reiniciar backend
 
 ```bash
-docker-compose restart backend
-```
-
-### Acceso a la aplicación
-
-- **URL:** http://localhost:8000
-- **Admin:** http://localhost:8000/admin
-
----
-
-## 📦 Migraciones
-
-### Con Docker
-
-```bash
-# Ver estado de migraciones
-docker-compose exec backend python manage.py showmigrations
-
-# Ejecutar migraciones pendientes
-docker-compose exec backend python manage.py migrate
-
-# Crear migraciones (después de modificar modelos)
-docker-compose exec backend python manage.py makemigrations
-
-# Forzar aplicarlas
-docker-compose exec backend python manage.py migrate --noinput
-```
-
-### Sin Docker (Local)
-
-```bash
-# Ver estado
-python manage.py showmigrations
-
-# Ejecutar
-python manage.py migrate
-
-# Crear
-python manage.py makemigrations
-```
-
-### Resetear base de datos
-
-```bash
-# Borra la base y crea nuevas migraciones
-rm db.sqlite3
-python manage.py migrate
-python manage.py createsuperuser
+docker compose restart backend
 ```
 
 ---
 
-## 💻 Ejecutar sin Docker (Local)
+## 🆕 Nuevas Funcionalidades
 
-### 1. Crear entorno virtual
+### 1. Categorías de Productos
 
-```bash
-python -m venv venv
+Gestión de categorías para clasificar productos según su tipo.
+
+**Acceso:** `/productos/categorias/`
+
+| Campo | Descripción |
+|-------|-------------|
+| Nombre | Nombre de la categoría |
+| Código SUNAT | Código de bien/servicio según SUNAT |
+| Descripción | Descripción opcional |
+| Activa | Si está activa para uso |
+
+**Operaciones:** Crear, Editar, Eliminar, Listar
+
+---
+
+### 2. Tipo de Operación en Productos
+
+Clasificación tributaria de productos según tipo de operación.
+
+**Acceso:** Crear/Editar producto (`/productos/nuevo/` o `/productos/editar/{id}/`)
+
+| Tipo de Operación | Código UBL | Descripción |
+|-------------------|------------|-------------|
+| Gravada | 10, 11, 14, 15 | Operaciones con IGV |
+| Exonerada | 20 | Operaciones exentas de IGV |
+| Inafecta | 30, 31, 32, 36 | Operaciones no gravadas |
+| Gratuita | 21 | Operaciones gratuitas |
+| Exportación | 40 | Exportación de bienes/servicios |
+
+**Ejemplo:** Productos farmacéuticos pueden ser "Exonerada" (20) para el sector salud.
+
+---
+
+### 3. Importar Comprobantes desde CSV
+
+Importación masiva de comprobantes usando archivo CSV.
+
+**Acceso:** `/comprobantes/importar/`
+
+**Formato del archivo CSV (delimitador: `;`):**
+
+```csv
+tipo;serie;numero;fecha;cliente_tipo_doc;cliente_num_doc;cliente_nombre;producto_codigo;producto_descripcion;cantidad;precio_unitario;categoria
+01;F001;1;2026-04-25;6;20123456789;Empresa ABC S.A.;MED001;Paracetamol 500mg;10;15.50;FARMACIA
+01;F001;2;2026-04-25;6;20123456789;Empresa ABC S.A.;MED002;Ibuprofeno 400mg;5;22.00;FARMACIA
+03;B001;1;2026-04-25;1;12345678;Juan Perez;CON001;Consulta médica;1;80.00;CONSULTAS
 ```
 
-### 2. Activar entorno virtual
+| Columna | Descripción | Ejemplo |
+|---------|-------------|---------|
+| tipo | 01=Factura, 03=Boleta | 01 |
+| serie | Serie del documento | F001 |
+| numero | Número correlativo | 1 |
+| fecha | Fecha (YYYY-MM-DD) | 2026-04-25 |
+| cliente_tipo_doc | 6=RUC, 1=DNI | 6 |
+| cliente_num_doc | Número de documento | 20123456789 |
+| cliente_nombre | Nombre o razón social | Empresa ABC S.A. |
+| producto_codigo | Código del producto | MED001 |
+| producto_descripcion | Descripción del producto | Paracetamol 500mg |
+| cantidad | Cantidad | 10 |
+| precio_unitario | Precio unitario | 15.50 |
+| categoria | Nombre de categoría (opcional) | FARMACIA |
 
-**Windows:**
-```bash
-venv\Scripts\activate
-```
+**Funcionalidades:**
+- Crea automáticamente clientes si no existen
+- Crea automáticamente productos si no existen
+- Crea categorías automáticamente si no existen
+- Registra errores de importación
 
-**Linux/Mac:**
-```bash
-source venv/bin/activate
-```
+---
 
-### 3. Instalar dependencias
+### 4. Envío Masivo de Comprobantes
 
-```bash
-pip install -r requirements/base.txt
-```
+Envío de múltiples comprobantes en un solo lote.
 
-### 4. Configurar base de datos SQLite
+**Acceso:** `/sunat_ose/envio-masivo/`
 
-El proyecto usa SQLite por defecto cuando no hay `DATABASE_URL` con PostgreSQL.
+**Flujo:**
+1. Seleccionar comprobantes con checkboxes (estado BORRADOR o EMITIDO)
+2. Hacer clic en "Enviar Lote"
+3. El sistema genera un ZIP con todos los XML
+4. Envía usando método `send_pack` del OSE
+5. Registra ticket para seguimiento
 
-### 5. Ejecutar migraciones
+**Límites:**
+- Máximo 1000 documentos por lote (según规范 SUNAT)
+- Todos los documentos deben tener la misma fecha de emisión
 
-```bash
-python manage.py migrate
-```
-
-### 6. Crear superusuario
-
-```bash
-python manage.py createsuperuser
-```
-
-### 7. Ejecutar servidor
-
-```bash
-python manage.py runserver
-```
+**Historial:**
+- Ver lotes enviados anteriormente
+- Estado: PENDIENTE, PROCESANDO, COMPLETADO, ERROR
+- Ticket OSE para seguimiento
 
 ---
 
@@ -205,30 +227,29 @@ python manage.py runserver
 ```
 proyecto_final/
 ├── apps/
-│   ├── empresas/          # CRUD de empresas/empresas
+│   ├── empresas/          # CRUD de empresas
 │   ├── clientes/          # CRUD de clientes
-│   ├── productos/        # CRUD de productos/servicios
-│   ├── comprobantes/     # Facturas, boletas, notas
+│   ├── productos/        # CRUD de productos, categorías
+│   ├── comprobantes/     # Facturas, boletas, notas, importación CSV
 │   ├── notas_credito/     # Notas de crédito
-│   ├── sunat_ose/         # Integración SUNAT/OSE
+│   ├── sunat_ose/         # Integración SUNAT/OSE, envío masivo
 │   ├── reportes/          # Reportes y dashboards
 │   └── usuarios/          # Autenticación
 ├── config/
 │   ├── settings/
 │   │   ├── base.py        # Configuración base
-│   │   ├── local.py       # Desarrollo (SQLite)
+│   │   ├── local.py       # Desarrollo
 │   │   └── production.py  # Producción (PostgreSQL)
 │   └── urls.py            # Rutas principales
 ├── templates/             # Templates HTML
+├── certs/                 # Certificados SSL
+├── nginx/                 # Configuración Nginx
+├── scripts/               # Scripts de utilidad
 ├── docs/                  # Documentación SUNAT
 ├── docker-compose.yml     # Configuración Docker
 ├── Dockerfile             # Imagen del backend
+├── docker-entrypoint.sh   # Script de inicio
 ├── .env                   # Variables de entorno (NO commitear)
-├── .env.example           # Plantilla de variables
-├── requirements/
-│   ├── base.txt          # Dependencias Python
-│   ├── local.txt
-│   └── production.txt
 └── README.md
 ```
 
@@ -242,12 +263,12 @@ El sistema implementa el flujo completo de un comprobante electrónico:
 ┌──────────┐     Emitir      ┌──────────┐   Enviar a SUNAT   ┌──────────┐   Consultar Ticket   ┌──────────┐
 │ BORRADOR │ ────────────→  │ EMITIDO  │ ────────────────→  │  ENVIADO │ ──────────────────→  │ ACEPTADO │
 └──────────┘                └──────────┘                    └──────────┘                      └──────────┘
-                                                                      │
-                                                                      │ (10% probabilidad)
-                                                                      ↓
-                                                                 RECHAZADO
-                                                                      │
-                                                                 [Reenviar]
+                                                                       │
+                                                                       │ (10% probabilidad)
+                                                                       ↓
+                                                                  RECHAZADO
+                                                                       │
+                                                                  [Reenviar]
 ```
 
 ### Estados del Comprobante
@@ -260,13 +281,6 @@ El sistema implementa el flujo completo de un comprobante electrónico:
 | `ACEPTADO` | Confirmado por SUNAT |
 | `RECHAZADO` | Error devuelto por el OSE |
 
-### Botones en la Interfaz
-
-- **BORRADOR:** "Emitir" (genera XML)
-- **EMITIDO:** "Enviar a SUNAT"
-- **ENVIADO:** "Consultar Ticket" (auto-consulta)
-- **RECHAZADO:** "Reenviar"
-
 ---
 
 ## 🔌 API REST
@@ -278,42 +292,21 @@ El sistema implementa el flujo completo de un comprobante electrónico:
 | POST | `/api/auth/login/` | Iniciar sesión |
 | GET | `/api/facturas/` | Listar facturas |
 | POST | `/api/facturas/` | Crear factura |
+| GET | `/api/comprobantes/` | Listar comprobantes |
+| POST | `/api/comprobantes/importar/` | Importar desde CSV |
 | GET | `/api/comprobantes/{id}/` | Ver comprobante |
 | POST | `/api/ose/comprobante/{id}/enviar/` | Enviar a SUNAT |
 | POST | `/api/ose/comprobante/{id}/consultar/` | Consultar ticket |
+| GET | `/api/productos/categorias/` | Listar categorías |
 | GET | `/api/reportes/dashboard/` | Dashboard stats |
-| GET | `/api/reportes/ventas-por-periodo/` | Reporte de ventas |
 
 ### Autenticación
 
 ```bash
 # Login
-curl -X POST http://localhost:8000/api/auth/login/ \
+curl -X POST http://localhost/api/auth/login/ \
   -H "Content-Type: application/json" \
   -d '{"email": "admin@prueba.com", "password": "admin"}'
-
-# Respuesta
-{
-  "token": "abc123...",
-  "user": {"id": 1, "email": "admin@prueba.com", ...}
-}
-```
-
-### Crear Comprobante
-
-```bash
-curl -X POST http://localhost:8000/api/facturas/ \
-  -H "Authorization: Token TU_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "empresa_id": 1,
-    "cliente_id": 1,
-    "fecha": "2026-04-18",
-    "tipo": "01",
-    "detalles": [
-      {"producto_id": 1, "cantidad": 2, "precio_unitario": 100.00}
-    ]
-  }'
 ```
 
 ---
@@ -323,7 +316,6 @@ curl -X POST http://localhost:8000/api/facturas/ \
 ### Modo Mock (Desarrollo)
 
 Por defecto, `SUNAT_OSE_MOCK=True`. El sistema usa `MockOSEClient` que:
-
 - Simula 90% aceptación, 10% rechazo
 - Genera tickets falsos
 - No conecta a SUNAT real
@@ -331,56 +323,52 @@ Por defecto, `SUNAT_OSE_MOCK=True`. El sistema usa `MockOSEClient` que:
 
 ### Modo Producción (OSE Real)
 
-1. Contratar con un OSE certificador (ej: SUNAT, SUMAQ, otros)
+1. Contratar con un OSE certificador (SUNAT, SUMAQ, otros)
 2. Obtener credenciales y WSDL
 3. Editar `.env`:
-
 ```env
 SUNAT_OSE_MOCK=False
 SUNAT_OSE_WSDL=https://e-beta.sunat.gob.pe/ol-ti-itcpe/billService
 SUNAT_OSE_RUC=20512345671
 SUNAT_OSE_USUARIO=usuario_ose
 SUNAT_OSE_PASSWORD=password_ose
-SUNAT_CERT_PATH=/app/media/certificados/certificado.pfx
-SUNAT_CERT_PASSWORD=password_cert
 ```
-
-4. Colocar certificado `.pfx` en `media/certificados/`
-5. Reiniciar el servicio
 
 ---
 
 ## 👤 Credenciales de Acceso
 
-| Rol | Email | Password |
-|-----|-------|----------|
-| Admin | admin@prueba.com | admin |
+| Servicio | Email | Password | URL |
+|----------|-------|----------|-----|
+| Django Admin | admin@prueba.com | admin | http://localhost/admin |
+| pgAdmin | admin@sunat.local.com | admin123 | http://localhost:5051 |
 
 ---
 
 ## 🔧 Resolución de Problemas
 
-### Error: `NoReverseMatch: 'sunat_ose' is not a registered namespace`
+### Puerto 5432 ya en uso (PostgreSQL local)
 
 ```bash
-# Asegúrate que el archivo apps/sunat_ose/urls.py tenga:
-app_name = 'sunat_ose'
+# Detener PostgreSQL local
+docker stop sunat_postgres
+docker compose down
+docker compose up -d
 ```
 
-### Docker: Puerto 5432 ya en uso
+### Regenerar certificado SSL
 
 ```bash
-# Detener PostgreSQL local si está corriendo
-docker stop sunat_db
-docker rm sunat_db
+openssl req -x509 -newkey rsa:2048 -keyout certs/server.key -out certs/server.crt -days 365 -nodes -subj "/C=PE/ST=Lima/L=Lima/O=SUNAT/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+docker compose restart nginx
 ```
 
 ### Cambiar contraseña del admin
 
 ```bash
-docker-compose exec backend python -c "
+docker compose exec backend python -c "
 import os, django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.local')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.production')
 django.setup()
 from django.contrib.auth import get_user_model
 User = get_user_model()
@@ -390,15 +378,17 @@ u.save()
 "
 ```
 
----
+### Ver estado de migraciones
 
-## 📝 Notas de Desarrollo
+```bash
+docker compose exec backend python manage.py showmigrations
+```
 
-- El sistema usa IGV del 18% por defecto
-- Los comprobantes se numeran automáticamente (F001-00000001, B001-00000001)
-- El XML generado cumple con formato UBL 2.1
-- Los PDFs se generan con WeasyPrint
-- Los logs de envío SUNAT se guardan en `LogEnvioSUNAT`
+### Forzar recrear migraciones
+
+```bash
+docker compose exec backend python manage.py makemigrations --force
+```
 
 ---
 
@@ -406,9 +396,8 @@ u.save()
 
 - [Documentación SUNAT](docs/)
 - [Manual técnico OSE v5](docs/Manual%20tecnico%20de%20operatividad%20OSE%20v5/)
-- [Guía de integración SUNAT](SUNAT_INTEGRATION_GUIDE.md)
 
 ---
 
-**Versión:** 1.0.0  
+**Versión:** 2.0.0  
 **Última actualización:** Abril 2026

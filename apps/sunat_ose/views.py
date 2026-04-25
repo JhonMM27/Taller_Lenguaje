@@ -3,11 +3,18 @@ from django.views import View
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from apps.comprobantes.models import Comprobante, LogEnvioSUNAT
+from apps.sunat_ose.models import LoteEnvio
 from .xml_generator import generar_xml_ubl, crear_zip
 from .ose_client import get_ose_client
 import logging
 import base64
+import zipfile
+from io import BytesIO
+from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -181,3 +188,100 @@ class ConsultarTicketView(View):
         except Exception as e:
             logger.error(f"Error consultando ticket para comprobante {pk}: {str(e)}", exc_info=True)
             return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
+
+
+@login_required
+def envio_masivo(request):
+    empresa = request.GET.get('empresa')
+    tipo = request.GET.get('tipo', '')
+    estado = request.GET.get('estado', 'EMITIDO')
+
+    comprobantes = Comprobante.objects.select_related('cliente', 'empresa', 'serie')
+    
+    if empresa:
+        comprobantes = comprobantes.filter(empresa_id=empresa)
+    if tipo:
+        comprobantes = comprobantes.filter(tipo=tipo)
+    if estado:
+        comprobantes = comprobantes.filter(estado=estado)
+
+    comprobantes = comprobantes.filter(estado__in=['EMITIDO', 'BORRADOR'])[:100]
+
+    from apps.empresas.models import Empresa
+    empresas = Empresa.objects.all()
+
+    lotes = LoteEnvio.objects.order_by('-fecha_creacion')[:10]
+
+    return render(request, 'sunat_ose/envio_masivo.html', {
+        'comprobantes': comprobantes,
+        'empresas': empresas,
+        'lotes': lotes,
+        'filtros': {'empresa': empresa, 'tipo': tipo, 'estado': estado}
+    })
+
+
+@login_required
+def enviar_lote(request):
+    if request.method != 'POST':
+        return redirect('sunat_ose:envio_masivo')
+
+    comprobante_ids = request.POST.getlist('comprobantes')
+    if not comprobante_ids:
+        messages.error(request, 'No se seleccionaron comprobantes')
+        return redirect('sunat_ose:envio_masivo')
+
+    try:
+        comprobantes = Comprobante.objects.filter(
+            id__in=comprobante_ids,
+            estado__in=['EMITIDO', 'BORRADOR']
+        ).select_related('empresa')
+
+        if not comprobantes.exists():
+            messages.error(request, 'No se encontraron comprobantes válidos')
+            return redirect('sunat_ose:envio_masivo')
+
+        empresa = comprobantes.first().empresa
+        fecha_emision = date.today()
+
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for comprobante in comprobantes:
+                xml_content = generar_xml_ubl(comprobante)
+                from .xml_generator import firmar_xml
+                xml_firmado = firmar_xml(xml_content)
+                nombre_xml = comprobante.nombre_xml
+                zf.writestr(nombre_xml, xml_firmado if isinstance(xml_firmado, bytes) else xml_firmado.encode('utf-8'))
+
+        zip_buffer.seek(0)
+        zip_content = zip_buffer.getvalue()
+        zip_base64 = base64.b64encode(zip_content).decode('utf-8')
+
+        file_name = f"{empresa.ruc}-LT-{fecha_emision.strftime('%Y%m%d')}-1.zip"
+
+        ose_client = get_ose_client()
+        respuesta = ose_client.send_pack(zip_base64, file_name)
+
+        lote = LoteEnvio.objects.create(
+            empresa=empresa,
+            fecha_emision_documentos=fecha_emision,
+            total_documentos=comprobantes.count(),
+            estado='PENDIENTE',
+            ticket_ose=respuesta.get('ticket'),
+            observacion=f"Enviados: {comprobantes.count()}"
+        )
+
+        if respuesta.get('status') == 0:
+            lote.estado = 'PROCESANDO'
+            lote.save()
+            messages.success(request, f'Lote enviado exitosamente. Ticket: {lote.ticket_ose}')
+        else:
+            lote.estado = 'ERROR'
+            lote.observacion = respuesta.get('faultstring', 'Error en envío')
+            lote.save()
+            messages.error(request, f'Error enviando lote: {lote.observacion}')
+
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
+        logger.error(f"Error en envío masivo: {str(e)}", exc_info=True)
+
+    return redirect('sunat_ose:envio_masivo')

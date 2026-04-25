@@ -2,8 +2,14 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
-from apps.comprobantes.models import Comprobante, SerieComprobante
+from django.contrib import messages
+from apps.comprobantes.models import Comprobante, SerieComprobante, ImportacionComprobante, DetalleComprobante
+from apps.empresas.models import Empresa
+from apps.clientes.models import Cliente
+from apps.productos.models import Producto, CategoriaProducto
 from datetime import datetime
+import csv
+import io
 
 
 @login_required
@@ -164,3 +170,137 @@ def emitir_comprobante(request, pk):
         return redirect('comprobantes:detalle', pk=pk)
     except Exception as e:
         return HttpResponse(f"Error: {str(e)}", status=500)
+
+
+@login_required
+def importar_csv(request):
+    if request.method == 'POST':
+        archivo = request.FILES.get('archivo_csv')
+        if not archivo:
+            messages.error(request, 'No se seleccionó ningún archivo')
+            return redirect('comprobantes:importar')
+
+        importacion = ImportacionComprobante.objects.create(
+            archivo_csv=archivo,
+            usuario=request.user,
+            estado='PROCESANDO'
+        )
+
+        errores = []
+        exitosos = 0
+        total = 0
+
+        try:
+            decoded_file = archivo.read().decode('utf-8-sig')
+            csv_reader = csv.DictReader(io.StringIO(decoded_file), delimiter=';')
+            
+            for row_num, row in enumerate(csv_reader, start=2):
+                total += 1
+                try:
+                    tipo = row.get('tipo', '01').strip()
+                    serie = row.get('serie', '').strip()
+                    numero = int(row.get('numero', '0').strip())
+                    fecha_str = row.get('fecha', '').strip()
+                    cliente_tipo_doc = row.get('cliente_tipo_doc', '6').strip()
+                    cliente_num_doc = row.get('cliente_num_doc', '').strip()
+                    cliente_nombre = row.get('cliente_nombre', 'Cliente Varios').strip()
+                    producto_codigo = row.get('producto_codigo', '').strip()
+                    cantidad = float(row.get('cantidad', '1').strip())
+                    precio_unitario = float(row.get('precio_unitario', '0').strip())
+                    categoria_nombre = row.get('categoria', '').strip()
+
+                    if not serie or not cliente_num_doc:
+                        errores.append(f"Fila {row_num}: Falta información obligatoria")
+                        continue
+
+                    cliente, _ = Cliente.objects.get_or_create(
+                        tipo_doc=cliente_tipo_doc,
+                        num_doc=cliente_num_doc,
+                        defaults={'razon_social': cliente_nombre}
+                    )
+
+                    categoria = None
+                    if categoria_nombre:
+                        categoria, _ = CategoriaProducto.objects.get_or_create(
+                            nombre__iexact=categoria_nombre,
+                            defaults={'nombre': categoria_nombre}
+                        )
+
+                    producto, created = Producto.objects.get_or_create(
+                        codigo=producto_codigo,
+                        defaults={
+                            'descripcion': producto_codigo,
+                            'precio_unitario': precio_unitario,
+                            'categoria': categoria,
+                        }
+                    )
+                    if created:
+                        producto.descripcion = row.get('producto_descripcion', producto_codigo)
+                        producto.save()
+
+                    empresa = Empresa.objects.first()
+                    if not empresa:
+                        errores.append(f"Fila {row_num}: No hay empresa configurada")
+                        continue
+
+                    serie_obj = SerieComprobante.objects.filter(
+                        empresa=empresa,
+                        serie=serie,
+                        activa=True
+                    ).first()
+                    if not serie_obj:
+                        errores.append(f"Fila {row_num}: Serie {serie} no existe o no está activa")
+                        continue
+
+                    existe = Comprobante.objects.filter(
+                        serie=serie_obj,
+                        numero=numero
+                    ).exists()
+                    if existe:
+                        errores.append(f"Fila {row_num}: Comprobante {serie}-{numero:08d} ya existe")
+                        continue
+
+                    from datetime import datetime
+                    fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date() if fecha_str else datetime.now().date()
+
+                    comprobante = Comprobante.objects.create(
+                        empresa=empresa,
+                        cliente=cliente,
+                        serie=serie_obj,
+                        numero=numero,
+                        fecha=fecha,
+                        tipo=tipo,
+                        estado='BORRADOR'
+                    )
+
+                    DetalleComprobante.objects.create(
+                        comprobante=comprobante,
+                        producto=producto,
+                        cantidad=cantidad,
+                        precio_unitario=precio_unitario,
+                        afecto_igv=producto.afecto_igv,
+                        cod_tipo_afectacion=producto.cod_tipo_afectacion,
+                    )
+                    comprobante.calcular_totales()
+                    exitosos += 1
+
+                except Exception as e:
+                    errores.append(f"Fila {row_num}: {str(e)}")
+
+            importacion.total_registros = total
+            importacion.importados_exitosos = exitosos
+            importacion.errores = len(errores)
+            importacion.log_errores = '\n'.join(errores[:100])
+            importacion.estado = 'COMPLETADO' if exitosos > 0 else 'ERROR'
+            importacion.save()
+
+            messages.success(request, f'Importación completada: {exitosos} exitosos, {len(errores)} errores')
+        except Exception as e:
+            importacion.estado = 'ERROR'
+            importacion.log_errores = str(e)
+            importacion.save()
+            messages.error(request, f'Error en importación: {str(e)}')
+
+        return redirect('comprobantes:lista')
+
+    return render(request, 'comprobantes/importar.html')

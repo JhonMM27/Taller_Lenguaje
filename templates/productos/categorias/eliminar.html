@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Categoría{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-tags"></i> Eliminar Categoría</h1>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="alert alert-warning">
+            <h4 class="alert-heading">¿Está seguro de eliminar esta categoría?</h4>
+            <p><strong>{{ categoria.nombre }}</strong></p>
+            <p class="mb-0">Esta acción no se puede deshacer. Los productos asociados保持 su categoría pero no se eliminarán.</p>
+        </div>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'productos:categorias_lista' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-trash"></i> Eliminar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

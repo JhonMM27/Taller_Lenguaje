@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Categoría{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-tags"></i> Editar Categoría</h1>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="nombre" class="form-label">Nombre</label>
+                    <input type="text" class="form-control" name="nombre" required maxlength="100" value="{{ categoria.nombre }}">
+                </div>
+                <div class="col-md-6">
+                    <label for="codigo_sunat" class="form-label">Código SUNAT</label>
+                    <input type="text" class="form-control" name="codigo_sunat" maxlength="10" value="{{ categoria.codigo_sunat }}">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="descripcion" class="form-label">Descripción</label>
+                <textarea class="form-control" name="descripcion" rows="3">{{ categoria.descripcion }}</textarea>
+            </div>
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" name="activa" id="activa" {% if categoria.activa %}checked{% endif %}>
+                <label class="form-check-label" for="activa">Categoría activa</label>
+            </div>
+            {% if errors %}
+            <div class="alert alert-danger">
+                {% for field, errors in errors.items %}
+                    {% for error in errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'productos:categorias_lista' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Guardar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

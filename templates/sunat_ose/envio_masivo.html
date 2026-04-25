@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+
+{% block title %}Envío Masivo de Comprobantes{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1><i class="bi bi-cloud-upload"></i> Envío Masivo de Comprobantes</h1>
+        <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<form method="POST" action="{% url 'sunat_ose:enviar_lote' %}" id="form-lote">
+    {% csrf_token %}
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Seleccionar Comprobantes</h5>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAll()">Marcar todos</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAll()">Desmarcar todos</button>
+            </div>
+        </div>
+        <div class="card-body table-responsive">
+            <table class="table table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th width="50"><input type="checkbox" id="select-all-checkbox" onchange="toggleAll()"></th>
+                        <th>Tipo</th>
+                        <th>Número</th>
+                        <th>Cliente</th>
+                        <th>Fecha</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for comp in comprobantes %}
+                    <tr>
+                        <td><input type="checkbox" name="comprobantes" value="{{ comp.id }}" class="comp-checkbox"></td>
+                        <td>
+                            {% if comp.tipo == '01' %}
+                                <span class="badge bg-primary">Factura</span>
+                            {% elif comp.tipo == '03' %}
+                                <span class="badge bg-success">Boleta</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ comp.tipo }}</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}</strong></td>
+                        <td>{{ comp.cliente.razon_social|default:"VARIOS" }}</td>
+                        <td>{{ comp.fecha|date:"d/m/Y" }}</td>
+                        <td class="text-end">S/ {{ comp.total }}</td>
+                        <td>
+                            {% if comp.estado == 'BORRADOR' %}
+                                <span class="badge bg-secondary">{{ comp.estado }}</span>
+                            {% elif comp.estado == 'EMITIDO' %}
+                                <span class="badge bg-info">{{ comp.estado }}</span>
+                            {% else %}
+                                <span class="badge bg-warning">{{ comp.estado }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            No hay comprobantes para enviar (estado EMITIDO o BORRADOR)
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer">
+            <div class="d-flex justify-content-between align-items-center">
+                <span id="selected-count">0 seleccionados</span>
+                <button type="submit" class="btn btn-primary" id="btn-enviar" disabled>
+                    <i class="bi bi-cloud-upload"></i> Enviar Lote
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Historial de Lotes Enviados</h5>
+    </div>
+    <div class="card-body table-responsive">
+        <table class="table table-sm">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Fecha Creación</th>
+                    <th>Fecha Emisión</th>
+                    <th>Documentos</th>
+                    <th>Estado</th>
+                    <th>Ticket OSE</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lote in lotes %}
+                <tr>
+                    <td>{{ lote.id }}</td>
+                    <td>{{ lote.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                    <td>{{ lote.fecha_emision_documentos|date:"d/m/Y" }}</td>
+                    <td>{{ lote.total_documentos }}</td>
+                    <td>
+                        {% if lote.estado == 'COMPLETADO' %}
+                            <span class="badge bg-success">{{ lote.estado }}</span>
+                        {% elif lote.estado == 'PROCESANDO' %}
+                            <span class="badge bg-info">{{ lote.estado }}</span>
+                        {% elif lote.estado == 'ERROR' %}
+                            <span class="badge bg-danger">{{ lote.estado }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ lote.estado }}</span>
+                        {% endif %}
+                    </td>
+                    <td><code>{{ lote.ticket_ose|default:"-" }}</code></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-3">No hay lotes enviados</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function toggleAll() {
+    const checked = document.getElementById('select-all-checkbox').checked;
+    document.querySelectorAll('.comp-checkbox').forEach(cb => cb.checked = checked);
+    updateCount();
+}
+
+function selectAll() {
+    document.querySelectorAll('.comp-checkbox').forEach(cb => cb.checked = true);
+    updateCount();
+}
+
+function deselectAll() {
+    document.querySelectorAll('.comp-checkbox').forEach(cb => cb.checked = false);
+    updateCount();
+}
+
+function updateCount() {
+    const count = document.querySelectorAll('.comp-checkbox:checked').length;
+    document.getElementById('selected-count').textContent = count + ' seleccionados';
+    document.getElementById('btn-enviar').disabled = count === 0;
+}
+
+document.querySelectorAll('.comp-checkbox').forEach(cb => cb.addEventListener('change', updateCount));
+updateCount();
+</script>
+{% endblock %}

@@ -1,44 +1,13 @@
 #!/bin/bash
-# ============================================================
-# ENTRYPOINT - Script de inicio del contenedor Django
-# ============================================================
-# Este script se ejecuta automaticamente al iniciar el contenedor.
-# Espera a que PostgreSQL este disponible, ejecuta migraciones,
-# crea el superusuario si no existe, y arranca Gunicorn.
-# ============================================================
-
-# --------------------------------------------------
-# Conversion CRLF a LF (compatibilidad Windows)
-# --------------------------------------------------
-# Si el archivo fue creado en Windows con finales de linea CRLF,
-# los convierte a LF para evitar errores de sintaxis en Linux.
-if file "$0" 2>/dev/null | grep -q "CRLF"; then
-    echo "Convirtiendo finales de linea Windows (CRLF) a Unix (LF)..."
-    sed -i 's/\r$//' "$0"
-    echo "Conversion completada. Continuando..."
-fi
-
-# --------------------------------------------------
-# Manejo de errores
-# --------------------------------------------------
-# 'set -e' hace que el script salga inmediatamente si
-# algun comando falla. Esto previene errores silenciosos.
 set -e
 
 echo "============================================"
 echo "Iniciando aplicacion Django..."
 echo "============================================"
 
-# --------------------------------------------------
-# Esperar a que PostgreSQL este disponible
-# --------------------------------------------------
-# PostgreSQL puede tardar en inicializar, especialmente
-# la primera vez que crea la base de datos.
-# Intentamos hasta 90 veces (90 * 2s = 3 minutos maximo)
 MAX_RETRIES=90
 RETRY_COUNT=0
 
-# Obtener credenciales de variables de entorno
 DB_HOST=${POSTGRES_HOST:-postgres}
 DB_USER=${POSTGRES_USER:-sunat_user}
 DB_NAME=${POSTGRES_DB:-facturacion_db}
@@ -52,9 +21,6 @@ until PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -c "S
     if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
         echo ""
         echo "ERROR: PostgreSQL no esta disponible despues de $MAX_RETRIES intentos."
-        echo "Revisa que el contenedor de postgres este corriendo."
-        echo "Comando intentado:"
-        echo "  psql -h $DB_HOST -U $DB_USER -d $DB_NAME"
         exit 1
     fi
     echo "Intento $RETRY_COUNT/$MAX_RETRIES - esperando 2 segundos..."
@@ -63,27 +29,16 @@ done
 
 echo "=== PostgreSQL esta listo! ==="
 
-# --------------------------------------------------
-# Ejecutar migraciones de Django
-# --------------------------------------------------
-# Crea/actualiza las tablas de la base de datos
+echo "Creando migraciones si hay modelos nuevos..."
+python manage.py makemigrations --noinput || true
+
 echo "Ejecutando migraciones..."
 python manage.py migrate --noinput
 
-# --------------------------------------------------
-# Recolectar archivos estaticos
-# --------------------------------------------------
-# Copia todos los archivos estaticos (CSS, JS) a STATIC_ROOT
-# para que Nginx pueda servirlos directamente
 echo "Recolectando archivos estaticos..."
 rm -rf /app/staticfiles/* 2>/dev/null || true
 python manage.py collectstatic --noinput
 
-# --------------------------------------------------
-# Crear superusuario si no existe
-# --------------------------------------------------
-# Solo crea si no existe un usuario con ese email
-# Usa variables de entorno para credenciales
 echo "Verificando superusuario..."
 python manage.py shell -c "
 import os
@@ -108,15 +63,10 @@ echo "============================================"
 echo ""
 echo "Accesos disponibles:"
 echo "  - Aplicacion: http://localhost (o https://localhost)"
-echo "  - pgAdmin:    http://localhost:5050"
+echo "  - pgAdmin:    http://localhost:5051"
 echo ""
 echo "============================================"
 
-# --------------------------------------------------
-# Ejecutar Gunicorn
-# --------------------------------------------------
-# Gunicorn sirve la aplicacion Django en produccion.
-# Mas info: config/settings/production.py
 exec gunicorn \
     --bind 0.0.0.0:8000 \
     --workers 2 \

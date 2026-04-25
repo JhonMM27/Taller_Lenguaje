@@ -135,3 +135,35 @@ class LogEnvioSUNAT(models.Model):
 
     def __str__(self):
         return f"{self.comprobante} - {self.codigo_respuesta}"
+
+
+class ImportacionComprobante(models.Model):
+    archivo_csv = models.FileField(upload_to='importaciones/')
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    fecha_importacion = models.DateTimeField(auto_now_add=True)
+    total_registros = models.PositiveIntegerField(default=0)
+    importados_exitosos = models.PositiveIntegerField(default=0)
+    errores = models.PositiveIntegerField(default=0)
+    estado = models.CharField(
+        max_length=20,
+        choices=[
+            ('PROCESANDO', 'Procesando'),
+            ('COMPLETADO', 'Completado'),
+            ('ERROR', 'Error'),
+        ],
+        default='PROCESANDO'
+    )
+    log_errores = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Importación de Comprobante"
+        verbose_name_plural = "Importaciones de Comprobantes"
+        ordering = ['-fecha_importacion']
+
+    def __str__(self):
+        return f"Importación {self.id} - {self.fecha_importacion.strftime('%Y-%m-%d %H:%M')}"

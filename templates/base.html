@@ -38,6 +38,8 @@
                             <li><a class="dropdown-item" href="{% url 'comprobantes:lista' %}?tipo=03">Boletas</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'comprobantes:lista' %}">Ver Todos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'comprobantes:importar' %}">Importar CSV</a></li>
+                            <li><a class="dropdown-item" href="{% url 'sunat_ose:envio_masivo' %}">Envío Masivo</a></li>
                         </ul>
                     </li>
                     <li class="nav-item">
@@ -45,10 +47,14 @@
                             <i class="bi bi-people"></i> Clientes
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'productos:lista' %}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="productosDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-box-seam"></i> Productos
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'productos:lista' %}">Ver Productos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:categorias_lista' %}">Categorías</a></li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'notas_credito:lista' %}">

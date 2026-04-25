@@ -6,6 +6,7 @@ app_name = 'comprobantes'
 urlpatterns = [
     path('', views.lista_comprobantes, name='lista'),
     path('nuevo/', views.crear_comprobante, name='crear'),
+    path('importar/', views.importar_csv, name='importar'),
     path('<int:pk>/', views.detalle_comprobante, name='detalle'),
     path('<int:pk>/pdf/', views.ver_pdf, name='pdf'),
     path('<int:pk>/xml/', views.descargar_xml, name='xml'),
