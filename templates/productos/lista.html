@@ -16,31 +16,40 @@
         <a href="{% url 'productos:categorias_lista' %}" class="btn btn-outline">
             <i class="bi bi-tag"></i> Categorías
         </a>
-        <a href="{% url 'productos:crear' %}" class="btn btn-primary">
+        <button onclick="openModal('nuevoProductoModal')" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i> Nuevo Producto
-        </a>
+        </button>
     </div>
 </div>
 
 <!-- Buscador -->
 <div class="filter-bar fade-in">
-    <form method="GET" style="display:flex;gap:12px;width:100%;align-items:flex-end;">
-        <div style="flex:1;">
-            <label for="q" class="form-label">Buscar producto</label>
+    <form method="GET" style="display:flex;gap:16px;width:100%;align-items:flex-end;flex-wrap:wrap;">
+        <div style="flex:2; min-width:280px;">
+            <label for="q" class="form-label" style="font-weight:600;"><i class="bi bi-search" style="margin-right:4px;"></i> Buscar Producto</label>
             <div style="position:relative;">
-                <i class="bi bi-search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:13px;"></i>
+                <i class="bi bi-search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:14px;"></i>
                 <input type="text" id="q" name="q"
                        value="{{ query }}"
-                       placeholder="Código, descripción..."
-                       class="form-control" style="padding-left:38px;">
+                       placeholder="Código o descripción..."
+                       class="form-control" style="padding-left:40px;">
             </div>
         </div>
-        <div style="display:flex;gap:8px;">
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-search"></i> Buscar
+        <div style="flex:1; min-width:200px;">
+            <label for="categoria_filter" class="form-label" style="font-weight:600;"><i class="bi bi-tag" style="margin-right:4px;"></i> Categoría</label>
+            <select name="categoria" id="categoria_filter" class="form-select">
+                <option value="">Todas las categorías</option>
+                {% for cat in categorias %}
+                <option value="{{ cat.id }}" {% if request.GET.categoria == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button type="submit" class="btn btn-primary" style="padding: 0 24px;">
+                <i class="bi bi-filter"></i> Filtrar
             </button>
-            <a href="{% url 'productos:lista' %}" class="btn btn-secondary">
-                <i class="bi bi-x-circle"></i>
+            <a href="{% url 'productos:lista' %}" class="btn btn-secondary" title="Limpiar" style="width:42px; padding:0;">
+                <i class="bi bi-eraser"></i>
             </a>
         </div>
     </form>
@@ -94,14 +103,16 @@
                     </td>
                     <td>
                         <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
-                            <a href="{% url 'productos:editar' producto.id %}"
-                               class="btn-icon" title="Editar">
+                            <button type="button" 
+                                    onclick="openEditModal('{% url 'productos:editar' producto.id %}')"
+                                    class="btn-icon" title="Editar">
                                 <i class="bi bi-pencil"></i>
-                            </a>
-                            <a href="{% url 'productos:eliminar' producto.id %}"
-                               class="btn-icon danger" title="Eliminar">
+                            </button>
+                            <button type="button" 
+                                    onclick="showConfirm('¿Eliminar producto?', 'Se eliminará permanentemente: {{ producto.descripcion|escapejs }}.', () => { window.location.href='{% url 'productos:eliminar' producto.id %}'; })"
+                                    class="btn-icon danger" title="Eliminar">
                                 <i class="bi bi-trash"></i>
-                            </a>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -112,9 +123,9 @@
                             <i class="bi bi-box-seam"></i>
                         </div>
                         <p style="color:var(--gray-400);font-size:14px;">No hay productos registrados</p>
-                        <a href="{% url 'productos:crear' %}" class="btn btn-primary btn-sm" style="margin-top:12px;">
+                        <button onclick="openModal('nuevoProductoModal')" class="btn btn-primary btn-sm" style="margin-top:12px;">
                             <i class="bi bi-plus-lg"></i> Agregar producto
-                        </a>
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -122,5 +133,4 @@
         </table>
     </div>
 </div>
-
 {% endblock %}

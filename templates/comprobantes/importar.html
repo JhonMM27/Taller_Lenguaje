@@ -1,78 +1,142 @@
 {% extends 'base.html' %}
 
 {% block title %}Importar Comprobantes desde CSV{% endblock %}
+{% block page_title %}Importación Masiva{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1><i class="bi bi-upload"></i> Importar Comprobantes</h1>
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-cloud-upload" style="color:var(--primary-600);margin-right:8px;"></i>
+            Importar Comprobantes
+        </h1>
+        <p class="page-subtitle">Carga masiva de facturas y boletas mediante archivos CSV</p>
     </div>
+    <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a la Lista
+    </a>
 </div>
 
-<div class="card mb-4">
-    <div class="card-header bg-primary text-white">
-        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Formato del Archivo CSV</h5>
-    </div>
-    <div class="card-body">
-        <p>El archivo CSV debe tener las siguientes columnas (separadas por <code>;</code>):</p>
-        <div class="table-responsive">
-            <table class="table table-sm table-bordered">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Columna</th>
-                        <th>Descripción</th>
-                        <th>Ejemplo</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td>tipo</td><td>01=Factura, 03=Boleta</td><td>01</td></tr>
-                    <tr><td>serie</td><td>Serie del documento</td><td>F001</td></tr>
-                    <tr><td>numero</td><td>Número correlativo</td><td>1</td></tr>
-                    <tr><td>fecha</td><td>Fecha (YYYY-MM-DD)</td><td>2026-04-25</td></tr>
-                    <tr><td>cliente_tipo_doc</td><td>Tipo documento (6=RUC)</td><td>6</td></tr>
-                    <tr><td>cliente_num_doc</td><td>Número de documento</td><td>20123456789</td></tr>
-                    <tr><td>cliente_nombre</td><td>Nombre o razón social</td><td>Cliente SAC</td></tr>
-                    <tr><td>producto_codigo</td><td>Código del producto</td><td>P001</td></tr>
-                    <tr><td>producto_descripcion</td><td>Descripción del producto</td><td>Paracetamol 500mg</td></tr>
-                    <tr><td>cantidad</td><td>Cantidad</td><td>10</td></tr>
-                    <tr><td>precio_unitario</td><td>Precio unitario</td><td>15.50</td></tr>
-                    <tr><td>categoria</td><td>Nombre de categoría (opcional)</td><td>FARMACIA</td></tr>
-                </tbody>
-            </table>
+<div style="display:grid; grid-template-columns: 1fr 400px; gap:24px; align-items: flex-start;">
+    
+    <!-- Sección de carga -->
+    <div style="display:flex; flex-direction:column; gap:24px;">
+        <div class="card fade-in">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-file-earmark-arrow-up"></i> Seleccionar Archivo</span>
+            </div>
+            <div class="card-body" style="padding:40px;">
+                <form method="POST" enctype="multipart/form-data" id="import-form">
+                    {% csrf_token %}
+                    <div id="drop-zone" style="border:2px dashed var(--gray-300); border-radius:var(--radius-md); padding:60px 40px; text-align:center; transition: all 0.2s; cursor:pointer; background:var(--gray-50);">
+                        <div style="width:80px; height:80px; background:white; border-radius:50%; box-shadow:var(--shadow-md); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; color:var(--primary-600);">
+                            <i class="bi bi-filetype-csv" style="font-size:32px;"></i>
+                        </div>
+                        <h4 style="font-size:18px; font-weight:700; color:var(--gray-900); margin-bottom:10px;">Arrastra tu archivo CSV aquí</h4>
+                        <p style="color:var(--gray-500); font-size:14px; margin-bottom:24px;">O haz clic para buscar en tu equipo (Máx 10MB)</p>
+                        
+                        <input type="file" name="archivo_csv" id="archivo_csv" accept=".csv" required style="display:none;">
+                        <button type="button" class="btn btn-primary" onclick="document.getElementById('archivo_csv').click()">
+                            <i class="bi bi-search"></i> Seleccionar Archivo
+                        </button>
+                        
+                        <div id="file-info" style="margin-top:20px; display:none; padding:12px; background:var(--primary-50); border-radius:var(--radius-sm); border:1px solid var(--primary-100);">
+                            <p style="color:var(--primary-700); font-weight:600; font-size:14px;" id="file-name"></p>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:30px; display:flex; justify-content:flex-end;">
+                        <button type="submit" class="btn btn-primary btn-lg" style="padding: 0 40px; height:50px;">
+                            <i class="bi bi-rocket-takeoff"></i> Iniciar Importación
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
-        <div class="alert alert-warning mt-3">
-            <strong>Nota:</strong> El delimitador es <code>;</code> (punto y coma). Si tus datos contienen comas, usa otro delimitador.
+
+        <div class="card fade-in" style="animation-delay:0.1s;">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-code-square"></i> Ejemplo de Estructura</span>
+            </div>
+            <div class="card-body">
+                <p style="font-size:13px; color:var(--gray-500); margin-bottom:15px;">Asegúrate de que la primera línea contenga los encabezados exactos:</p>
+                <div style="background:var(--gray-900); padding:20px; border-radius:var(--radius-sm); position:relative;">
+                    <code style="color:#d1d5db; font-family:monospace; font-size:12px; white-space:pre-wrap; display:block;">tipo;serie;numero;fecha;cliente_tipo_doc;cliente_num_doc;cliente_nombre;producto_codigo;producto_descripcion;cantidad;precio_unitario;categoria</code>
+                    <code style="color:#10b981; font-family:monospace; font-size:12px; white-space:pre-wrap; display:block; margin-top:8px;">01;F001;1;2026-04-25;6;20123456789;Empresa ABC S.A.;MED001;Paracetamol 500mg;10;15.50;FARMACIA</code>
+                </div>
+            </div>
         </div>
     </div>
+
+    <!-- Guía de columnas -->
+    <div style="display:flex; flex-direction:column; gap:24px;">
+        <div class="card fade-in" style="animation-delay:0.2s;">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-info-circle"></i> Especificaciones</span>
+            </div>
+            <div class="card-body" style="padding:0;">
+                <div style="padding:16px; border-bottom:1px solid var(--gray-50);">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                        <span style="width:8px; height:8px; border-radius:50%; background:var(--primary-600);"></span>
+                        <span style="font-weight:700; font-size:13px; color:var(--gray-900);">Separador</span>
+                    </div>
+                    <p style="font-size:12px; color:var(--gray-500); padding-left:18px;">Usa punto y coma (<code>;</code>) exclusivamente.</p>
+                </div>
+                <div style="padding:16px; border-bottom:1px solid var(--gray-50);">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                        <span style="width:8px; height:8px; border-radius:50%; background:var(--primary-600);"></span>
+                        <span style="font-weight:700; font-size:13px; color:var(--gray-900);">Tipos de Doc.</span>
+                    </div>
+                    <p style="font-size:12px; color:var(--gray-500); padding-left:18px;"><code>01</code> Factura, <code>03</code> Boleta.</p>
+                </div>
+                <div style="padding:16px;">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                        <span style="width:8px; height:8px; border-radius:50%; background:var(--primary-600);"></span>
+                        <span style="font-weight:700; font-size:13px; color:var(--gray-900);">Validación</span>
+                    </div>
+                    <p style="font-size:12px; color:var(--gray-500); padding-left:18px;">Si el producto o cliente no existen, el sistema los creará automáticamente.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-warning fade-in" style="animation-delay:0.3s; margin:0;">
+            <i class="bi bi-exclamation-triangle-fill" style="margin-right:8px;"></i>
+            <strong>¡Atención!</strong> La importación no se puede deshacer. Verifica los datos antes de cargar.
+        </div>
+    </div>
+
 </div>
 
-<div class="card">
-    <div class="card-body">
-        <form method="POST" enctype="multipart/form-data">
-            {% csrf_token %}
-            <div class="mb-3">
-                <label for="archivo_csv" class="form-label">Seleccionar archivo CSV</label>
-                <input type="file" class="form-control" name="archivo_csv" id="archivo_csv" accept=".csv" required>
-            </div>
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">Cancelar</a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-upload"></i> Importar
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('archivo_csv');
+    const fileName = document.getElementById('file-name');
+    const fileInfo = document.getElementById('file-info');
 
-<div class="card mt-4">
-    <div class="card-header">
-        <h5>Ejemplo de archivo CSV</h5>
-            </div>
-    <div class="card-body">
-        <pre class="bg-light p-3 border">tipo;serie;numero;fecha;cliente_tipo_doc;cliente_num_doc;cliente_nombre;producto_codigo;producto_descripcion;cantidad;precio_unitario;categoria
-01;F001;1;2026-04-25;6;20123456789;Empresa ABC S.A.;MED001;Paracetamol 500mg;10;15.50;FARMACIA
-01;F001;2;2026-04-25;6;20123456789;Empresa ABC S.A.;MED002;Ibuprofeno 400mg;5;22.00;FARMACIA
-03;B001;1;2026-04-25;1;12345678;Juan Perez;CON001;Consulta médica;1;80.00;CONSULTAS</pre>
-    </div>
-</div>
+    ['dragover', 'dragleave', 'drop'].forEach(evt => {
+        dropZone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            if (evt === 'dragover') dropZone.style.borderColor = 'var(--primary-600)';
+            else dropZone.style.borderColor = 'var(--gray-300)';
+        });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length) {
+            fileInput.files = files;
+            updateFileInfo(files[0].name);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (fileInput.files.length) updateFileInfo(fileInput.files[0].name);
+    });
+
+    function updateFileInfo(name) {
+        fileName.innerText = `📄 Seleccionado: ${name}`;
+        fileInfo.style.display = 'block';
+        dropZone.style.background = 'var(--primary-50)';
+    }
+</script>
 {% endblock %}

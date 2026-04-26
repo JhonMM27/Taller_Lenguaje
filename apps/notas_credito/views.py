@@ -9,8 +9,12 @@ from apps.comprobantes.models import Comprobante
 @login_required
 def lista_notas_credito(request):
     notas = NotaCredito.objects.select_related('comprobante_referencia').all()
+    from datetime import datetime
     return render(request, 'notas_credito/lista.html', {
-        'notas': notas.order_by('-fecha', '-created_at')[:50]
+        'notas': notas.order_by('-fecha', '-created_at')[:50],
+        'comprobantes': Comprobante.objects.filter(estado='ACEPTADO').select_related('cliente')[:50],
+        'motivos': NotaCredito.MOTIVO_CHOICES,
+        'today': datetime.now()
     })
 
 

@@ -74,9 +74,6 @@
                 <a href="{% url 'comprobantes:lista' %}" class="nav-link">
                     <i class="bi bi-collection"></i> Ver Todos
                 </a>
-                <a href="{% url 'comprobantes:crear' %}" class="nav-link">
-                    <i class="bi bi-plus-circle"></i> Nuevo
-                </a>
                 <a href="{% url 'comprobantes:importar' %}" class="nav-link">
                     <i class="bi bi-cloud-upload"></i> Importar CSV
                 </a>
@@ -177,12 +174,6 @@
         <!-- Acciones del topbar -->
         <div class="topbar-actions">
 
-            <!-- Botón nuevo comprobante rápido -->
-            <a href="{% url 'comprobantes:crear' %}" class="btn btn-primary btn-sm" title="Nuevo comprobante">
-                <i class="bi bi-plus-lg"></i>
-                <span class="d-none d-md-inline">Nuevo</span>
-            </a>
-
             <!-- Usuario -->
             {% if user.is_authenticated %}
             <div class="user-btn">
@@ -223,6 +214,10 @@
     </main>
 </div><!-- /main-wrapper -->
 
+{% include 'modals/selector_modals.html' %}
+{% include 'modals/creation_modals.html' %}
+
+
 <!-- ═══════════════════════════════════════════════════════════
      SCRIPTS GLOBALES
 ════════════════════════════════════════════════════════════ -->
@@ -247,6 +242,52 @@
     function closeSidebar() {
         document.getElementById('sidebar').classList.remove('open');
         document.getElementById('sidebarOverlay').classList.remove('active');
+    }
+
+    /** Modal Functions */
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+        document.body.style.overflow = 'hidden'; // Evitar scroll
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        // Solo restauramos el scroll si no quedan modales activos
+        if (!document.querySelector('.modal-overlay.active')) {
+            document.body.style.overflow = '';
+        }
+    }
+
+    /**
+     * Actualiza la validación del documento según el tipo seleccionado
+     * @param {HTMLSelectElement} select - El selector de tipo de documento
+     */
+    function updateDocValidation(select) {
+        const input = select.closest('form').querySelector('input[name="num_doc"]');
+        if (select.value === '1') { // DNI
+            input.maxLength = 8;
+            input.minLength = 8;
+            input.pattern = "[0-9]{8}";
+            input.title = "El DNI debe tener 8 dígitos";
+        } else if (select.value === '6') { // RUC
+            input.maxLength = 10;
+            input.minLength = 10;
+            input.pattern = "[0-9]{10}";
+            input.title = "El RUC debe tener 10 dígitos";
+        } else {
+            input.maxLength = 15;
+            input.minLength = 1;
+            input.pattern = ".*";
+            input.title = "Documento de identidad";
+        }
+    }
+
+    // Cerrar modal al hacer clic fuera
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal-overlay')) {
+            event.target.classList.remove('active');
+            document.body.style.overflow = '';
+        }
     }
 
     /* Auto-dismiss mensajes tras 4 segundos */

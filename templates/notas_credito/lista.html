@@ -12,9 +12,9 @@
         </h1>
         <p class="page-subtitle">Gestión de notas de crédito electrónicas SUNAT</p>
     </div>
-    <a href="{% url 'notas_credito:crear' %}" class="btn btn-primary">
+    <button onclick="openModal('nuevaNotaModal')" class="btn btn-primary">
         <i class="bi bi-plus-lg"></i> Nueva Nota de Crédito
-    </a>
+    </button>
 </div>
 
 <div class="table-wrap fade-in">
@@ -85,14 +85,86 @@
                             <i class="bi bi-journal-minus"></i>
                         </div>
                         <p style="color:var(--gray-400);font-size:14px;">No hay notas de crédito registradas</p>
-                        <a href="{% url 'notas_credito:crear' %}" class="btn btn-primary btn-sm" style="margin-top:12px;">
+                        <button onclick="openModal('nuevaNotaModal')" class="btn btn-primary btn-sm" style="margin-top:12px;">
                             <i class="bi bi-plus-lg"></i> Crear primera nota
-                        </a>
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- ── Modal Nueva Nota de Crédito ── -->
+<div class="modal-overlay" id="nuevaNotaModal">
+    <div class="modal-content" style="max-width:800px;">
+        <div class="modal-header">
+            <h2 class="modal-title">
+                <i class="bi bi-journal-minus" style="color:var(--primary-600);"></i>
+                Nueva Nota de Crédito
+            </h2>
+            <button class="modal-close" onclick="closeModal('nuevaNotaModal')">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form method="POST" action="{% url 'notas_credito:crear' %}">
+                {% csrf_token %}
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 2fr;gap:16px;margin-bottom:16px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="serie" class="form-label">Serie <span style="color:var(--danger);">*</span></label>
+                        <input type="text" name="serie" id="serie" required maxlength="4" value="FF01" class="form-control">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="numero" class="form-label">Número <span style="color:var(--danger);">*</span></label>
+                        <input type="number" name="numero" id="numero" required min="1" value="1" class="form-control">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="fecha" class="form-label">Fecha <span style="color:var(--danger);">*</span></label>
+                        <input type="date" name="fecha" id="fecha" required value="{{ today|date:'Y-m-d' }}" class="form-control">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="comprobante_referencia" class="form-label">Comprobante de Ref. <span style="color:var(--danger);">*</span></label>
+                        <select name="comprobante_referencia" id="comprobante_referencia" required class="form-select">
+                            <option value="">Seleccionar...</option>
+                            {% for comp in comprobantes %}
+                            <option value="{{ comp.id }}">{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }} | {{ comp.cliente.razon_social|truncatechars:20 }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="tipo_nota" class="form-label">Motivo de la Nota <span style="color:var(--danger);">*</span></label>
+                        <select name="tipo_nota" id="tipo_nota" required class="form-select">
+                            {% for value, label in motivos %}
+                            <option value="{{ value }}">{{ value }} - {{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="monto_afectado" class="form-label">Monto Afectado <span style="color:var(--danger);">*</span></label>
+                        <input type="number" name="monto_afectado" id="monto_afectado" required step="0.01" min="0" class="form-control">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="descripcion" class="form-label">Descripción</label>
+                    <textarea name="descripcion" id="descripcion" rows="3" placeholder="Descripción adicional (opcional)" class="form-control"></textarea>
+                </div>
+
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-100);">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('nuevaNotaModal')">
+                        <i class="bi bi-x-lg"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-floppy"></i> Crear Nota de Crédito
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 

@@ -1,55 +1,100 @@
 {% extends 'base.html' %}
-
-{% block title %}Empresas{% endblock %}
+{% block title %}Empresas - Facturación SUNAT{% endblock %}
+{% block page_title %}Empresas{% endblock %}
 
 {% block content %}
-<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+
+<div class="page-header fade-in">
     <div>
-        <h1 class="text-2xl font-display font-semibold text-slate-800 flex items-center gap-3">
-            <i class="bi bi-building text-primary-600"></i> Empresas
+        <h1 class="page-title">
+            <i class="bi bi-building" style="color:var(--primary-600);margin-right:8px;"></i>
+            Empresas
         </h1>
+        <p class="page-subtitle">Gestión y configuración de emisores electrónicos</p>
     </div>
-    <a href="{% url 'empresas:crear' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-medium transition shadow-lg shadow-primary-500/30">
+    <button onclick="openModal('nuevaEmpresaModal')" class="btn btn-primary">
         <i class="bi bi-plus-circle"></i> Nueva Empresa
-    </a>
+    </button>
 </div>
 
-<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="w-full">
-            <thead class="bg-slate-50">
+<!-- Barra de Filtros -->
+<div class="filter-bar fade-in">
+    <form method="GET" style="display:flex;gap:16px;align-items:flex-end;width:100%;flex-wrap:wrap;">
+        <div style="flex:1;min-width:280px;">
+            <label for="q" class="form-label" style="font-weight:600; color:var(--gray-700);"><i class="bi bi-funnel" style="margin-right:4px;"></i> Buscar Empresa</label>
+            <div style="position:relative;">
+                <i class="bi bi-search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:14px;"></i>
+                <input type="text" id="q" name="q"
+                       value="{{ query }}"
+                       placeholder="RUC, Razón Social o Código..."
+                       class="form-control"
+                       style="padding-left:40px; border-radius: var(--radius-sm);">
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button type="submit" class="btn btn-primary" style="padding: 0 24px;">
+                <i class="bi bi-search"></i> Filtrar
+            </button>
+            <a href="{% url 'empresas:lista' %}" class="btn btn-secondary" title="Limpiar" style="width:42px; padding:0;">
+                <i class="bi bi-eraser"></i>
+            </a>
+        </div>
+    </form>
+</div>
+
+
+<div class="table-wrap fade-in">
+    <div class="card-header">
+        <span class="card-title">Listado de Empresas</span>
+        <span style="font-size:12px;color:var(--gray-400);">{{ empresas|length }} empresa(s)</span>
+    </div>
+    <div style="overflow-x:auto;">
+        <table>
+            <thead>
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">RUC</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Razón Social</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Nombre Comercial</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Email</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Teléfono</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Acciones</th>
+                    <th>Código</th>
+                    <th>RUC</th>
+                    <th>Razón Social</th>
+                    <th>Nombre Comercial</th>
+                    <th>Email</th>
+                    <th>Teléfono</th>
+                    <th style="text-align:center;">Acciones</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
+            <tbody>
                 {% for empresa in empresas %}
-                <tr class="hover:bg-slate-50 transition">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-800">{{ empresa.ruc }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800">{{ empresa.razon_social }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{{ empresa.nombre_comercial|default:"-" }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{{ empresa.email|default:"-" }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{{ empresa.telefono|default:"-" }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex items-center gap-2">
-                            <a href="{% url 'empresas:editar' empresa.id %}" class="p-2 rounded-lg text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition" title="Editar">
+                <tr>
+                    <td style="font-family:monospace;font-weight:600;color:var(--primary-700);">{{ empresa.codigo|default:"—" }}</td>
+                    <td style="font-family:monospace;font-weight:600;color:var(--gray-900);">{{ empresa.ruc }}</td>
+                    <td style="font-weight:500;color:var(--gray-800);">{{ empresa.razon_social }}</td>
+                    <td style="color:var(--gray-600);">{{ empresa.nombre_comercial|default:"-" }}</td>
+                    <td style="color:var(--gray-600);">{{ empresa.email|default:"-" }}</td>
+                    <td style="color:var(--gray-600);">{{ empresa.telefono|default:"-" }}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
+                            <button type="button" 
+                                    onclick="openEditModal('{% url 'empresas:editar' empresa.id %}')"
+                                    class="btn-icon" title="Editar">
                                 <i class="bi bi-pencil"></i>
-                            </a>
-                            <a href="{% url 'empresas:eliminar' empresa.id %}" class="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Eliminar">
+                            </button>
+                            <button type="button" 
+                                    onclick="showConfirm('¿Eliminar empresa?', 'Se eliminará permanentemente: {{ empresa.razon_social|escapejs }}.', () => { window.location.href='{% url 'empresas:eliminar' empresa.id %}'; })"
+                                    class="btn-icon danger" title="Eliminar">
                                 <i class="bi bi-trash"></i>
-                            </a>
+                            </button>
                         </div>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="px-6 py-8 text-center text-slate-400">
-                        No hay empresas registradas
+                    <td colspan="6" style="text-align:center;padding:48px 16px;">
+                        <div style="color:var(--gray-300);font-size:40px;margin-bottom:12px;">
+                            <i class="bi bi-building"></i>
+                        </div>
+                        <p style="color:var(--gray-400);font-size:14px;">No hay empresas registradas</p>
+                        <button onclick="openModal('nuevaEmpresaModal')" class="btn btn-primary btn-sm" style="margin-top:12px;">
+                            <i class="bi bi-plus-circle"></i> Agregar empresa
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -57,4 +102,80 @@
         </table>
     </div>
 </div>
+
+<!-- ── Modal Nueva Empresa ── -->
+<div class="modal-overlay" id="nuevaEmpresaModal">
+    <div class="modal-content" style="max-width:700px;">
+        <div class="modal-header">
+            <h2 class="modal-title">
+                <i class="bi bi-building" style="color:var(--primary-600);"></i>
+                Nueva Empresa
+            </h2>
+            <button class="modal-close" onclick="closeModal('nuevaEmpresaModal')">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form method="POST" action="{% url 'empresas:crear' %}">
+                {% csrf_token %}
+                <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:16px;margin-bottom:16px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="codigo_empresa" class="form-label">Código</label>
+                        <input type="text" id="codigo_empresa" readonly class="form-control" style="background:var(--gray-50);" placeholder="Auto">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="ruc" class="form-label">RUC <span style="color:var(--danger);">*</span></label>
+                        <input type="text" name="ruc" id="ruc" required 
+                               maxlength="10" minlength="10" pattern="[0-9]{10}"
+                               title="El RUC debe tener exactamente 10 dígitos"
+                               placeholder="1234567890" class="form-control">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="razon_social" class="form-label">Razón Social <span style="color:var(--danger);">*</span></label>
+                        <input type="text" name="razon_social" id="razon_social" required maxlength="200" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="nombre_comercial" class="form-label">Nombre Comercial</label>
+                    <input type="text" name="nombre_comercial" id="nombre_comercial" maxlength="200" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="direccion" class="form-label">Dirección</label>
+                    <textarea name="direccion" id="direccion" rows="2" class="form-control"></textarea>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" name="email" id="email" class="form-control">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="telefono" class="form-label">Teléfono</label>
+                        <input type="text" name="telefono" id="telefono" 
+                               maxlength="9" minlength="9" pattern="[0-9]{9}"
+                               title="El teléfono debe tener exactamente 9 dígitos"
+                               placeholder="999888777" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="regimen_tributario" class="form-label">Régimen Tributario</label>
+                    <select name="regimen_tributario" id="regimen_tributario" class="form-select">
+                        <option value="GENERAL">General</option>
+                        <option value="RER">RER (Régimen Especial de Renta)</option>
+                        <option value="MYPE">MYPE (Micro y Pequeña Empresa)</option>
+                        <option value="NRUS">NRUS (Régimen Unificado)</option>
+                    </select>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-100);">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('nuevaEmpresaModal')">
+                        <i class="bi bi-x-lg"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Guardar Empresa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

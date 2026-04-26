@@ -188,6 +188,9 @@ def dashboard(request):
     ).select_related('cliente', 'empresa', 'serie')
 
     facturas_mes = comprobantes_mes.filter(tipo='01').count()
+    boletas_mes = comprobantes_mes.filter(tipo='03').count()
+    notas_credito_mes = comprobantes_mes.filter(tipo='07').count()
+    
     aceptadas_mes = comprobantes_mes.filter(estado='ACEPTADO').count()
     rechazadas_mes = comprobantes_mes.filter(estado='RECHAZADO').count()
     total_ventas = sum(float(c.total) for c in comprobantes_mes.filter(estado='ACEPTADO'))
@@ -195,6 +198,28 @@ def dashboard(request):
     rechazados = comprobantes_mes.filter(estado='RECHAZADO')[:10]
     ultimos = comprobantes_mes.order_by('-fecha', '-created_at')[:10]
 
+    # Datos para el gráfico de barras (últimos 6 meses)
+    from django.db.models import Sum, Count
+    from django.db.models.functions import TruncMonth
+    
+    ventas_por_mes = Comprobante.objects.filter(estado='ACEPTADO') \
+        .annotate(month=TruncMonth('fecha')) \
+        .values('month') \
+        .annotate(total=Sum('total'), count=Count('id')) \
+        .order_by('month')
+    
+    chart_labels = []
+    chart_ventas = []
+    chart_counts = []
+    
+    for v in ventas_por_mes:
+        chart_labels.append(v['month'].strftime('%b'))
+        chart_ventas.append(float(v['total']))
+        chart_counts.append(v['count'])
+
+    from apps.clientes.models import Cliente
+    from apps.productos.models import Producto, CategoriaProducto
+    
     return render(request, 'dashboard.html', {
         'facturas_mes': facturas_mes,
         'aceptadas_mes': aceptadas_mes,
@@ -202,4 +227,14 @@ def dashboard(request):
         'total_ventas': f"{total_ventas:.2f}",
         'comprobantes_rechazados': rechazados,
         'ultimos_comprobantes': ultimos,
+        'total_clientes': Cliente.objects.count(),
+        'total_productos': Producto.objects.count(),
+        'categorias': CategoriaProducto.objects.filter(activa=True),
+        'chart_labels': chart_labels,
+        'chart_ventas': chart_ventas,
+        'chart_counts': chart_counts,
+        'total_comprobantes_mes': comprobantes_mes.count(),
+        'boletas_mes': boletas_mes,
+        'notas_credito_mes': notas_credito_mes,
+        'today': hoy.strftime('%Y-%m-%d'),
     })

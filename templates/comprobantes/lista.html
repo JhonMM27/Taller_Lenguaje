@@ -13,59 +13,72 @@
         </h1>
         <p class="page-subtitle">Gestión de facturas, boletas y otros comprobantes electrónicos</p>
     </div>
-    <a href="{% url 'comprobantes:crear' %}" class="btn btn-primary">
+    <button onclick="openModal('nuevoComprobanteModal')" class="btn btn-primary">
         <i class="bi bi-plus-lg"></i> Nuevo Comprobante
-    </a>
+    </button>
 </div>
 
 <!-- ── Barra de filtros ── -->
 <div class="filter-bar fade-in">
-    <form method="GET" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;width:100%;">
+    <form method="GET" style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;width:100%;">
 
-        <div style="flex:1;min-width:130px;">
-            <label for="tipo" class="form-label">Tipo</label>
+        <div style="flex:1;min-width:140px;">
+            <label for="tipo" class="form-label" style="font-weight:600;"><i class="bi bi-file-earmark-text" style="margin-right:4px;"></i> Tipo</label>
             <select name="tipo" id="tipo" class="form-select">
-                <option value="">Todos</option>
+                <option value="">Todos los tipos</option>
                 {% for value, label in tipos %}
                 <option value="{{ value }}" {% if request.GET.tipo == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div>
 
-        <div style="flex:1;min-width:130px;">
-            <label for="estado" class="form-label">Estado</label>
+        <div style="flex:1;min-width:140px;">
+            <label for="estado" class="form-label" style="font-weight:600;"><i class="bi bi-activity" style="margin-right:4px;"></i> Estado</label>
             <select name="estado" id="estado" class="form-select">
-                <option value="">Todos</option>
+                <option value="">Todos los estados</option>
                 {% for value, label in estados %}
                 <option value="{{ value }}" {% if request.GET.estado == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div>
 
-        <div style="flex:1;min-width:130px;">
-            <label for="fecha_desde" class="form-label">Desde</label>
+        <div style="flex:1;min-width:150px;">
+            <label for="fecha_desde" class="form-label" style="font-weight:600;"><i class="bi bi-calendar-event" style="margin-right:4px;"></i> Desde</label>
             <input type="date" name="fecha_desde" id="fecha_desde"
                    value="{{ request.GET.fecha_desde }}"
                    class="form-control">
         </div>
 
-        <div style="flex:1;min-width:130px;">
-            <label for="fecha_hasta" class="form-label">Hasta</label>
+        <div style="flex:1;min-width:150px;">
+            <label for="fecha_hasta" class="form-label" style="font-weight:600;"><i class="bi bi-calendar-check" style="margin-right:4px;"></i> Hasta</label>
             <input type="date" name="fecha_hasta" id="fecha_hasta"
                    value="{{ request.GET.fecha_hasta }}"
                    class="form-control">
         </div>
 
-        <div style="display:flex;gap:8px;">
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-search"></i> Filtrar
+        <div style="flex:1; min-width:250px;">
+            <label for="cliente_id_filter" class="form-label" style="font-weight:600;"><i class="bi bi-person" style="margin-right:4px;"></i> Cliente</label>
+            <div class="input-group-professional">
+                <input type="hidden" name="cliente_id" id="cliente_id_filter" value="{{ request.GET.cliente_id }}">
+                <input type="text" id="cliente_codigo_filter" class="code-input" placeholder="Cód." onblur="searchByCode('cliente', 'cliente_id_filter', 'cliente_name_filter')">
+                <span id="cliente_name_filter" class="display-name">{{ cliente_name_selected|default:"Filtrar por cliente..." }}</span>
+                <button type="button" class="btn-dots-pro" onclick="openSelector('cliente', 'cliente_id_filter', 'cliente_name_filter')">
+                    <i class="bi bi-three-dots"></i>
+                </button>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:10px;">
+            <button type="submit" class="btn btn-primary" style="padding: 0 24px;">
+                <i class="bi bi-filter"></i> Filtrar
             </button>
-            <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
-                <i class="bi bi-x-circle"></i>
+            <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary" title="Limpiar" style="width:42px; padding:0;">
+                <i class="bi bi-eraser"></i>
             </a>
         </div>
     </form>
 </div>
+
 
 <!-- ── Tabla de comprobantes ── -->
 <div class="table-wrap fade-in">
@@ -149,9 +162,9 @@
                             <i class="bi bi-receipt"></i>
                         </div>
                         <p style="color:var(--gray-400);font-size:14px;">No hay comprobantes registrados</p>
-                        <a href="{% url 'comprobantes:crear' %}" class="btn btn-primary btn-sm" style="margin-top:12px;">
+                        <button onclick="openModal('nuevoComprobanteModal')" class="btn btn-primary btn-sm" style="margin-top:12px;">
                             <i class="bi bi-plus-lg"></i> Crear primero
-                        </a>
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -159,5 +172,4 @@
         </table>
     </div>
 </div>
-
 {% endblock %}

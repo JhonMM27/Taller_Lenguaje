@@ -1,185 +1,209 @@
 {% extends 'base.html' %}
 
-{% block title %}Detalle Comprobante{% endblock %}
+{% block title %}Detalle Comprobante - {{ comprobante.serie.serie }}-{{ comprobante.numero|stringformat:"08d" }}{% endblock %}
+{% block page_title %}Detalle de Comprobante{% endblock %}
 
 {% block content %}
-<div class="row mb-3">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1>
-            <i class="bi bi-receipt"></i> {{ comprobante.serie.serie }}-{{ comprobante.numero|stringformat:"08d" }}
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-receipt-cutoff" style="color:var(--primary-600);margin-right:8px;"></i>
+            {{ comprobante.serie.serie }}-{{ comprobante.numero|stringformat:"08d" }}
         </h1>
-        <div>
-            {% if comprobante.estado == 'BORRADOR' %}
-            <a href="{% url 'comprobantes:emitir' comprobante.id %}" class="btn btn-warning">
-                <i class="bi bi-check-circle"></i> Emitir
-            </a>
-            <button type="button" class="btn btn-primary" id="btn-enviar-sunat" onclick="enviarSunat()" disabled>
-                <i class="bi bi-send"></i> Enviar a SUNAT
-            </button>
-            {% elif comprobante.estado == 'EMITIDO' %}
-            <button type="button" class="btn btn-primary" id="btn-enviar-sunat" onclick="enviarSunat()">
-                <i class="bi bi-send"></i> Enviar a SUNAT
-            </button>
-            {% endif %}
-            {% if comprobante.estado == 'ENVIADO' %}
-            <button type="button" class="btn btn-info" id="btn-consultar-ticket" onclick="consultarTicket()">
-                <i class="bi bi-search"></i> Consultar Ticket
-            </button>
-            {% endif %}
-            <a href="{% url 'comprobantes:pdf' comprobante.id %}" class="btn btn-success">
-                <i class="bi bi-file-earmark-pdf"></i> PDF
-            </a>
-            {% if comprobante.xml_firmado %}
-            <a href="{% url 'comprobantes:xml' comprobante.id %}" class="btn btn-info">
-                <i class="bi bi-file-code"></i> XML
-            </a>
-            {% endif %}
-            {% if comprobante.estado == 'RECHAZADO' %}
-            <a href="{% url 'comprobantes:reenviar' comprobante.id %}" class="btn btn-warning">
-                <i class="bi bi-arrow-clockwise"></i> Reenviar
-            </a>
-            {% endif %}
-            <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Volver
-            </a>
-        </div>
+        <p class="page-subtitle">{{ comprobante.get_tipo_display }} • {{ comprobante.fecha|date:"d M Y" }}</p>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+        <a href="{% url 'comprobantes:pdf' comprobante.id %}" class="btn btn-primary" style="background:#dc2626; border-color:#dc2626;">
+            <i class="bi bi-file-earmark-pdf"></i> PDF
+        </a>
+        {% if comprobante.xml_firmado %}
+        <a href="{% url 'comprobantes:xml' comprobante.id %}" class="btn btn-outline" style="color:var(--primary-600); border-color:var(--primary-600);">
+            <i class="bi bi-file-code"></i> XML
+        </a>
+        <a href="{% url 'comprobantes:excel' comprobante.id %}" class="btn btn-outline" style="color:#16a34a; border-color:#16a34a;">
+            <i class="bi bi-file-earmark-excel"></i> Excel
+        </a>
+        {% endif %}
+        
+        <div style="width:2px; height:32px; background:var(--gray-200); margin:0 5px;"></div>
+
+        {% if comprobante.estado == 'BORRADOR' %}
+        <a href="{% url 'comprobantes:emitir' comprobante.id %}" class="btn btn-warning">
+            <i class="bi bi-check-circle"></i> Emitir
+        </a>
+        {% elif comprobante.estado == 'EMITIDO' %}
+        <button type="button" class="btn btn-primary" id="btn-enviar-sunat" onclick="enviarSunat()">
+            <i class="bi bi-send"></i> Enviar a SUNAT
+        </button>
+        {% endif %}
+
+        {% if comprobante.estado == 'ENVIADO' %}
+        <button type="button" class="btn btn-info" id="btn-consultar-ticket" onclick="consultarTicket()">
+            <i class="bi bi-search"></i> Consultar Ticket
+        </button>
+        {% endif %}
+
+        {% if comprobante.estado == 'RECHAZADO' %}
+        <a href="{% url 'comprobantes:reenviar' comprobante.id %}" class="btn btn-warning">
+            <i class="bi bi-arrow-clockwise"></i> Reenviar
+        </a>
+        {% endif %}
     </div>
 </div>
 
-<div id="alerta-envio" class="alert d-none" role="alert"></div>
+<div id="alerta-envio" class="alert d-none" style="margin-bottom:20px;"></div>
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card mb-3">
-            <div class="card-header bg-primary text-white">
-                Datos del Comprobante
+<div style="display:grid; grid-template-columns: 1fr 340px; gap:24px; align-items: flex-start;">
+    
+    <div style="display:flex; flex-direction:column; gap:24px;">
+        <!-- Card Principal: El Comprobante -->
+        <div class="card fade-in" style="border:none; box-shadow:var(--shadow-lg); position:relative; overflow:hidden;">
+            <!-- Decoración superior (estilo factura) -->
+            <div style="height:6px; background:var(--primary-600); position:absolute; top:0; left:0; right:0;"></div>
+            
+            <div class="card-body" style="padding:40px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:40px; border-bottom:2px solid var(--gray-50); padding-bottom:30px;">
+                    <div>
+                        <h4 style="font-family:var(--font-display); font-weight:700; color:var(--gray-900); margin-bottom:5px;">EMISOR</h4>
+                        <p style="font-size:15px; font-weight:600; color:var(--primary-700);">{{ comprobante.empresa.razon_social }}</p>
+                        <p style="color:var(--gray-500); font-size:13px;">RUC: {{ comprobante.empresa.ruc }}</p>
+                        <p style="color:var(--gray-500); font-size:13px;">{{ comprobante.empresa.direccion|default:"" }}</p>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="border:2.5px solid var(--primary-600); padding:15px 25px; border-radius:var(--radius-md); background:var(--primary-50);">
+                            <p style="font-weight:700; color:var(--primary-700); font-size:14px; margin-bottom:4px;">{{ comprobante.get_tipo_display|upper }} ELECTRÓNICA</p>
+                            <p style="font-family:monospace; font-size:18px; font-weight:700; color:var(--gray-900); letter-spacing:1px;">{{ comprobante.serie.serie }}-{{ comprobante.numero|stringformat:"08d" }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:40px;">
+                    <h4 style="font-family:var(--font-display); font-weight:700; color:var(--gray-900); margin-bottom:15px; font-size:14px;">DATOS DEL RECEPTOR</h4>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; background:var(--gray-50); padding:20px; border-radius:var(--radius-sm);">
+                        <div>
+                            <p style="color:var(--gray-400); font-size:11px; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Razón Social</p>
+                            <p style="font-weight:600; color:var(--gray-800);">{{ comprobante.cliente.razon_social }}</p>
+                        </div>
+                        <div>
+                            <p style="color:var(--gray-400); font-size:11px; font-weight:700; text-transform:uppercase; margin-bottom:4px;">{{ comprobante.cliente.get_tipo_doc_display }}</p>
+                            <p style="font-weight:600; color:var(--gray-800);">{{ comprobante.cliente.num_doc }}</p>
+                        </div>
+                        <div style="grid-column: span 2;">
+                            <p style="color:var(--gray-400); font-size:11px; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Dirección</p>
+                            <p style="font-weight:600; color:var(--gray-800);">{{ comprobante.cliente.direccion|default:"—" }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-wrap" style="box-shadow:none; border:1px solid var(--gray-100); border-radius:var(--radius-sm); margin-bottom:30px;">
+                    <table style="width:100%;">
+                        <thead style="background:var(--gray-50);">
+                            <tr>
+                                <th style="width:40px;">#</th>
+                                <th>Descripción del Producto</th>
+                                <th style="text-align:right;">Cant.</th>
+                                <th style="text-align:right;">P. Unit</th>
+                                <th style="text-align:right;">IGV</th>
+                                <th style="text-align:right;">Importe</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detalle in comprobante.detalles.all %}
+                            <tr>
+                                <td style="color:var(--gray-400);">{{ forloop.counter }}</td>
+                                <td style="font-weight:600; color:var(--gray-800);">{{ detalle.producto.descripcion }}</td>
+                                <td style="text-align:right;">{{ detalle.cantidad }}</td>
+                                <td style="text-align:right;">S/ {{ detalle.precio_unitario }}</td>
+                                <td style="text-align:right;">S/ {{ detalle.igv_linea }}</td>
+                                <td style="text-align:right; font-weight:700;">S/ {{ detalle.subtotal }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end;">
+                    <div style="width:280px; display:flex; flex-direction:column; gap:8px;">
+                        <div style="display:flex; justify-content:space-between; font-size:14px; color:var(--gray-600);">
+                            <span>Subtotal:</span>
+                            <span>S/ {{ comprobante.subtotal }}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:14px; color:var(--gray-600);">
+                            <span>IGV (18%):</span>
+                            <span>S/ {{ comprobante.igv }}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:18px; font-weight:800; color:var(--primary-700); padding-top:8px; border-top:2px solid var(--gray-100);">
+                            <span>TOTAL:</span>
+                            <span>S/ {{ comprobante.total }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <p><strong>Tipo:</strong> {{ comprobante.get_tipo_display }}</p>
-                <p><strong>Número:</strong> {{ comprobante.serie.serie }}-{{ comprobante.numero|stringformat:"08d" }}</p>
-                <p><strong>Fecha:</strong> {{ comprobante.fecha|date:"d/m/Y" }}</p>
-                <p><strong>Estado:</strong>
-                    {% if comprobante.estado == 'ACEPTADO' %}
-                        <span class="badge bg-success">{{ comprobante.estado }}</span>
-                    {% elif comprobante.estado == 'RECHAZADO' %}
-                        <span class="badge bg-danger">{{ comprobante.estado }}</span>
-                    {% elif comprobante.estado == 'ENVIADO' %}
-                        <span class="badge bg-info">{{ comprobante.estado }}</span>
-                    {% else %}
-                        <span class="badge bg-warning">{{ comprobante.estado }}</span>
-                    {% endif %}
-                </p>
-                {% if comprobante.sunat_ticket %}
-                <p><strong>Ticket SUNAT:</strong> <code>{{ comprobante.sunat_ticket }}</code></p>
+        </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:20px;">
+        <!-- Estado de SUNAT -->
+        <div class="card fade-in" style="animation-delay:0.1s;">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-shield-check"></i> Estado SUNAT</span>
+            </div>
+            <div class="card-body" style="text-align:center; padding:24px;">
+                {% if comprobante.estado == 'ACEPTADO' %}
+                    <div style="width:60px; height:60px; background:var(--success-50); color:var(--success-600); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 15px;">
+                        <i class="bi bi-check-circle-fill" style="font-size:30px;"></i>
+                    </div>
+                    <h3 style="color:var(--success-700); font-size:18px; font-weight:700;">Aceptado</h3>
+                    <p style="font-size:12px; color:var(--gray-500); margin-top:8px;">Comprobante procesado correctamente.</p>
+                {% elif comprobante.estado == 'RECHAZADO' %}
+                    <div style="width:60px; height:60px; background:var(--danger-50); color:var(--danger-600); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 15px;">
+                        <i class="bi bi-x-circle-fill" style="font-size:30px;"></i>
+                    </div>
+                    <h3 style="color:var(--danger-700); font-size:18px; font-weight:700;">Rechazado</h3>
+                    <p style="font-size:12px; color:var(--gray-500); margin-top:8px;">Existen errores en el envío.</p>
+                {% else %}
+                    <div style="width:60px; height:60px; background:var(--warning-50); color:var(--warning-600); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 15px;">
+                        <i class="bi bi-hourglass-split" style="font-size:30px;"></i>
+                    </div>
+                    <h3 style="color:var(--warning-700); font-size:18px; font-weight:700;">{{ comprobante.estado|title }}</h3>
+                    <p style="font-size:12px; color:var(--gray-500); margin-top:8px;">Pendiente de procesamiento.</p>
                 {% endif %}
             </div>
         </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card mb-3">
-            <div class="card-header bg-secondary text-white">
-                Datos del Cliente
+
+        <!-- Historial de logs -->
+        {% if comprobante.logs.all %}
+        <div class="card fade-in" style="animation-delay:0.2s;">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-clock-history"></i> Historial</span>
             </div>
-            <div class="card-body">
-                <p><strong>Nombre/Razón Social:</strong> {{ comprobante.cliente.razon_social }}</p>
-                <p><strong>{{ comprobante.cliente.get_tipo_doc_display }}:</strong> {{ comprobante.cliente.num_doc }}</p>
-                <p><strong>Dirección:</strong> {{ comprobante.cliente.direccion|default:"N/A" }}</p>
+            <div class="card-body" style="padding:0;">
+                <div style="max-height:300px; overflow-y:auto;">
+                    {% for log in comprobante.logs.all %}
+                    <div style="padding:12px 16px; border-bottom:1px solid var(--gray-50);">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <span style="font-size:11px; font-weight:700; color:var(--gray-400);">{{ log.fecha_envio|date:"d/m/Y H:i" }}</span>
+                            <span class="badge {% if log.estado_respuesta == 'ACEPTADO' %}badge-success{% else %}badge-gray{% endif %}" style="font-size:9px;">{{ log.codigo_respuesta }}</span>
+                        </div>
+                        <p style="font-size:12px; color:var(--gray-700); line-height:1.4;">{{ log.descripcion|truncatechars:100 }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
-
-<div class="card mb-3">
-    <div class="card-header">
-        <i class="bi bi-list-ul"></i> Detalles
-    </div>
-    <div class="card-body table-responsive">
-        <table class="table table-sm">
-            <thead class="table-light">
-                <tr>
-                    <th>#</th>
-                    <th>Producto</th>
-                    <th>Cantidad</th>
-                    <th>Precio Unit.</th>
-                    <th>IGV</th>
-                    <th>Subtotal</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for detalle in comprobante.detalles.all %}
-                <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ detalle.producto.descripcion }}</td>
-                    <td>{{ detalle.cantidad }}</td>
-                    <td class="text-end">S/ {{ detalle.precio_unitario }}</td>
-                    <td class="text-end">S/ {{ detalle.igv_linea }}</td>
-                    <td class="text-end">S/ {{ detalle.subtotal }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            <tfoot class="table-light">
-                <tr>
-                    <td colspan="5" class="text-end"><strong>Subtotal:</strong></td>
-                    <td class="text-end">S/ {{ comprobante.subtotal }}</td>
-                </tr>
-                <tr>
-                    <td colspan="5" class="text-end"><strong>IGV (18%):</strong></td>
-                    <td class="text-end">S/ {{ comprobante.igv }}</td>
-                </tr>
-                <tr>
-                    <td colspan="5" class="text-end"><strong>Total:</strong></td>
-                    <td class="text-end"><strong>S/ {{ comprobante.total }}</strong></td>
-                </tr>
-            </tfoot>
-        </table>
-    </div>
-</div>
-
-{% if comprobante.logs.all %}
-<div class="card mb-3">
-    <div class="card-header">
-        <i class="bi bi-clock-history"></i> Historial de Envíos
-    </div>
-    <div class="card-body table-responsive">
-        <table class="table table-sm">
-            <thead class="table-light">
-                <tr>
-                    <th>Fecha</th>
-                    <th>Código</th>
-                    <th>Estado</th>
-                    <th>Descripción</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for log in comprobante.logs.all %}
-                <tr>
-                    <td>{{ log.fecha_envio|date:"d/m/Y H:i:s" }}</td>
-                    <td><code>{{ log.codigo_respuesta }}</code></td>
-                    <td>
-                        {% if log.estado_respuesta == 'ACEPTADO' %}
-                            <span class="badge bg-success">{{ log.estado_respuesta }}</span>
-                        {% elif log.estado_respuesta == 'RECHAZADO' %}
-                            <span class="badge bg-danger">{{ log.estado_respuesta }}</span>
-                        {% else %}
-                            <span class="badge bg-info">{{ log.estado_respuesta }}</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ log.descripcion }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
 
 <script>
 function mostrarAlerta(tipo, mensaje) {
     const alerta = document.getElementById('alerta-envio');
-    alerta.className = `alert alert-${tipo} alert-dismissible fade show`;
-    alerta.textContent = mensaje;
+    alerta.className = `alert alert-${tipo} fade-in`;
+    alerta.innerHTML = `<i class="bi bi-info-circle" style="margin-right:8px;"></i> ${mensaje}`;
     alerta.classList.remove('d-none');
-    setTimeout(() => alerta.classList.add('d-none'), 10000);
 }
 
 function enviarSunat() {
@@ -187,7 +211,7 @@ function enviarSunat() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
     
-    mostrarAlerta('info', 'Enviando comprobante a SUNAT...');
+    mostrarAlerta('primary', 'Enviando comprobante a SUNAT...');
 
     fetch("{% url 'sunat_ose:enviar_comprobante' comprobante.id %}", {
         method: 'POST',
@@ -201,7 +225,6 @@ function enviarSunat() {
         if (data.success) {
             mostrarAlerta('success', `Comprobante enviado. Ticket: ${data.ticket}`);
             if (data.ticket) {
-                mostrarAlerta('info', 'Consultando estado del ticket...');
                 setTimeout(() => consultarTicket(), 2000);
             }
         } else {
@@ -225,7 +248,7 @@ function consultarTicket() {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Consultando...';
     }
     
-    mostrarAlerta('info', 'Consultando estado del ticket...');
+    mostrarAlerta('primary', 'Consultando estado del ticket...');
 
     fetch("{% url 'sunat_ose:consultar_ticket' comprobante.id %}", {
         method: 'POST',
@@ -267,4 +290,9 @@ function consultarTicket() {
 setTimeout(() => consultarTicket(), 1000);
 {% endif %}
 </script>
+
+<style>
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .spinner-border-sm { width: 1rem; height: 1rem; border-width: 0.2em; display: inline-block; vertical-align: text-bottom; border: .25em solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .75s linear infinite; }
+</style>
 {% endblock %}

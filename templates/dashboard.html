@@ -33,9 +33,9 @@
         <p class="page-subtitle">Resumen general del sistema de facturación electrónica</p>
     </div>
     <div style="display:flex;gap:10px;">
-        <a href="{% url 'comprobantes:crear' %}" class="btn btn-primary">
+        <button onclick="openModal('nuevoComprobanteModal')" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i> Nuevo Comprobante
-        </a>
+        </button>
         <a href="{% url 'reportes:ventas' %}" class="btn btn-outline">
             <i class="bi bi-graph-up"></i> Ver Reportes
         </a>
@@ -46,13 +46,13 @@
 <div class="grid-4 stagger mb-6">
 
     <!-- Ventas Totales (destacado) -->
-    <div class="metric-card featured fade-in">
+    <div class="metric-card featured fade-in" style="animation-delay: 0s;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;">
             <div>
-                <p class="metric-label">Ventas Totales</p>
-                <p class="metric-value">S/ 45,231</p>
+                <p class="metric-label">Ventas del Mes</p>
+                <p class="metric-value">S/ {{ total_ventas }}</p>
                 <div class="metric-badge up" style="margin-top:10px;">
-                    <i class="bi bi-arrow-up-short"></i> 12.5% vs mes anterior
+                    <i class="bi bi-graph-up"></i> Ventas Aceptadas
                 </div>
             </div>
             <div class="metric-icon">
@@ -61,50 +61,50 @@
         </div>
     </div>
 
-    <!-- Neto -->
-    <div class="metric-card fade-in">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
-            <div>
-                <p class="metric-label">Neto</p>
-                <p class="metric-value">S/ 32,150</p>
-                <div class="metric-badge up">
-                    <i class="bi bi-arrow-up-short"></i> 8.2%
-                </div>
-            </div>
-            <div class="metric-icon" style="background:#d1fae5; color:#065f46;">
-                <i class="bi bi-graph-up-arrow" style="font-size:20px;"></i>
-            </div>
-        </div>
-    </div>
-
     <!-- Comprobantes emitidos -->
-    <div class="metric-card fade-in">
+    <div class="metric-card fade-in" style="animation-delay: 0.1s;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;">
             <div>
-                <p class="metric-label">Comprobantes</p>
-                <p class="metric-value">156</p>
-                <div class="metric-badge up">
-                    <i class="bi bi-arrow-up-short"></i> 24%
+                <p class="metric-label">Comprobantes Mes</p>
+                <p class="metric-value">{{ total_comprobantes_mes }}</p>
+                <div class="metric-badge info">
+                    <i class="bi bi-receipt"></i> Emitidos este mes
                 </div>
             </div>
-            <div class="metric-icon" style="background:#fef3c7; color:#92400e;">
-                <i class="bi bi-receipt" style="font-size:20px;"></i>
+            <div class="metric-icon" style="background:#eff6ff; color:#1e40af;">
+                <i class="bi bi-file-earmark-text" style="font-size:20px;"></i>
             </div>
         </div>
     </div>
 
     <!-- Clientes -->
-    <div class="metric-card fade-in">
+    <div class="metric-card fade-in" style="animation-delay: 0.2s;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;">
             <div>
-                <p class="metric-label">Clientes</p>
-                <p class="metric-value">84</p>
-                <div class="metric-badge down">
-                    <i class="bi bi-arrow-down-short"></i> 2.3%
+                <p class="metric-label">Total Clientes</p>
+                <p class="metric-value">{{ total_clientes }}</p>
+                <div class="metric-badge success">
+                    <i class="bi bi-person-check"></i> Base de datos
                 </div>
             </div>
             <div class="metric-icon" style="background:#fce7f3; color:#9d174d;">
                 <i class="bi bi-people" style="font-size:20px;"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Productos -->
+    <div class="metric-card fade-in" style="animation-delay: 0.3s;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+            <div>
+                <p class="metric-label">Catálogo</p>
+                <p class="metric-value">{{ total_productos }}</p>
+                <div class="metric-badge warning">
+                    <i class="bi bi-box-seam"></i> SKU Activos
+                </div>
+            </div>
+            <div class="metric-icon" style="background:#fef3c7; color:#92400e;">
+                <i class="bi bi-grid" style="font-size:20px;"></i>
             </div>
         </div>
     </div>
@@ -136,46 +136,26 @@
                 </tr>
             </thead>
             <tbody>
+                {% for comp in ultimos_comprobantes %}
                 <tr>
-                    <td style="font-weight:600;font-family:monospace;color:var(--gray-900);">F001-00001234</td>
-                    <td>Empresa ABC S.A.C.</td>
-                    <td style="color:var(--gray-400);">25/04/2026</td>
-                    <td style="text-align:right;font-weight:600;">S/ 1,180.00</td>
-                    <td><span class="badge badge-success">Enviado</span></td>
-                    <td><a href="#" class="btn-icon"><i class="bi bi-eye"></i></a></td>
+                    <td style="font-weight:600;font-family:monospace;color:var(--gray-900);">{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}</td>
+                    <td>{{ comp.cliente.razon_social|truncatechars:20 }}</td>
+                    <td style="color:var(--gray-400);">{{ comp.fecha|date:"d/m/Y" }}</td>
+                    <td style="text-align:right;font-weight:600;">S/ {{ comp.total }}</td>
+                    <td>
+                        {% if comp.estado == 'ACEPTADO' %}
+                            <span class="badge badge-success">Aceptado</span>
+                        {% elif comp.estado == 'RECHAZADO' %}
+                            <span class="badge badge-danger">Rechazado</span>
+                        {% else %}
+                            <span class="badge badge-warning">{{ comp.estado|title }}</span>
+                        {% endif %}
+                    </td>
+                    <td><a href="{% url 'comprobantes:detalle' comp.id %}" class="btn-icon"><i class="bi bi-eye"></i></a></td>
                 </tr>
-                <tr>
-                    <td style="font-weight:600;font-family:monospace;color:var(--gray-900);">F001-00001233</td>
-                    <td>Constructora XYZ</td>
-                    <td style="color:var(--gray-400);">25/04/2026</td>
-                    <td style="text-align:right;font-weight:600;">S/ 3,450.00</td>
-                    <td><span class="badge badge-success">Enviado</span></td>
-                    <td><a href="#" class="btn-icon"><i class="bi bi-eye"></i></a></td>
-                </tr>
-                <tr>
-                    <td style="font-weight:600;font-family:monospace;color:var(--gray-900);">B001-00005678</td>
-                    <td>Juan Pérez</td>
-                    <td style="color:var(--gray-400);">24/04/2026</td>
-                    <td style="text-align:right;font-weight:600;">S/ 89.00</td>
-                    <td><span class="badge badge-warning">Pendiente</span></td>
-                    <td><a href="#" class="btn-icon"><i class="bi bi-eye"></i></a></td>
-                </tr>
-                <tr>
-                    <td style="font-weight:600;font-family:monospace;color:var(--gray-900);">F001-00001231</td>
-                    <td>Tech Solutions</td>
-                    <td style="color:var(--gray-400);">23/04/2026</td>
-                    <td style="text-align:right;font-weight:600;">S/ 8,900.00</td>
-                    <td><span class="badge badge-danger">Rechazado</span></td>
-                    <td><a href="#" class="btn-icon"><i class="bi bi-eye"></i></a></td>
-                </tr>
-                <tr>
-                    <td style="font-weight:600;font-family:monospace;color:var(--gray-900);">F001-00001230</td>
-                    <td>Distribuidora Norte</td>
-                    <td style="color:var(--gray-400);">23/04/2026</td>
-                    <td style="text-align:right;font-weight:600;">S/ 567.50</td>
-                    <td><span class="badge badge-info">Enviado OSE</span></td>
-                    <td><a href="#" class="btn-icon"><i class="bi bi-eye"></i></a></td>
-                </tr>
+                {% empty %}
+                <tr><td colspan="6" style="text-align:center;padding:20px;">No hay registros este mes</td></tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
@@ -189,7 +169,7 @@
                 <span class="card-title">Acciones Rápidas</span>
             </div>
             <div class="card-body" style="padding:14px;display:flex;flex-direction:column;gap:8px;">
-                <a href="{% url 'comprobantes:crear' %}" class="action-card">
+                <div onclick="openModal('nuevoComprobanteModal')" class="action-card" style="cursor:pointer;">
                     <div class="action-card-icon" style="background:var(--primary-100);color:var(--primary-700);">
                         <i class="bi bi-plus-circle-fill"></i>
                     </div>
@@ -197,8 +177,8 @@
                         <div class="action-card-title">Nuevo Comprobante</div>
                         <div class="action-card-sub">Crear factura o boleta</div>
                     </div>
-                </a>
-                <a href="{% url 'clientes:crear' %}" class="action-card">
+                </div>
+                <div onclick="openModal('nuevoClienteModal')" class="action-card" style="cursor:pointer;">
                     <div class="action-card-icon" style="background:#d1fae5;color:#065f46;">
                         <i class="bi bi-person-plus-fill"></i>
                     </div>
@@ -206,8 +186,8 @@
                         <div class="action-card-title">Nuevo Cliente</div>
                         <div class="action-card-sub">Registrar cliente</div>
                     </div>
-                </a>
-                <a href="{% url 'productos:crear' %}" class="action-card">
+                </div>
+                <div onclick="openModal('nuevoProductoModal')" class="action-card" style="cursor:pointer;">
                     <div class="action-card-icon" style="background:#fef3c7;color:#92400e;">
                         <i class="bi bi-box-seam-fill"></i>
                     </div>
@@ -215,7 +195,7 @@
                         <div class="action-card-title">Nuevo Producto</div>
                         <div class="action-card-sub">Agregar al catálogo</div>
                     </div>
-                </a>
+                </div>
                 <a href="{% url 'comprobantes:importar' %}" class="action-card">
                     <div class="action-card-icon" style="background:#fce7f3;color:#9d174d;">
                         <i class="bi bi-cloud-upload-fill"></i>
@@ -257,87 +237,12 @@
     </div>
 </div>
 
-<!-- ── Gráfico de ventas por mes ── -->
-<div class="card fade-in">
-    <div class="card-header">
-        <span class="card-title">
-            <i class="bi bi-bar-chart-line" style="color:var(--primary-600);margin-right:6px;"></i>
-            Ventas y Comprobantes por Mes
-        </span>
-        <div style="display:flex;gap:12px;font-size:12px;align-items:center;">
-            <span style="display:flex;align-items:center;gap:5px;">
-                <span style="width:10px;height:10px;border-radius:2px;background:#4f46e5;display:inline-block;"></span>
-                Ventas (S/)
-            </span>
-            <span style="display:flex;align-items:center;gap:5px;">
-                <span style="width:10px;height:10px;border-radius:2px;background:#a5b4fc;display:inline-block;"></span>
-                Comprobantes
-            </span>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="chart-container" style="height:240px;">
-            <canvas id="chartBar"></canvas>
-        </div>
-    </div>
-</div>
-
 {% endblock %}
 
 {% block extra_js %}
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script>
-    /* ──────────────────────────────────────────────────
-       Gráfico de barras: ventas por mes
-       Datos estáticos de demostración
-    ────────────────────────────────────────────────── */
-    const barCtx = document.getElementById('chartBar').getContext('2d');
-    new Chart(barCtx, {
-        type: 'bar',
-        data: {
-            labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
-            datasets: [
-                {
-                    label: 'Ventas (S/)',
-                    data: [28000, 35000, 31000, 45231, 0, 0, 0, 0, 0, 0, 0, 0],
-                    backgroundColor: '#4f46e5',
-                    borderRadius: 6,
-                    maxBarThickness: 32,
-                },
-                {
-                    label: 'Comprobantes',
-                    data: [80, 110, 95, 156, 0, 0, 0, 0, 0, 0, 0, 0],
-                    backgroundColor: '#a5b4fc',
-                    borderRadius: 6,
-                    maxBarThickness: 32,
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: '#1e293b',
-                    padding: 10,
-                    cornerRadius: 8,
-                }
-            },
-            scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: { color: '#94a3b8', font: { size: 12 } }
-                },
-                y: {
-                    grid: { color: '#f1f5f9' },
-                    ticks: { color: '#94a3b8', font: { size: 12 } }
-                }
-            }
-        }
-    });
-
     /* ──────────────────────────────────────────────────
        Gráfico donut: comprobantes por tipo
     ────────────────────────────────────────────────── */
@@ -347,7 +252,7 @@
         data: {
             labels: ['Facturas', 'Boletas', 'Notas C.'],
             datasets: [{
-                data: [64, 28, 8],
+                data: [{{ facturas_mes }}, {{ boletas_mes }}, {{ notas_credito_mes }}],
                 backgroundColor: ['#4f46e5', '#a5b4fc', '#c7d2fe'],
                 borderWidth: 0,
                 hoverOffset: 6,

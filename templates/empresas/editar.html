@@ -1,77 +1,102 @@
 {% extends 'base.html' %}
-
-{% block title %}Editar Empresa{% endblock %}
+{% block title %}Editar Empresa - Facturación SUNAT{% endblock %}
+{% block page_title %}Editar Empresa{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <h1 class="text-2xl font-display font-semibold text-slate-800 flex items-center gap-3">
-        <i class="bi bi-building text-primary-600"></i> Editar Empresa
-    </h1>
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-pencil-square" style="color:var(--primary-600);margin-right:8px;"></i>
+            Editar Empresa
+        </h1>
+        <p class="page-subtitle">Actualice la configuración del emisor</p>
+    </div>
+    <a href="{% url 'empresas:lista' %}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
 </div>
 
-<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-    <form method="POST" class="space-y-6">
-        {% csrf_token %}
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div>
-                <label for="ruc" class="block text-sm font-medium text-slate-700 mb-2">RUC</label>
-                <input type="text" name="ruc" id="ruc" required maxlength="11" value="{{ empresa.ruc }}"
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+<div class="card fade-in" style="max-width:820px;">
+    <div class="card-header">
+        <span class="card-title">
+            <i class="bi bi-building" style="color:var(--primary-600);margin-right:8px;"></i>
+            {{ empresa.razon_social }}
+        </span>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:16px;margin-bottom:16px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="codigo_empresa" class="form-label">Código</label>
+                    <input type="text" id="codigo_empresa" readonly class="form-control" style="background:var(--gray-50);" value="{{ empresa.codigo }}">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="ruc" class="form-label">RUC <span style="color:var(--danger);">*</span></label>
+                    <input type="text" name="ruc" id="ruc" required 
+                           maxlength="10" minlength="10" pattern="[0-9]{10}"
+                           title="El RUC debe tener 10 dígitos"
+                           value="{{ empresa.ruc }}" class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="razon_social" class="form-label">Razón Social <span style="color:var(--danger);">*</span></label>
+                    <input type="text" name="razon_social" id="razon_social" required maxlength="200" value="{{ empresa.razon_social }}" class="form-control">
+                </div>
             </div>
-            <div class="md:col-span-3">
-                <label for="razon_social" class="block text-sm font-medium text-slate-700 mb-2">Razón Social</label>
-                <input type="text" name="razon_social" id="razon_social" required maxlength="200" value="{{ empresa.razon_social }}"
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+
+            <div class="form-group">
+                <label for="nombre_comercial" class="form-label">Nombre Comercial</label>
+                <input type="text" name="nombre_comercial" id="nombre_comercial" maxlength="200" value="{{ empresa.nombre_comercial|default:'' }}" class="form-control">
             </div>
-        </div>
-        <div>
-            <label for="nombre_comercial" class="block text-sm font-medium text-slate-700 mb-2">Nombre Comercial</label>
-            <input type="text" name="nombre_comercial" id="nombre_comercial" maxlength="200" value="{{ empresa.nombre_comercial|default:'' }}"
-                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
-        </div>
-        <div>
-            <label for="direccion" class="block text-sm font-medium text-slate-700 mb-2">Dirección</label>
-            <textarea name="direccion" id="direccion" rows="2"
-                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">{{ empresa.direccion|default:'' }}</textarea>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label for="email" class="block text-sm font-medium text-slate-700 mb-2">Email</label>
-                <input type="email" name="email" id="email" value="{{ empresa.email|default:'' }}"
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+
+            <div class="form-group">
+                <label for="direccion" class="form-label">Dirección</label>
+                <textarea name="direccion" id="direccion" rows="2" class="form-control">{{ empresa.direccion|default:'' }}</textarea>
             </div>
-            <div>
-                <label for="telefono" class="block text-sm font-medium text-slate-700 mb-2">Teléfono</label>
-                <input type="text" name="telefono" id="telefono" maxlength="20" value="{{ empresa.telefono|default:'' }}"
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" name="email" id="email" value="{{ empresa.email|default:'' }}" class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="telefono" class="form-label">Teléfono</label>
+                    <input type="text" name="telefono" id="telefono" 
+                           maxlength="9" minlength="9" pattern="[0-9]{9}"
+                           title="El teléfono debe tener exactamente 9 dígitos"
+                           value="{{ empresa.telefono|default:'' }}" class="form-control">
+                </div>
             </div>
-        </div>
-        <div>
-            <label for="regimen_tributario" class="block text-sm font-medium text-slate-700 mb-2">Régimen Tributario</label>
-            <select name="regimen_tributario" id="regimen_tributario" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
-                <option value="GENERAL" {% if empresa.regimen_tributario == 'GENERAL' %}selected{% endif %}>General</option>
-                <option value="RER" {% if empresa.regimen_tributario == 'RER' %}selected{% endif %}>RER (Régimen Especial de Renta)</option>
-                <option value="MYPE" {% if empresa.regimen_tributario == 'MYPE' %}selected{% endif %}>MYPE (Micro y Pequeña Empresa)</option>
-                <option value="NRUS" {% if empresa.regimen_tributario == 'NRUS' %}selected{% endif %}>NRUS (Régimen Unificado)</option>
-            </select>
-        </div>
-        {% if errors %}
-        <div class="p-4 rounded-xl bg-red-50 text-red-700 border border-red-200">
-            {% for field, errors in errors.items %}
-                {% for error in errors %}
-                    <div>{{ error }}</div>
-                {% endfor %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        <div class="flex justify-end gap-3">
-            <a href="{% url 'empresas:lista' %}" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium transition">
-                Cancelar
-            </a>
-            <button type="submit" class="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-medium transition shadow-lg shadow-primary-500/30 flex items-center gap-2">
-                <i class="bi bi-save"></i> Guardar Cambios
-            </button>
-        </div>
-    </form>
+
+            <div class="form-group">
+                <label for="regimen_tributario" class="form-label">Régimen Tributario</label>
+                <select name="regimen_tributario" id="regimen_tributario" class="form-select">
+                    <option value="GENERAL" {% if empresa.regimen_tributario == 'GENERAL' %}selected{% endif %}>General</option>
+                    <option value="RER" {% if empresa.regimen_tributario == 'RER' %}selected{% endif %}>RER (Régimen Especial de Renta)</option>
+                    <option value="MYPE" {% if empresa.regimen_tributario == 'MYPE' %}selected{% endif %}>MYPE (Micro y Pequeña Empresa)</option>
+                    <option value="NRUS" {% if empresa.regimen_tributario == 'NRUS' %}selected{% endif %}>NRUS (Régimen Unificado)</option>
+                </select>
+            </div>
+
+            {% if errors %}
+            <div class="alert alert-error" style="margin-top:16px;">
+                <span>
+                    <i class="bi bi-exclamation-circle-fill"></i>
+                    {% for field, errs in errors.items %}{% for err in errs %}{{ err }} {% endfor %}{% endfor %}
+                </span>
+            </div>
+            {% endif %}
+
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-100);">
+                <a href="{% url 'empresas:lista' %}" class="btn btn-secondary">
+                    <i class="bi bi-x-lg"></i> Cancelar
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-floppy"></i> Guardar Cambios
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}

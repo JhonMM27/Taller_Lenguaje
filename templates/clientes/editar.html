@@ -30,10 +30,14 @@
         <form method="POST">
             {% csrf_token %}
 
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="codigo_cliente" class="form-label">Código</label>
+                    <input type="text" id="codigo_cliente" readonly class="form-control" style="background:var(--gray-50);" value="{{ cliente.codigo }}">
+                </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="tipo_doc" class="form-label">Tipo de Documento <span style="color:var(--danger);">*</span></label>
-                    <select name="tipo_doc" id="tipo_doc" required class="form-select">
+                    <select name="tipo_doc" id="tipo_doc" required class="form-select" onchange="updateDocValidation(this)">
                         <option value="1" {% if cliente.tipo_doc == '1' %}selected{% endif %}>DNI</option>
                         <option value="6" {% if cliente.tipo_doc == '6' %}selected{% endif %}>RUC</option>
                         <option value="4" {% if cliente.tipo_doc == '4' %}selected{% endif %}>Carnet de Extranjería</option>
@@ -43,7 +47,10 @@
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="num_doc" class="form-label">N° Documento <span style="color:var(--danger);">*</span></label>
-                    <input type="text" name="num_doc" id="num_doc" required maxlength="15"
+                    <input type="text" name="num_doc" id="num_doc" required 
+                           maxlength="{% if cliente.tipo_doc == '6' %}10{% elif cliente.tipo_doc == '1' %}8{% else %}15{% endif %}" 
+                           minlength="{% if cliente.tipo_doc == '6' %}10{% elif cliente.tipo_doc == '1' %}8{% else %}1{% endif %}"
+                           pattern="{% if cliente.tipo_doc == '6' %}[0-9]{10}{% elif cliente.tipo_doc == '1' %}[0-9]{8}{% else %}.*{% endif %}"
                            value="{{ cliente.num_doc }}" class="form-control">
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
@@ -73,7 +80,9 @@
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="telefono" class="form-label">Teléfono</label>
-                    <input type="text" name="telefono" id="telefono" maxlength="20"
+                    <input type="text" name="telefono" id="telefono" 
+                           maxlength="9" minlength="9" pattern="[0-9]{9}"
+                           title="El teléfono debe tener exactamente 9 dígitos"
                            value="{{ cliente.telefono|default:'' }}" class="form-control">
                 </div>
             </div>

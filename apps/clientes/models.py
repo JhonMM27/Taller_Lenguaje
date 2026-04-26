@@ -13,6 +13,7 @@ class Cliente(models.Model):
     ]
 
     tipo_doc = models.CharField(max_length=2, choices=TIPO_DOC_CHOICES, default='6')
+    codigo = models.CharField(max_length=10, unique=True, blank=True, null=True, verbose_name="Código")
     num_doc = models.CharField(max_length=15, validators=[RegexValidator(r'^\d+$')])
     razon_social = models.CharField(max_length=200, verbose_name="Razón Social/Nombre")
     direccion = models.TextField(blank=True, null=True)
@@ -31,9 +32,22 @@ class Cliente(models.Model):
     def __str__(self):
         return f"{self.get_tipo_doc_display()} {self.num_doc} - {self.razon_social}"
 
+    def save(self, *args, **kwargs):
+        if not self.codigo:
+            last_cliente = Cliente.objects.order_by('-id').first()
+            if last_cliente and last_cliente.codigo and last_cliente.codigo.startswith('CL'):
+                try:
+                    last_num = int(last_cliente.codigo[2:])
+                    self.codigo = f"CL{(last_num + 1):04d}"
+                except ValueError:
+                    self.codigo = "CL0001"
+            else:
+                self.codigo = "CL0001"
+        super().save(*args, **kwargs)
+
     def clean(self):
         num_doc_str = str(self.num_doc) if self.num_doc else ''
-        if self.tipo_doc == '6' and num_doc_str and len(num_doc_str) != 11:
-            raise ValidationError("El RUC debe tener 11 dígitos")
+        if self.tipo_doc == '6' and num_doc_str and len(num_doc_str) != 10:
+            raise ValidationError("El RUC debe tener 10 dígitos")
         if self.tipo_doc == '1' and num_doc_str and len(num_doc_str) != 8:
             raise ValidationError("El DNI debe tener 8 dígitos")

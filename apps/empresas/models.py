@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 
 class Empresa(models.Model):
     ruc = models.CharField(max_length=11, unique=True, verbose_name="RUC")
+    codigo = models.CharField(max_length=10, unique=True, blank=True, null=True, verbose_name="Código")
     razon_social = models.CharField(max_length=200, verbose_name="Razón Social")
     nombre_comercial = models.CharField(max_length=200, blank=True, null=True, verbose_name="Nombre Comercial")
     direccion = models.TextField(blank=True, null=True, verbose_name="Dirección")
@@ -23,9 +24,21 @@ class Empresa(models.Model):
         return f"{self.ruc} - {self.razon_social}"
 
     def clean(self):
-        if self.ruc and len(str(self.ruc)) != 11:
-            raise ValidationError("El RUC debe tener 11 dígitos")
+        if self.ruc and len(str(self.ruc)) != 10:
+            raise ValidationError("El RUC debe tener 10 dígitos")
+        if self.telefono and len(str(self.telefono).strip()) != 9:
+            raise ValidationError("El teléfono debe tener exactamente 9 dígitos")
 
     def save(self, *args, **kwargs):
+        if not self.codigo:
+            last_emp = Empresa.objects.order_by('-id').first()
+            if last_emp and last_emp.codigo and last_emp.codigo.startswith('EM'):
+                try:
+                    last_num = int(last_emp.codigo[2:])
+                    self.codigo = f"EM{(last_num + 1):04d}"
+                except ValueError:
+                    self.codigo = "EM0001"
+            else:
+                self.codigo = "EM0001"
         self.full_clean()
         super().save(*args, **kwargs)

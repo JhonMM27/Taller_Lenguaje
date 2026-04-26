@@ -13,31 +13,31 @@
         </h1>
         <p class="page-subtitle">Directorio de clientes registrados en el sistema</p>
     </div>
-    <a href="{% url 'clientes:crear' %}" class="btn btn-primary">
+    <button onclick="openModal('nuevoClienteModal')" class="btn btn-primary">
         <i class="bi bi-person-plus"></i> Nuevo Cliente
-    </a>
+    </button>
 </div>
 
 <!-- ── Barra de búsqueda ── -->
 <div class="filter-bar fade-in">
-    <form method="GET" style="display:flex;gap:12px;align-items:flex-end;width:100%;flex-wrap:wrap;">
-        <div style="flex:1;min-width:220px;">
-            <label for="q" class="form-label">Buscar</label>
+    <form method="GET" style="display:flex;gap:16px;align-items:flex-end;width:100%;flex-wrap:wrap;">
+        <div style="flex:1;min-width:280px;">
+            <label for="q" class="form-label" style="font-weight:600; color:var(--gray-700);"><i class="bi bi-funnel" style="margin-right:4px;"></i> Filtrar Clientes</label>
             <div style="position:relative;">
-                <i class="bi bi-search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:13px;"></i>
+                <i class="bi bi-search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:14px;"></i>
                 <input type="text" id="q" name="q"
                        value="{{ query }}"
-                       placeholder="Nombre, RUC, DNI..."
+                       placeholder="Buscar por Nombre, Código, RUC o DNI..."
                        class="form-control"
-                       style="padding-left:38px;">
+                       style="padding-left:40px; border-radius: var(--radius-sm);">
             </div>
         </div>
-        <div style="display:flex;gap:8px;">
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-search"></i> Buscar
+        <div style="display:flex;gap:10px;">
+            <button type="submit" class="btn btn-primary" style="padding: 0 24px;">
+                <i class="bi bi-search"></i> Aplicar Filtros
             </button>
-            <a href="{% url 'clientes:lista' %}" class="btn btn-secondary">
-                <i class="bi bi-x-circle"></i>
+            <a href="{% url 'clientes:lista' %}" class="btn btn-secondary" title="Limpiar filtros" style="width:42px; padding:0;">
+                <i class="bi bi-eraser"></i>
             </a>
         </div>
     </form>
@@ -56,6 +56,7 @@
             <thead>
                 <tr>
                     <th></th>
+                    <th>Código</th>
                     <th>Tipo Doc.</th>
                     <th>Número</th>
                     <th>Razón Social</th>
@@ -73,6 +74,9 @@
                             {{ cliente.razon_social|first|upper }}
                         </div>
                     </td>
+                    <td style="font-family:monospace;font-weight:600;color:var(--primary-700);">
+                        {{ cliente.codigo|default:"—" }}
+                    </td>
                     <td>
                         <span class="badge badge-gray">{{ cliente.get_tipo_doc_display }}</span>
                     </td>
@@ -86,14 +90,16 @@
                     <td style="color:var(--gray-500);">{{ cliente.telefono|default:"—" }}</td>
                     <td>
                         <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
-                            <a href="{% url 'clientes:editar' cliente.id %}"
-                               class="btn-icon" title="Editar">
+                            <button type="button" 
+                                    onclick="openEditModal('{% url 'clientes:editar' cliente.id %}')"
+                                    class="btn-icon" title="Editar">
                                 <i class="bi bi-pencil"></i>
-                            </a>
-                            <a href="{% url 'clientes:eliminar' cliente.id %}"
-                               class="btn-icon danger" title="Eliminar">
+                            </button>
+                            <button type="button" 
+                                    onclick="showConfirm('¿Eliminar cliente?', 'Se eliminará permanentemente a {{ cliente.razon_social|escapejs }}.', () => { window.location.href='{% url 'clientes:eliminar' cliente.id %}'; })"
+                                    class="btn-icon danger" title="Eliminar">
                                 <i class="bi bi-trash"></i>
-                            </a>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -104,9 +110,9 @@
                             <i class="bi bi-people"></i>
                         </div>
                         <p style="color:var(--gray-400);font-size:14px;">No hay clientes registrados</p>
-                        <a href="{% url 'clientes:crear' %}" class="btn btn-primary btn-sm" style="margin-top:12px;">
+                        <button onclick="openModal('nuevoClienteModal')" class="btn btn-primary btn-sm" style="margin-top:12px;">
                             <i class="bi bi-person-plus"></i> Agregar primero
-                        </a>
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}

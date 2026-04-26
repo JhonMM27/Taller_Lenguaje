@@ -8,15 +8,20 @@ from apps.productos.serializers import ProductoSerializer, CategoriaProductoSeri
 @login_required
 def lista_productos(request):
     query = request.GET.get('q', '')
+    categoria_id = request.GET.get('categoria', '')
+    productos = Producto.objects.select_related('categoria').all()
     if query:
-        productos = Producto.objects.filter(
+        productos = productos.filter(
             descripcion__icontains=query
-        ) | Producto.objects.filter(codigo__icontains=query)
-    else:
-        productos = Producto.objects.all()
+        ) | productos.filter(codigo__icontains=query)
+    if categoria_id:
+        productos = productos.filter(categoria_id=categoria_id)
+
     return render(request, 'productos/lista.html', {
-        'productos': productos.order_by('-created_at')[:100],
-        'query': query
+        # Se ordena por fecha de creación ascendente (del más antiguo al más nuevo)
+        'productos': productos.order_by('created_at')[:100],
+        'query': query,
+        'categorias': CategoriaProducto.objects.filter(activa=True).order_by('id'),
     })
 
 
@@ -65,7 +70,8 @@ def lista_categorias(request):
     else:
         categorias = CategoriaProducto.objects.all()
     return render(request, 'productos/categorias/lista.html', {
-        'categorias': categorias.order_by('nombre'),
+        # Se ordena por ID ascendente para mostrar del más antiguo al más nuevo
+        'categorias': categorias.order_by('id'),
         'query': query
     })
 

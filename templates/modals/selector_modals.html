@@ -1,0 +1,225 @@
+<!-- Selector Modal: Empresas -->
+<div class="modal-overlay selector-modal" id="selectorEmpresaModal">
+    <div class="modal-content" style="max-width:700px;">
+        <div class="modal-header">
+            <h2 class="modal-title"><i class="bi bi-building"></i> Seleccionar Empresa</h2>
+            <button class="modal-close" onclick="closeModal('selectorEmpresaModal')"><i class="bi bi-x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <input type="text" id="searchEmpresaInput" class="form-control" placeholder="Buscar por código, RUC o razón social..." onkeyup="searchSelector('empresa')">
+            </div>
+            <div class="table-wrap" style="max-height:400px; overflow-y:auto; margin-top:10px;">
+                <table id="tableEmpresaSelector">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>RUC</th>
+                            <th>Razón Social</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="bodyEmpresaSelector">
+                        <!-- Data will be loaded via AJAX -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Selector Modal: Clientes -->
+<div class="modal-overlay selector-modal" id="selectorClienteModal">
+    <div class="modal-content" style="max-width:700px;">
+        <div class="modal-header">
+            <h2 class="modal-title"><i class="bi bi-people"></i> Seleccionar Cliente</h2>
+            <button class="modal-close" onclick="closeModal('selectorClienteModal')"><i class="bi bi-x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <input type="text" id="searchClienteInput" class="form-control" placeholder="Buscar por código, documento o nombre..." onkeyup="searchSelector('cliente')">
+            </div>
+            <div class="table-wrap" style="max-height:400px; overflow-y:auto; margin-top:10px;">
+                <table id="tableClienteSelector">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>N° Doc</th>
+                            <th>Razón Social</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="bodyClienteSelector">
+                        <!-- Data will be loaded via AJAX -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Selector Modal: Productos -->
+<div class="modal-overlay selector-modal" id="selectorProductoModal">
+    <div class="modal-content" style="max-width:700px;">
+        <div class="modal-header">
+            <h2 class="modal-title"><i class="bi bi-box-seam"></i> Seleccionar Producto</h2>
+            <button class="modal-close" onclick="closeModal('selectorProductoModal')"><i class="bi bi-x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <input type="text" id="searchProductoInput" class="form-control" placeholder="Buscar por código o descripción..." onkeyup="searchSelector('producto')">
+            </div>
+            <div class="table-wrap" style="max-height:400px; overflow-y:auto; margin-top:10px;">
+                <table id="tableProductoSelector">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descripción</th>
+                            <th>Precio</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="bodyProductoSelector">
+                        <!-- Data will be loaded via AJAX -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentSelectorTargetId = '';
+    let currentSelectorDisplayNameId = '';
+    let currentSelectorRow = null; // For dynamic rows in comprobantes
+
+    function openSelector(type, targetId, displayNameId, row = null, initialQuery = '') {
+        currentSelectorTargetId = targetId;
+        currentSelectorDisplayNameId = displayNameId;
+        currentSelectorRow = row;
+        
+        const modalId = 'selector' + type.charAt(0).toUpperCase() + type.slice(1) + 'Modal';
+        const searchInput = document.getElementById('search' + type.charAt(0).toUpperCase() + type.slice(1) + 'Input');
+        if (initialQuery) {
+            searchInput.value = initialQuery;
+        }
+        
+        openModal(modalId);
+        searchSelector(type); // Initial load
+        
+        // Focus the search input after a small delay to ensure modal is visible
+        setTimeout(() => searchInput.focus(), 100);
+    }
+
+    function searchSelector(type) {
+        const query = document.getElementById('search' + type.charAt(0).toUpperCase() + type.slice(1) + 'Input').value;
+        const url = `/comprobantes/buscar-${type}s/?q=` + encodeURIComponent(query);
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.getElementById('body' + type.charAt(0).toUpperCase() + type.slice(1) + 'Selector');
+                tbody.innerHTML = '';
+                
+                data.results.forEach(item => {
+                    const tr = document.createElement('tr');
+                    if (type === 'empresa') {
+                        tr.innerHTML = `
+                            <td>${item.codigo || '-'}</td>
+                            <td>${item.ruc}</td>
+                            <td>${item.razon_social}</td>
+                            <td style="text-align:right;">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="selectItem('empresa', '${item.id}', '${item.razon_social}', '${item.codigo}')">
+                                    Seleccionar
+                                </button>
+                            </td>
+                        `;
+                    } else if (type === 'cliente') {
+                        tr.innerHTML = `
+                            <td>${item.codigo || '-'}</td>
+                            <td>${item.num_doc}</td>
+                            <td>${item.razon_social}</td>
+                            <td style="text-align:right;">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="selectItem('cliente', '${item.id}', '${item.razon_social}', '${item.codigo}')">
+                                    Seleccionar
+                                </button>
+                            </td>
+                        `;
+                    } else if (type === 'producto') {
+                        tr.innerHTML = `
+                            <td>${item.codigo}</td>
+                            <td>${item.descripcion}</td>
+                            <td>S/ ${item.precio}</td>
+                            <td style="text-align:right;">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="selectItem('producto', '${item.id}', '${item.descripcion}', '${item.codigo}', '${item.precio}')">
+                                    Seleccionar
+                                </button>
+                            </td>
+                        `;
+                    }
+                    tbody.appendChild(tr);
+                });
+            });
+    }
+
+    function selectItem(type, id, name, codigo, extra = null) {
+        if (currentSelectorRow) {
+            // Logic for dynamic rows (products in comprobantes)
+            const row = currentSelectorRow;
+            row.querySelector('input[name="producto_id"]').value = id;
+            if (row.querySelector('.producto-display')) {
+                const display = row.querySelector('.producto-display');
+                if (display.tagName === 'INPUT') display.value = name;
+                else display.innerText = name;
+            }
+            if (extra && row.querySelector('input[name="precio_unitario"]')) {
+                row.querySelector('input[name="precio_unitario"]').value = extra;
+            }
+        } else {
+            // Logic for static fields
+            const targetEl = document.getElementById(currentSelectorTargetId);
+            if (targetEl) {
+                targetEl.value = id;
+                // Dispatch change event to trigger dependencies (like checkRequirements)
+                targetEl.dispatchEvent(new Event('change'));
+            }
+
+            const displayEl = document.getElementById(currentSelectorDisplayNameId);
+            if (displayEl) {
+                if (displayEl.tagName === 'INPUT') {
+                    displayEl.value = name;
+                } else {
+                    displayEl.innerText = name;
+                }
+            }
+
+            // Update code input if exists
+            const codeInputId = currentSelectorTargetId.replace('_id', '_codigo');
+            const codeEl = document.getElementById(codeInputId);
+            if (codeEl) {
+                codeEl.value = codigo;
+            }
+        }
+        
+        closeModal('selector' + type.charAt(0).toUpperCase() + type.slice(1) + 'Modal');
+    }
+
+    // Handle searching by code directly in the input
+    function searchByCode(type, targetId, displayNameId) {
+        const codeInputId = targetId.replace('_id', '_codigo');
+        const code = document.getElementById(codeInputId).value;
+        if (!code) return;
+
+        const url = `/comprobantes/buscar-${type}s/?q=` + encodeURIComponent(code);
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.results.length > 0) {
+                    const item = data.results.find(i => i.codigo === code) || data.results[0];
+                    selectItem(type, item.id, item.razon_social || item.descripcion, item.codigo, item.precio);
+                } else {
+                    alert('No se encontró ningún ' + type + ' con ese código');
+                }
+            });
+    }
+</script>
