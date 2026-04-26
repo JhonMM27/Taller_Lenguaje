@@ -1,35 +1,50 @@
 {% extends 'base.html' %}
-
-{% block title %}Nuevo Producto{% endblock %}
+{% block title %}Nuevo Producto - Facturación SUNAT{% endblock %}
+{% block page_title %}Nuevo Producto{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1><i class="bi bi-box-seam"></i> Nuevo Producto</h1>
+
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-box-seam" style="color:var(--primary-600);margin-right:8px;"></i>
+            Nuevo Producto
+        </h1>
+        <p class="page-subtitle">Complete los datos para registrar un nuevo producto o servicio</p>
     </div>
+    <a href="{% url 'productos:lista' %}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
 </div>
 
-<div class="card">
+<div class="card fade-in" style="max-width:820px;">
+    <div class="card-header">
+        <span class="card-title">Información del Producto</span>
+    </div>
     <div class="card-body">
         <form method="POST">
             {% csrf_token %}
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="codigo" class="form-label">Código</label>
-                    <input type="text" class="form-control" name="codigo" required maxlength="30">
+
+            <!-- Fila 1: código, categoría, tipo operación -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="codigo" class="form-label">Código <span style="color:var(--danger);">*</span></label>
+                    <input type="text" name="codigo" id="codigo" required maxlength="30"
+                           placeholder="PROD-001"
+                           class="form-control">
                 </div>
-                <div class="col-md-4">
+                <div class="form-group" style="margin-bottom:0;">
                     <label for="categoria" class="form-label">Categoría</label>
-                    <select class="form-select" name="categoria">
-                        <option value="">-- Sin categoría --</option>
+                    <select name="categoria" id="categoria" class="form-select">
+                        <option value="">— Sin categoría —</option>
                         {% for cat in categorias %}
                         <option value="{{ cat.id }}">{{ cat.nombre }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="form-group" style="margin-bottom:0;">
                     <label for="tipo_operacion" class="form-label">Tipo de Operación</label>
-                    <select class="form-select" name="tipo_operacion">
+                    <select name="tipo_operacion" id="tipo_operacion" class="form-select">
                         <option value="GRAVADA">Gravada</option>
                         <option value="EXONERADA">Exonerada</option>
                         <option value="INAFECTA">Inafecta</option>
@@ -38,14 +53,20 @@
                     </select>
                 </div>
             </div>
-            <div class="mb-3">
-                <label for="descripcion" class="form-label">Descripción</label>
-                <textarea class="form-control" name="descripcion" rows="2" required maxlength="500"></textarea>
+
+            <!-- Descripción -->
+            <div class="form-group">
+                <label for="descripcion" class="form-label">Descripción <span style="color:var(--danger);">*</span></label>
+                <textarea name="descripcion" id="descripcion" rows="2" required maxlength="500"
+                          placeholder="Descripción detallada del producto o servicio"
+                          class="form-control"></textarea>
             </div>
-            <div class="row mb-3">
-                <div class="col-md-3">
+
+            <!-- Fila: unidad, precio, afectación IGV, checkbox -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:16px;align-items:flex-end;">
+                <div class="form-group" style="margin-bottom:0;">
                     <label for="unidad_medida" class="form-label">Unidad de Medida</label>
-                    <select class="form-select" name="unidad_medida">
+                    <select name="unidad_medida" id="unidad_medida" class="form-select">
                         <option value="NIU">NIU (Unidad)</option>
                         <option value="KG">KG (Kilogramo)</option>
                         <option value="GR">GR (Gramo)</option>
@@ -55,44 +76,56 @@
                         <option value="UM">UM (Millar)</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label for="precio_unitario" class="form-label">Precio Unitario</label>
-                    <input type="number" class="form-control" name="precio_unitario" required step="0.01" min="0">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="precio_unitario" class="form-label">Precio Unitario <span style="color:var(--danger);">*</span></label>
+                    <div style="position:relative;">
+                        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:13px;font-weight:600;">S/</span>
+                        <input type="number" name="precio_unitario" id="precio_unitario"
+                               required step="0.01" min="0"
+                               placeholder="0.00"
+                               class="form-control" style="padding-left:32px;">
+                    </div>
                 </div>
-                <div class="col-md-3">
+                <div class="form-group" style="margin-bottom:0;">
                     <label for="cod_tipo_afectacion" class="form-label">Código Afectación IGV</label>
-                    <select class="form-select" name="cod_tipo_afectacion">
+                    <select name="cod_tipo_afectacion" id="cod_tipo_afectacion" class="form-select">
                         <option value="10">10 - Gravado</option>
-                        <option value="11">11 - Gravado - Consignación</option>
+                        <option value="11">11 - Gravado (Consignación)</option>
                         <option value="14">14 - Transacciones gratuitas</option>
                         <option value="20">20 - Exonerado</option>
                         <option value="30">30 - Inafecto</option>
                         <option value="40">40 - Exportación</option>
                     </select>
                 </div>
-                <div class="col-md-3 d-flex align-items-center">
-                    <div class="form-check mt-4">
-                        <input type="checkbox" class="form-check-input" name="afecto_igv" id="afecto_igv" checked>
-                        <label class="form-check-label" for="afecto_igv">Afecto a IGV (18%)</label>
-                    </div>
+                <!-- Checkbox IGV -->
+                <div style="padding-bottom:2px;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" name="afecto_igv" id="afecto_igv" checked
+                               style="width:16px;height:16px;accent-color:var(--primary-600);cursor:pointer;">
+                        <span class="form-label" style="margin-bottom:0;">Afecto IGV (18%)</span>
+                    </label>
                 </div>
             </div>
+
             {% if errors %}
-            <div class="alert alert-danger">
-                {% for field, errors in errors.items %}
-                    {% for error in errors %}
-                        <div>{{ error }}</div>
-                    {% endfor %}
-                {% endfor %}
+            <div class="alert alert-error" style="margin-top:16px;">
+                <span>
+                    <i class="bi bi-exclamation-circle-fill"></i>
+                    {% for field, errs in errors.items %}{% for err in errs %}{{ err }} {% endfor %}{% endfor %}
+                </span>
             </div>
             {% endif %}
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                <a href="{% url 'productos:lista' %}" class="btn btn-secondary">Cancelar</a>
+
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-100);">
+                <a href="{% url 'productos:lista' %}" class="btn btn-secondary">
+                    <i class="bi bi-x-lg"></i> Cancelar
+                </a>
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-save"></i> Guardar
+                    <i class="bi bi-floppy"></i> Guardar Producto
                 </button>
             </div>
         </form>
     </div>
 </div>
+
 {% endblock %}

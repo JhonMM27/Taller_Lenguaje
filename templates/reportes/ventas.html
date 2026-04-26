@@ -1,131 +1,165 @@
 {% extends 'base.html' %}
-
-{% block title %}Reporte de Ventas{% endblock %}
+{% block title %}Reporte de Ventas - Facturación SUNAT{% endblock %}
+{% block page_title %}Reportes{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1><i class="bi bi-graph-up"></i> Reporte de Ventas</h1>
+
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-graph-up" style="color:var(--primary-600);margin-right:8px;"></i>
+            Reporte de Ventas
+        </h1>
+        <p class="page-subtitle">Análisis de comprobantes emitidos por período</p>
+    </div>
+    <a href="?mes={{ mes_actual }}&anio={{ anio_actual }}&formato=excel"
+       class="btn btn-primary" style="background:#16a34a;box-shadow:0 4px 12px rgba(22,163,74,.35);">
+        <i class="bi bi-file-excel"></i> Exportar Excel
+    </a>
+</div>
+
+<!-- Filtro de período -->
+<div class="filter-bar fade-in">
+    <form method="GET" style="display:flex;gap:12px;align-items:flex-end;width:100%;">
+        <div style="flex:1;min-width:160px;">
+            <label for="mes" class="form-label">Mes</label>
+            <select name="mes" id="mes" class="form-select">
+                {% for value, name in meses %}
+                <option value="{{ value }}" {% if value == mes_actual|stringformat:"s" %}selected{% endif %}>
+                    {{ name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="flex:1;min-width:100px;max-width:140px;">
+            <label for="anio" class="form-label">Año</label>
+            <input type="number" name="anio" id="anio"
+                   value="{{ anio_actual }}" min="2020" max="2030"
+                   class="form-control">
+        </div>
         <div>
-            <a href="?mes={{ mes_actual }}&anio={{ anio_actual }}&formato=excel" class="btn btn-success">
-                <i class="bi bi-file-excel"></i> Exportar Excel
-            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search"></i> Filtrar
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- KPI de resumen -->
+<div class="grid-4 stagger" style="margin-bottom:20px;">
+    <div class="metric-card fade-in">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+                <p class="metric-label">Facturas</p>
+                <p class="metric-value">{{ resumen.total_facturas }}</p>
+                <p style="font-size:12px;color:var(--gray-400);margin-top:6px;">Cantidad emitida</p>
+            </div>
+            <div class="metric-icon" style="background:var(--primary-100);color:var(--primary-700);">
+                <i class="bi bi-file-earmark-text" style="font-size:20px;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="metric-card fade-in">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+                <p class="metric-label">Boletas</p>
+                <p class="metric-value">{{ resumen.total_boletas }}</p>
+                <p style="font-size:12px;color:var(--gray-400);margin-top:6px;">Cantidad emitida</p>
+            </div>
+            <div class="metric-icon" style="background:#d1fae5;color:#065f46;">
+                <i class="bi bi-file-earmark-check" style="font-size:20px;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="metric-card fade-in">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+                <p class="metric-label">Subtotal</p>
+                <p class="metric-value" style="font-size:20px;">S/ {{ resumen.subtotal|floatformat:2 }}</p>
+                <p style="font-size:12px;color:var(--gray-400);margin-top:6px;">Base imponible</p>
+            </div>
+            <div class="metric-icon" style="background:#dbeafe;color:#1d4ed8;">
+                <i class="bi bi-currency-dollar" style="font-size:20px;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="metric-card fade-in">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+                <p class="metric-label">IGV (18%)</p>
+                <p class="metric-value" style="font-size:20px;color:#b45309;">S/ {{ resumen.igv|floatformat:2 }}</p>
+                <p style="font-size:12px;color:var(--gray-400);margin-top:6px;">Impuesto</p>
+            </div>
+            <div class="metric-icon" style="background:#fef3c7;color:#b45309;">
+                <i class="bi bi-percent" style="font-size:20px;"></i>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="card mb-4">
+<!-- Total grande -->
+<div class="card fade-in" style="margin-bottom:20px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;">
+    <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+            <p style="color:rgba(255,255,255,.7);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">
+                Total Ventas del Período (incluye IGV)
+            </p>
+            <p style="font-family:var(--font-display);font-size:32px;font-weight:700;color:white;">
+                S/ {{ resumen.total|floatformat:2 }}
+            </p>
+        </div>
+        <div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.15);
+                    display:flex;align-items:center;justify-content:center;font-size:28px;color:white;">
+            <i class="bi bi-receipt"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla de detalle -->
+<div class="table-wrap fade-in">
     <div class="card-header">
-        <i class="bi bi-calendar-month"></i> Seleccionar Período
+        <span class="card-title">
+            <i class="bi bi-list" style="margin-right:6px;color:var(--primary-600);"></i>
+            Detalle de Comprobantes
+        </span>
     </div>
-    <div class="card-body">
-        <form method="GET" class="row g-3">
-            <div class="col-md-4">
-                <label for="mes" class="form-label">Mes</label>
-                <select class="form-select" name="mes">
-                    {% for value, name in meses %}
-                    <option value="{{ value }}" {% if value == mes_actual|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label for="anio" class="form-label">Año</label>
-                <input type="number" class="form-control" name="anio" value="{{ anio_actual }}" min="2020" max="2030">
-            </div>
-            <div class="col-md-4 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search"></i> Filtrar
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card border-primary">
-            <div class="card-body">
-                <h5 class="card-title text-primary"><i class="bi bi-file-earmark-text"></i> Facturas</h5>
-                <h2>{{ resumen.total_facturas }}</h2>
-                <small class="text-muted">Cantidad de facturas</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-success">
-            <div class="card-body">
-                <h5 class="card-title text-success"><i class="bi bi-file-earmark-check"></i> Boletas</h5>
-                <h2>{{ resumen.total_boletas }}</h2>
-                <small class="text-muted">Cantidad de boletas</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-info">
-            <div class="card-body">
-                <h5 class="card-title text-info"><i class="bi bi-currency-dollar"></i> Subtotal</h5>
-                <h2>S/ {{ resumen.subtotal|floatformat:2 }}</h2>
-                <small class="text-muted">Base imponible</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-warning">
-            <div class="card-body">
-                <h5 class="card-title text-warning"><i class="bi bi-percent"></i> IGV</h5>
-                <h2>S/ {{ resumen.igv|floatformat:2 }}</h2>
-                <small class="text-muted">18%</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mb-4">
-    <div class="col-md-12">
-        <div class="card border-dark">
-            <div class="card-body">
-                <h5 class="card-title text-dark"><i class="bi bi-receipt"></i> Total Ventas</h5>
-                <h2 class="text-success">S/ {{ resumen.total|floatformat:2 }}</h2>
-                <small class="text-muted">Incluye IGV</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="card">
-    <div class="card-header">
-        <i class="bi bi-list"></i> Detalle de Comprobantes
-    </div>
-    <div class="card-body table-responsive">
-        <table class="table table-hover table-sm">
-            <thead class="table-dark">
+    <div style="overflow-x:auto;">
+        <table>
+            <thead>
                 <tr>
                     <th>Número</th>
                     <th>Fecha</th>
                     <th>Tipo</th>
                     <th>Cliente</th>
                     <th>RUC/DNI</th>
-                    <th>Subtotal</th>
-                    <th>IGV</th>
-                    <th>Total</th>
+                    <th style="text-align:right;">Subtotal</th>
+                    <th style="text-align:right;">IGV</th>
+                    <th style="text-align:right;">Total</th>
                 </tr>
             </thead>
             <tbody>
                 {% for comp in comprobantes %}
                 <tr>
-                    <td><code>{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}</code></td>
-                    <td>{{ comp.fecha|date:"d/m/Y" }}</td>
-                    <td>{{ comp.get_tipo_display }}</td>
-                    <td>{{ comp.cliente.razon_social|truncatechars:30 }}</td>
-                    <td>{{ comp.cliente.num_doc }}</td>
-                    <td class="text-end">S/ {{ comp.subtotal }}</td>
-                    <td class="text-end">S/ {{ comp.igv }}</td>
-                    <td class="text-end"><strong>S/ {{ comp.total }}</strong></td>
+                    <td style="font-family:monospace;font-weight:600;color:var(--gray-900);">
+                        {{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}
+                    </td>
+                    <td style="color:var(--gray-400);">{{ comp.fecha|date:"d/m/Y" }}</td>
+                    <td>
+                        <span class="badge badge-gray">{{ comp.get_tipo_display }}</span>
+                    </td>
+                    <td style="font-weight:500;">{{ comp.cliente.razon_social|truncatechars:28 }}</td>
+                    <td style="font-family:monospace;font-size:12px;color:var(--gray-500);">{{ comp.cliente.num_doc }}</td>
+                    <td style="text-align:right;">S/ {{ comp.subtotal }}</td>
+                    <td style="text-align:right;">S/ {{ comp.igv }}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--gray-900);">S/ {{ comp.total }}</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-4">
-                        No hay comprobantes en este período
+                    <td colspan="8" style="text-align:center;padding:48px 16px;">
+                        <div style="color:var(--gray-300);font-size:40px;margin-bottom:12px;">
+                            <i class="bi bi-graph-up"></i>
+                        </div>
+                        <p style="color:var(--gray-400);font-size:14px;">No hay comprobantes en este período</p>
                     </td>
                 </tr>
                 {% endfor %}
@@ -133,4 +167,5 @@
         </table>
     </div>
 </div>
+
 {% endblock %}

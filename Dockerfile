@@ -35,7 +35,11 @@ RUN useradd -m -u 1000 -s /bin/bash appuser
 COPY --chown=appuser:appuser . .
 
 RUN mkdir -p /app/staticfiles /app/media /etc/nginx/certs && \
-    chown -R appuser:appuser /app/staticfiles /app/media /etc/nginx/certs
+    chown -R appuser:appuser /app/staticfiles /app/media /etc/nginx/certs && \
+    chmod -R 755 /app && \
+    find /app -type d -exec chmod g+ws {} \; && \
+    find /app -type f -exec chmod g+rw {} \; && \
+    chmod -R 777 /app/apps/*/migrations 2>/dev/null || true
 
 RUN chmod +x /app/docker-entrypoint.sh
 

@@ -29,6 +29,10 @@ done
 
 echo "=== PostgreSQL esta listo! ==="
 
+echo "Asegurando permisos en carpetas de migraciones..."
+find /app -type d -name migrations -exec chmod -R 777 {} \; 2>/dev/null || true
+mkdir -p /app/apps/*/migrations 2>/dev/null || true
+
 echo "Creando migraciones si hay modelos nuevos..."
 python manage.py makemigrations --noinput || true
 

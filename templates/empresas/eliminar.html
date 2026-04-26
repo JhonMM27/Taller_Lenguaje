@@ -3,25 +3,30 @@
 {% block title %}Eliminar Empresa{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1><i class="bi bi-exclamation-triangle text-danger"></i> Eliminar Empresa</h1>
-    </div>
+<div class="mb-6">
+    <h1 class="text-2xl font-display font-semibold text-red-600 flex items-center gap-3">
+        <i class="bi bi-exclamation-triangle"></i> Eliminar Empresa
+    </h1>
 </div>
 
-<div class="card border-danger">
-    <div class="card-body">
-        <p>¿Está seguro que desea eliminar la empresa <strong>{{ empresa.razon_social }}</strong>?</p>
-        <p class="text-muted">RUC: {{ empresa.ruc }}</p>
-        <form method="POST">
-            {% csrf_token %}
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                <a href="{% url 'empresas:lista' %}" class="btn btn-secondary">Cancelar</a>
-                <button type="submit" class="btn btn-danger">
-                    <i class="bi bi-trash"></i> Eliminar
-                </button>
-            </div>
-        </form>
+<div class="bg-white rounded-xl shadow-sm border border-red-200 p-6 max-w-2xl">
+    <div class="flex items-start gap-4 mb-6">
+        <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <i class="bi bi-exclamation-triangle text-red-600 text-xl"></i>
+        </div>
+        <div>
+            <p class="text-slate-800 text-lg">¿Está seguro que desea eliminar la empresa <strong>{{ empresa.razon_social }}</strong>?</p>
+            <p class="text-slate-500 mt-1">RUC: {{ empresa.ruc }}</p>
+        </div>
     </div>
+    <form method="POST" class="flex justify-end gap-3">
+        {% csrf_token %}
+        <a href="{% url 'empresas:lista' %}" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium transition">
+            Cancelar
+        </a>
+        <button type="submit" class="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition shadow-lg shadow-red-500/30 flex items-center gap-2">
+            <i class="bi bi-trash"></i> Eliminar
+        </button>
+    </form>
 </div>
 {% endblock %}

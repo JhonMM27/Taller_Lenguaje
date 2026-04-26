@@ -4,106 +4,261 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Sistema de Facturación SUNAT{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+    <!-- Fuentes Google -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+    <!-- Estilos propios del sistema -->
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
     {% block extra_css %}{% endblock %}
 </head>
+
+<!--
+  body: modo login sin sidebar → agregar clase "login-mode"
+  Estructura principal:
+    sidebar | main-wrapper (topbar + main-content)
+-->
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <i class="bi bi-file-earmark-text"></i> Facturación SUNAT
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
+
+<!-- ═══════════════════════════════════════════════════════════
+     OVERLAY MOBILE (cierra sidebar al hacer clic fuera)
+════════════════════════════════════════════════════════════ -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SIDEBAR LATERAL
+════════════════════════════════════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+
+    <!-- Logo / marca -->
+    <div class="sidebar-logo">
+        <div class="logo-icon">
+            <i class="bi bi-file-earmark-text"></i>
+        </div>
+        <span class="logo-text">FacturaSUNAT</span>
+    </div>
+
+    <!-- Navegación principal -->
+    <nav>
+        <!-- Dashboard -->
+        <a href="{% url 'dashboard' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+        </a>
+
+        <div class="sidebar-section-label">Gestión</div>
+
+        <!-- Comprobantes (dropdown) -->
+        <div class="nav-group">
+            <button class="nav-group-toggle {% if 'comprobantes' in request.resolver_match.namespace %}open{% endif %}"
+                    onclick="toggleGroup(this)" type="button">
+                <i class="bi bi-receipt"></i>
+                <span>Comprobantes</span>
+                <i class="bi bi-chevron-right toggle-arrow"></i>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'dashboard' %}">
-                            <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'empresas:lista' %}">
-                            <i class="bi bi-building"></i> Empresas
-                        </a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="comprobantesDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-receipt"></i> Comprobantes
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{% url 'comprobantes:lista' %}?tipo=01">Facturas</a></li>
-                            <li><a class="dropdown-item" href="{% url 'comprobantes:lista' %}?tipo=03">Boletas</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{% url 'comprobantes:lista' %}">Ver Todos</a></li>
-                            <li><a class="dropdown-item" href="{% url 'comprobantes:importar' %}">Importar CSV</a></li>
-                            <li><a class="dropdown-item" href="{% url 'sunat_ose:envio_masivo' %}">Envío Masivo</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'clientes:lista' %}">
-                            <i class="bi bi-people"></i> Clientes
-                        </a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="productosDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-box-seam"></i> Productos
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{% url 'productos:lista' %}">Ver Productos</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:categorias_lista' %}">Categorías</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'notas_credito:lista' %}">
-                            <i class="bi bi-journal-minus"></i> Notas de Crédito
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'reportes:ventas' %}">
-                            <i class="bi bi-graph-up"></i> Reportes
-                        </a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/admin/">
-                            <i class="bi bi-gear"></i> Admin
-                        </a>
-                    </li>
-                    {% if user.is_authenticated %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'usuarios:logout' %}">
-                            <i class="bi bi-box-arrow-right"></i> Salir
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
+            <div class="nav-group-items {% if 'comprobantes' in request.resolver_match.namespace %}open{% endif %}">
+                <a href="{% url 'comprobantes:lista' %}?tipo=01" class="nav-link">
+                    <i class="bi bi-file-earmark-ruled"></i> Facturas
+                </a>
+                <a href="{% url 'comprobantes:lista' %}?tipo=03" class="nav-link">
+                    <i class="bi bi-file-earmark"></i> Boletas
+                </a>
+                <a href="{% url 'comprobantes:lista' %}" class="nav-link">
+                    <i class="bi bi-collection"></i> Ver Todos
+                </a>
+                <a href="{% url 'comprobantes:crear' %}" class="nav-link">
+                    <i class="bi bi-plus-circle"></i> Nuevo
+                </a>
+                <a href="{% url 'comprobantes:importar' %}" class="nav-link">
+                    <i class="bi bi-cloud-upload"></i> Importar CSV
+                </a>
             </div>
         </div>
+
+        <!-- Clientes -->
+        <a href="{% url 'clientes:lista' %}"
+           class="nav-link {% if request.resolver_match.namespace == 'clientes' %}active{% endif %}">
+            <i class="bi bi-people"></i>
+            <span>Clientes</span>
+        </a>
+
+        <!-- Productos (dropdown) -->
+        <div class="nav-group">
+            <button class="nav-group-toggle {% if 'productos' in request.resolver_match.namespace %}open{% endif %}"
+                    onclick="toggleGroup(this)" type="button">
+                <i class="bi bi-box-seam"></i>
+                <span>Productos</span>
+                <i class="bi bi-chevron-right toggle-arrow"></i>
+            </button>
+            <div class="nav-group-items {% if 'productos' in request.resolver_match.namespace %}open{% endif %}">
+                <a href="{% url 'productos:lista' %}" class="nav-link">
+                    <i class="bi bi-grid"></i> Ver Productos
+                </a>
+                <a href="{% url 'productos:categorias_lista' %}" class="nav-link">
+                    <i class="bi bi-tag"></i> Categorías
+                </a>
+            </div>
+        </div>
+
+        <!-- Empresas -->
+        <a href="{% url 'empresas:lista' %}"
+           class="nav-link {% if request.resolver_match.namespace == 'empresas' %}active{% endif %}">
+            <i class="bi bi-building"></i>
+            <span>Empresas</span>
+        </a>
+
+        <!-- Notas de Crédito -->
+        <a href="{% url 'notas_credito:lista' %}"
+           class="nav-link {% if request.resolver_match.namespace == 'notas_credito' %}active{% endif %}">
+            <i class="bi bi-journal-minus"></i>
+            <span>Notas de Crédito</span>
+        </a>
+
+        <div class="sidebar-section-label">Análisis</div>
+
+        <!-- Reportes -->
+        <a href="{% url 'reportes:ventas' %}"
+           class="nav-link {% if request.resolver_match.namespace == 'reportes' %}active{% endif %}">
+            <i class="bi bi-graph-up"></i>
+            <span>Reportes</span>
+        </a>
+
+        <!-- Envío Masivo SUNAT -->
+        <a href="{% url 'sunat_ose:envio_masivo' %}"
+           class="nav-link {% if request.resolver_match.namespace == 'sunat_ose' %}active{% endif %}">
+            <i class="bi bi-send"></i>
+            <span>Envío SUNAT</span>
+        </a>
+
+        <div class="sidebar-section-label">Sistema</div>
+
+        <!-- Admin Django -->
+        <a href="/admin/" class="nav-link">
+            <i class="bi bi-gear"></i>
+            <span>Administración</span>
+        </a>
+
     </nav>
 
-    <main class="container-fluid py-4">
+    <!-- Footer del sidebar: logout -->
+    <div class="sidebar-footer">
+        {% if user.is_authenticated %}
+        <a href="{% url 'usuarios:logout' %}" class="nav-link" style="color:var(--danger);">
+            <i class="bi bi-box-arrow-right"></i>
+            <span>Cerrar Sesión</span>
+        </a>
+        {% endif %}
+    </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
+     CONTENIDO PRINCIPAL
+════════════════════════════════════════════════════════════ -->
+<div class="main-wrapper">
+
+    <!-- Topbar -->
+    <header class="topbar">
+        <!-- Botón hamburguesa (mobile) -->
+        <button class="sidebar-toggle" onclick="openSidebar()" aria-label="Abrir menú">
+            <i class="bi bi-list"></i>
+        </button>
+
+        <!-- Título de la página actual -->
+        <div class="topbar-title">{% block page_title %}Sistema de Facturación{% endblock %}</div>
+
+        <!-- Acciones del topbar -->
+        <div class="topbar-actions">
+
+            <!-- Botón nuevo comprobante rápido -->
+            <a href="{% url 'comprobantes:crear' %}" class="btn btn-primary btn-sm" title="Nuevo comprobante">
+                <i class="bi bi-plus-lg"></i>
+                <span class="d-none d-md-inline">Nuevo</span>
+            </a>
+
+            <!-- Usuario -->
+            {% if user.is_authenticated %}
+            <div class="user-btn">
+                <div class="avatar" style="background: var(--primary-600); font-size:12px;">
+                    {{ user.username|first|upper }}
+                </div>
+                <span style="font-size:13px; font-weight:600; color:var(--gray-700);">
+                    {{ user.username|truncatechars:12 }}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- Mensajes flash (alertas) -->
+    <main class="main-content">
         {% if messages %}
             {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            <div class="alert alert-{{ message.tags }} fade-in">
+                <span style="display:flex;align-items:center;gap:8px;">
+                    {% if message.tags == 'success' %}
+                        <i class="bi bi-check-circle-fill"></i>
+                    {% elif message.tags == 'error' %}
+                        <i class="bi bi-exclamation-circle-fill"></i>
+                    {% else %}
+                        <i class="bi bi-info-circle-fill"></i>
+                    {% endif %}
                     {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
+                </span>
+                <button class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
             {% endfor %}
         {% endif %}
+
         {% block content %}{% endblock %}
     </main>
+</div><!-- /main-wrapper -->
 
-    <footer class="bg-light py-3 mt-auto">
-        <div class="container text-center">
-            <p class="text-muted mb-0">Sistema de Facturación Electrónica SUNAT &copy; 2024</p>
-        </div>
-    </footer>
+<!-- ═══════════════════════════════════════════════════════════
+     SCRIPTS GLOBALES
+════════════════════════════════════════════════════════════ -->
+<script>
+    /**
+     * toggleGroup: abre/cierra un grupo de nav en el sidebar.
+     * @param {HTMLElement} btn - el botón .nav-group-toggle clickeado
+     */
+    function toggleGroup(btn) {
+        btn.classList.toggle('open');
+        const items = btn.nextElementSibling;
+        items.classList.toggle('open');
+    }
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    {% block extra_js %}{% endblock %}
+    /** openSidebar: muestra sidebar en mobile */
+    function openSidebar() {
+        document.getElementById('sidebar').classList.add('open');
+        document.getElementById('sidebarOverlay').classList.add('active');
+    }
+
+    /** closeSidebar: oculta sidebar en mobile */
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('sidebarOverlay').classList.remove('active');
+    }
+
+    /* Auto-dismiss mensajes tras 4 segundos */
+    setTimeout(() => {
+        document.querySelectorAll('.alert').forEach(el => {
+            el.style.transition = 'opacity .4s ease';
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 400);
+        });
+    }, 4000);
+</script>
+
+{% block extra_js %}{% endblock %}
 </body>
 </html>

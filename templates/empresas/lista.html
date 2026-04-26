@@ -3,42 +3,44 @@
 {% block title %}Empresas{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1><i class="bi bi-building"></i> Empresas</h1>
-        <a href="{% url 'empresas:crear' %}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Nueva Empresa
-        </a>
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+    <div>
+        <h1 class="text-2xl font-display font-semibold text-slate-800 flex items-center gap-3">
+            <i class="bi bi-building text-primary-600"></i> Empresas
+        </h1>
     </div>
+    <a href="{% url 'empresas:crear' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-medium transition shadow-lg shadow-primary-500/30">
+        <i class="bi bi-plus-circle"></i> Nueva Empresa
+    </a>
 </div>
 
-<div class="card">
-    <div class="card-body table-responsive">
-        <table class="table table-hover">
-            <thead class="table-dark">
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-slate-50">
                 <tr>
-                    <th>RUC</th>
-                    <th>Razón Social</th>
-                    <th>Nombre Comercial</th>
-                    <th>Email</th>
-                    <th>Teléfono</th>
-                    <th>Acciones</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">RUC</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Razón Social</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Nombre Comercial</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Teléfono</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Acciones</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="divide-y divide-slate-100">
                 {% for empresa in empresas %}
-                <tr>
-                    <td><code>{{ empresa.ruc }}</code></td>
-                    <td>{{ empresa.razon_social }}</td>
-                    <td>{{ empresa.nombre_comercial|default:"-" }}</td>
-                    <td>{{ empresa.email|default:"-" }}</td>
-                    <td>{{ empresa.telefono|default:"-" }}</td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="{% url 'empresas:editar' empresa.id %}" class="btn btn-outline-primary" title="Editar">
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-800">{{ empresa.ruc }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800">{{ empresa.razon_social }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{{ empresa.nombre_comercial|default:"-" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{{ empresa.email|default:"-" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{{ empresa.telefono|default:"-" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <a href="{% url 'empresas:editar' empresa.id %}" class="p-2 rounded-lg text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
-                            <a href="{% url 'empresas:eliminar' empresa.id %}" class="btn btn-outline-danger" title="Eliminar">
+                            <a href="{% url 'empresas:eliminar' empresa.id %}" class="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Eliminar">
                                 <i class="bi bi-trash"></i>
                             </a>
                         </div>
@@ -46,7 +48,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">
+                    <td colspan="6" class="px-6 py-8 text-center text-slate-400">
                         No hay empresas registradas
                     </td>
                 </tr>

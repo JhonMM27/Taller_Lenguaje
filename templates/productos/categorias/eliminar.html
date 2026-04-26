@@ -3,28 +3,31 @@
 {% block title %}Eliminar Categoría{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1><i class="bi bi-tags"></i> Eliminar Categoría</h1>
-    </div>
+<div class="mb-6">
+    <h1 class="text-2xl font-display font-semibold text-red-600 flex items-center gap-3">
+        <i class="bi bi-exclamation-triangle"></i> Eliminar Categoría
+    </h1>
 </div>
 
-<div class="card">
-    <div class="card-body">
-        <div class="alert alert-warning">
-            <h4 class="alert-heading">¿Está seguro de eliminar esta categoría?</h4>
-            <p><strong>{{ categoria.nombre }}</strong></p>
-            <p class="mb-0">Esta acción no se puede deshacer. Los productos asociados保持 su categoría pero no se eliminarán.</p>
-        </div>
-        <form method="POST">
-            {% csrf_token %}
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                <a href="{% url 'productos:categorias_lista' %}" class="btn btn-secondary">Cancelar</a>
-                <button type="submit" class="btn btn-danger">
-                    <i class="bi bi-trash"></i> Eliminar
-                </button>
+<div class="bg-white rounded-xl shadow-sm border border-red-200 p-6 max-w-2xl">
+    <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 mb-6">
+        <div class="flex items-start gap-3">
+            <i class="bi bi-exclamation-triangle text-amber-600 text-xl mt-0.5"></i>
+            <div>
+                <h4 class="font-semibold text-amber-800">¿Está seguro de eliminar esta categoría?</h4>
+                <p class="text-amber-700 mt-1"><strong>{{ categoria.nombre }}</strong></p>
+                <p class="text-amber-600 text-sm mt-2">Los productos asociados mantendrán su categoría pero no se eliminarán.</p>
             </div>
-        </form>
+        </div>
     </div>
+    <form method="POST" class="flex justify-end gap-3">
+        {% csrf_token %}
+        <a href="{% url 'productos:categorias_lista' %}" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium transition">
+            Cancelar
+        </a>
+        <button type="submit" class="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition shadow-lg shadow-red-500/30 flex items-center gap-2">
+            <i class="bi bi-trash"></i> Eliminar
+        </button>
+    </form>
 </div>
 {% endblock %}

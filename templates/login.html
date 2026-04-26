@@ -1,57 +1,220 @@
-{% extends 'base.html' %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión - Facturación SUNAT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <style>
+        /*
+          Login: página independiente sin sidebar.
+          Fondo degradado indigo oscuro.
+        */
+        body { display: block; background: none; }
 
-{% block title %}Iniciar Sesión - Facturación SUNAT{% endblock %}
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+        }
 
-{% block extra_css %}
-<style>
-    .login-container {
-        max-width: 400px;
-        margin: 0 auto;
-        padding-top: 100px;
-    }
-    .card {
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-</style>
-{% endblock %}
+        /* Círculos decorativos de fondo */
+        .login-page::before {
+            content: '';
+            position: absolute;
+            width: 500px; height: 500px;
+            background: rgba(255,255,255,.03);
+            border-radius: 50%;
+            top: -150px; right: -150px;
+        }
 
-{% block content %}
-<div class="login-container">
-    <div class="card">
-        <div class="card-header bg-primary text-white text-center py-4">
-            <h4 class="mb-0"><i class="bi bi-file-earmark-text"></i> Facturación SUNAT</h4>
-        </div>
-        <div class="card-body p-4">
+        .login-page::after {
+            content: '';
+            position: absolute;
+            width: 300px; height: 300px;
+            background: rgba(255,255,255,.04);
+            border-radius: 50%;
+            bottom: -80px; left: -80px;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 20px;
+            padding: 44px 40px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 32px 80px rgba(0,0,0,.35);
+            position: relative;
+            z-index: 1;
+            animation: fadeInUp .4s ease both;
+        }
+
+        .login-logo {
+            width: 60px; height: 60px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px; color: white;
+            margin: 0 auto 20px;
+            box-shadow: 0 8px 24px rgba(99,102,241,.4);
+        }
+
+        .login-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 22px; font-weight: 700;
+            color: #0f172a;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+
+        .login-sub {
+            text-align: center;
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 28px;
+        }
+
+        .login-input-group { margin-bottom: 16px; }
+
+        .login-label {
+            display: block;
+            font-size: 13px; font-weight: 500;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+
+        .login-input-wrap { position: relative; }
+
+        .login-input-icon {
+            position: absolute;
+            left: 14px; top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8; font-size: 15px;
+            pointer-events: none;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 11px 14px 11px 42px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            color: #0f172a;
+            background: #f8fafc;
+            outline: none;
+            transition: border-color .2s, box-shadow .2s, background .2s;
+        }
+
+        .login-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+            background: white;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: opacity .2s, transform .15s, box-shadow .2s;
+            box-shadow: 0 6px 20px rgba(99,102,241,.4);
+            margin-top: 8px;
+        }
+
+        .login-btn:hover {
+            opacity: .93;
+            transform: translateY(-1px);
+            box-shadow: 0 10px 28px rgba(99,102,241,.5);
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 28px;
+            font-size: 12px;
+            color: rgba(255,255,255,.5);
+        }
+    </style>
+</head>
+<body>
+<div class="login-page">
+    <div style="width:100%;max-width:420px;">
+
+        <!-- Card de login -->
+        <div class="login-card">
+
+            <!-- Logo -->
+            <div class="login-logo">
+                <i class="bi bi-file-earmark-text"></i>
+            </div>
+
+            <h1 class="login-title">Facturación SUNAT</h1>
+            <p class="login-sub">Sistema de Facturación Electrónica</p>
+
+            <!-- Mensajes de error -->
             {% if messages %}
                 {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
+                <div style="margin-bottom:16px;padding:12px 14px;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:8px;
+                    {% if message.tags == 'success' %}background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;
+                    {% elif message.tags == 'error' %}background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;
+                    {% else %}background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;{% endif %}">
+                    <i class="bi bi-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}exclamation-circle{% else %}info-circle{% endif %}-fill"></i>
+                    {{ message }}
+                </div>
                 {% endfor %}
             {% endif %}
-            
+
+            <!-- Formulario -->
             <form method="POST">
                 {% csrf_token %}
-                <div class="mb-3">
-                    <label for="email" class="form-label">Email</label>
-                    <input type="email" class="form-control" id="email" name="email" required autofocus placeholder="admin@prueba.com">
+
+                <div class="login-input-group">
+                    <label for="email" class="login-label">Correo electrónico</label>
+                    <div class="login-input-wrap">
+                        <i class="bi bi-envelope login-input-icon"></i>
+                        <input type="email" id="email" name="email" required autofocus
+                               placeholder="admin@prueba.com"
+                               class="login-input">
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label for="password" class="form-label">Contraseña</label>
-                    <input type="password" class="form-control" id="password" name="password" required placeholder="••••••••">
+
+                <div class="login-input-group">
+                    <label for="password" class="login-label">Contraseña</label>
+                    <div class="login-input-wrap">
+                        <i class="bi bi-lock login-input-icon"></i>
+                        <input type="password" id="password" name="password" required
+                               placeholder="••••••••"
+                               class="login-input">
+                    </div>
                 </div>
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-primary btn-lg">
-                        <i class="bi bi-box-arrow-in-right"></i> Iniciar Sesión
-                    </button>
-                </div>
+
+                <button type="submit" class="login-btn">
+                    <i class="bi bi-box-arrow-in-right"></i>
+                    Iniciar Sesión
+                </button>
             </form>
         </div>
-        <div class="card-footer text-center text-muted">
-            <small>Sistema de Facturación Electrónica SUNAT</small>
-        </div>
+
+        <!-- Copyright -->
+        <p class="login-footer">© 2026 Sistema de Facturación Electrónica SUNAT</p>
     </div>
 </div>
-{% endblock %}
+</body>
+</html>

@@ -1,65 +1,105 @@
 {% extends 'base.html' %}
-
-{% block title %}Productos{% endblock %}
+{% block title %}Productos - Facturación SUNAT{% endblock %}
+{% block page_title %}Productos{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1><i class="bi bi-box-seam"></i> Productos</h1>
+
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-box-seam" style="color:var(--primary-600);margin-right:8px;"></i>
+            Catálogo de Productos
+        </h1>
+        <p class="page-subtitle">Gestión de productos y servicios del sistema</p>
+    </div>
+    <div style="display:flex;gap:10px;">
+        <a href="{% url 'productos:categorias_lista' %}" class="btn btn-outline">
+            <i class="bi bi-tag"></i> Categorías
+        </a>
         <a href="{% url 'productos:crear' %}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Nuevo Producto
+            <i class="bi bi-plus-lg"></i> Nuevo Producto
         </a>
     </div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-body">
-        <form method="GET" class="row g-3">
-            <div class="col-md-8">
-                <input type="text" class="form-control" name="q" placeholder="Buscar por código o descripción..." value="{{ query }}">
+<!-- Buscador -->
+<div class="filter-bar fade-in">
+    <form method="GET" style="display:flex;gap:12px;width:100%;align-items:flex-end;">
+        <div style="flex:1;">
+            <label for="q" class="form-label">Buscar producto</label>
+            <div style="position:relative;">
+                <i class="bi bi-search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:13px;"></i>
+                <input type="text" id="q" name="q"
+                       value="{{ query }}"
+                       placeholder="Código, descripción..."
+                       class="form-control" style="padding-left:38px;">
             </div>
-            <div class="col-md-4">
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search"></i> Buscar
-                </button>
-            </div>
-        </form>
-    </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search"></i> Buscar
+            </button>
+            <a href="{% url 'productos:lista' %}" class="btn btn-secondary">
+                <i class="bi bi-x-circle"></i>
+            </a>
+        </div>
+    </form>
 </div>
 
-<div class="card">
-    <div class="card-body table-responsive">
-        <table class="table table-hover">
-            <thead class="table-dark">
+<!-- Tabla -->
+<div class="table-wrap fade-in">
+    <div class="card-header">
+        <span class="card-title">Productos Registrados</span>
+        <span style="font-size:12px;color:var(--gray-400);">{{ productos|length }} producto(s)</span>
+    </div>
+    <div style="overflow-x:auto;">
+        <table>
+            <thead>
                 <tr>
                     <th>Código</th>
                     <th>Descripción</th>
+                    <th>Categoría</th>
                     <th>Unidad</th>
-                    <th>Precio Unit.</th>
-                    <th>Afecto IGV</th>
-                    <th>Acciones</th>
+                    <th style="text-align:right;">Precio Unit.</th>
+                    <th style="text-align:center;">IGV</th>
+                    <th style="text-align:center;">Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for producto in productos %}
                 <tr>
-                    <td><code>{{ producto.codigo }}</code></td>
-                    <td>{{ producto.descripcion }}</td>
-                    <td>{{ producto.unidad_medida }}</td>
-                    <td class="text-end">S/ {{ producto.precio_unitario }}</td>
+                    <td style="font-family:monospace;font-weight:600;color:var(--gray-900);">
+                        {{ producto.codigo }}
+                    </td>
+                    <td style="font-weight:500;color:var(--gray-800);max-width:260px;">
+                        {{ producto.descripcion }}
+                    </td>
                     <td>
-                        {% if producto.afecto_igv %}
-                            <span class="badge bg-success">Sí</span>
+                        {% if producto.categoria %}
+                        <span class="badge badge-primary">{{ producto.categoria }}</span>
                         {% else %}
-                            <span class="badge bg-secondary">No</span>
+                        <span style="color:var(--gray-300);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="color:var(--gray-500);">{{ producto.unidad_medida }}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--gray-900);">
+                        S/ {{ producto.precio_unitario }}
+                    </td>
+                    <td style="text-align:center;">
+                        {% if producto.afecto_igv %}
+                        <span class="badge badge-success">Sí</span>
+                        {% else %}
+                        <span class="badge badge-gray">No</span>
                         {% endif %}
                     </td>
                     <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="{% url 'productos:editar' producto.id %}" class="btn btn-outline-primary" title="Editar">
+                        <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
+                            <a href="{% url 'productos:editar' producto.id %}"
+                               class="btn-icon" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
-                            <a href="{% url 'productos:eliminar' producto.id %}" class="btn btn-outline-danger" title="Eliminar">
+                            <a href="{% url 'productos:eliminar' producto.id %}"
+                               class="btn-icon danger" title="Eliminar">
                                 <i class="bi bi-trash"></i>
                             </a>
                         </div>
@@ -67,8 +107,14 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">
-                        No hay productos registrados
+                    <td colspan="7" style="text-align:center;padding:48px 16px;">
+                        <div style="color:var(--gray-300);font-size:40px;margin-bottom:12px;">
+                            <i class="bi bi-box-seam"></i>
+                        </div>
+                        <p style="color:var(--gray-400);font-size:14px;">No hay productos registrados</p>
+                        <a href="{% url 'productos:crear' %}" class="btn btn-primary btn-sm" style="margin-top:12px;">
+                            <i class="bi bi-plus-lg"></i> Agregar producto
+                        </a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -76,4 +122,5 @@
         </table>
     </div>
 </div>
+
 {% endblock %}

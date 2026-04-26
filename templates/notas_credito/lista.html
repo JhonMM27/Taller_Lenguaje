@@ -1,58 +1,78 @@
 {% extends 'base.html' %}
-
-{% block title %}Notas de Crédito{% endblock %}
+{% block title %}Notas de Crédito - Facturación SUNAT{% endblock %}
+{% block page_title %}Notas de Crédito{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1><i class="bi bi-journal-minus"></i> Notas de Crédito</h1>
-        <a href="{% url 'notas_credito:crear' %}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Nueva Nota de Crédito
-        </a>
+
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-journal-minus" style="color:var(--primary-600);margin-right:8px;"></i>
+            Notas de Crédito
+        </h1>
+        <p class="page-subtitle">Gestión de notas de crédito electrónicas SUNAT</p>
     </div>
+    <a href="{% url 'notas_credito:crear' %}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Nueva Nota de Crédito
+    </a>
 </div>
 
-<div class="card">
-    <div class="card-body table-responsive">
-        <table class="table table-hover">
-            <thead class="table-dark">
+<div class="table-wrap fade-in">
+    <div class="card-header">
+        <span class="card-title">Listado de Notas de Crédito</span>
+    </div>
+    <div style="overflow-x:auto;">
+        <table>
+            <thead>
                 <tr>
                     <th>Número</th>
                     <th>Fecha</th>
-                    <th>Comprobante Ref.</th>
+                    <th>Comp. Referencia</th>
                     <th>Cliente</th>
                     <th>Motivo</th>
-                    <th>Monto Afectado</th>
+                    <th style="text-align:right;">Monto Afectado</th>
                     <th>Estado</th>
-                    <th>Acciones</th>
+                    <th style="text-align:center;">Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for nota in notas %}
                 <tr>
-                    <td><code>{{ nota.serie }}-{{ nota.numero|stringformat:"08d" }}</code></td>
-                    <td>{{ nota.fecha|date:"d/m/Y" }}</td>
-                    <td>{{ nota.comprobante_referencia.serie.serie }}-{{ nota.comprobante_referencia.numero|stringformat:"08d" }}</td>
-                    <td>{{ nota.comprobante_referencia.cliente.razon_social|truncatechars:25 }}</td>
-                    <td>{{ nota.get_tipo_nota_display }}</td>
-                    <td class="text-end">S/ {{ nota.monto_afectado }}</td>
+                    <td style="font-family:monospace;font-weight:600;color:var(--gray-900);">
+                        {{ nota.serie }}-{{ nota.numero|stringformat:"08d" }}
+                    </td>
+                    <td style="color:var(--gray-400);">{{ nota.fecha|date:"d/m/Y" }}</td>
+                    <td style="font-family:monospace;font-size:12px;color:var(--gray-500);">
+                        {{ nota.comprobante_referencia.serie.serie }}-{{ nota.comprobante_referencia.numero|stringformat:"08d" }}
+                    </td>
+                    <td style="font-weight:500;">
+                        {{ nota.comprobante_referencia.cliente.razon_social|truncatechars:22 }}
+                    </td>
+                    <td>
+                        <span class="badge badge-gray">{{ nota.get_tipo_nota_display }}</span>
+                    </td>
+                    <td style="text-align:right;font-weight:700;color:var(--gray-900);">
+                        S/ {{ nota.monto_afectado }}
+                    </td>
                     <td>
                         {% if nota.estado == 'ACEPTADO' %}
-                            <span class="badge bg-success">{{ nota.estado }}</span>
+                            <span class="badge badge-success">{{ nota.estado }}</span>
                         {% elif nota.estado == 'RECHAZADO' %}
-                            <span class="badge bg-danger">{{ nota.estado }}</span>
+                            <span class="badge badge-danger">{{ nota.estado }}</span>
                         {% elif nota.estado == 'ENVIADO' %}
-                            <span class="badge bg-info">{{ nota.estado }}</span>
+                            <span class="badge badge-info">{{ nota.estado }}</span>
                         {% else %}
-                            <span class="badge bg-warning">{{ nota.estado }}</span>
+                            <span class="badge badge-warning">{{ nota.estado }}</span>
                         {% endif %}
                     </td>
                     <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="{% url 'notas_credito:detalle' nota.id %}" class="btn btn-outline-primary" title="Ver">
+                        <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
+                            <a href="{% url 'notas_credito:detalle' nota.id %}"
+                               class="btn-icon" title="Ver detalle">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            <a href="{% url 'notas_credito:eliminar' nota.id %}" class="btn btn-outline-danger" title="Eliminar">
+                            <a href="{% url 'notas_credito:eliminar' nota.id %}"
+                               class="btn-icon danger" title="Eliminar">
                                 <i class="bi bi-trash"></i>
                             </a>
                         </div>
@@ -60,8 +80,14 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-4">
-                        No hay notas de crédito registradas
+                    <td colspan="8" style="text-align:center;padding:48px 16px;">
+                        <div style="color:var(--gray-300);font-size:40px;margin-bottom:12px;">
+                            <i class="bi bi-journal-minus"></i>
+                        </div>
+                        <p style="color:var(--gray-400);font-size:14px;">No hay notas de crédito registradas</p>
+                        <a href="{% url 'notas_credito:crear' %}" class="btn btn-primary btn-sm" style="margin-top:12px;">
+                            <i class="bi bi-plus-lg"></i> Crear primera nota
+                        </a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -69,4 +95,5 @@
         </table>
     </div>
 </div>
+
 {% endblock %}

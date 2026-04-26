@@ -1,27 +1,70 @@
 {% extends 'base.html' %}
-
-{% block title %}Eliminar Cliente{% endblock %}
+{% block title %}Eliminar Cliente - Facturación SUNAT{% endblock %}
+{% block page_title %}Eliminar Cliente{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1><i class="bi bi-exclamation-triangle text-danger"></i> Eliminar Cliente</h1>
+
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title" style="color:var(--danger);">
+            <i class="bi bi-exclamation-triangle" style="margin-right:8px;"></i>
+            Eliminar Cliente
+        </h1>
     </div>
+    <a href="{% url 'clientes:lista' %}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
 </div>
 
-<div class="card border-danger">
+<!-- Card de confirmación -->
+<div class="card fade-in" style="max-width:520px;border-color:#fecaca;">
+    <div class="card-header" style="background:#fef2f2;">
+        <span class="card-title" style="color:var(--danger);">
+            <i class="bi bi-exclamation-triangle" style="margin-right:6px;"></i>
+            Confirmar eliminación
+        </span>
+    </div>
     <div class="card-body">
-        <p>¿Está seguro que desea eliminar al cliente <strong>{{ cliente.razon_social }}</strong>?</p>
-        <p class="text-muted">Documento: {{ cliente.get_tipo_doc_display }} {{ cliente.num_doc }}</p>
+        <!-- Datos del cliente a eliminar -->
+        <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:24px;">
+            <div style="width:48px;height:48px;border-radius:50%;background:#fee2e2;color:#b91c1c;
+                        display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">
+                <i class="bi bi-person"></i>
+            </div>
+            <div>
+                <p style="font-weight:700;font-size:16px;color:var(--gray-900);margin-bottom:4px;">
+                    {{ cliente.razon_social }}
+                </p>
+                <p style="font-size:13px;color:var(--gray-500);">
+                    {{ cliente.get_tipo_doc_display }}: {{ cliente.num_doc }}
+                </p>
+                {% if cliente.email %}
+                <p style="font-size:13px;color:var(--gray-400);">{{ cliente.email }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Advertencia -->
+        <div class="alert alert-error">
+            <span>
+                <i class="bi bi-exclamation-circle-fill"></i>
+                Esta acción es irreversible. Se eliminará al cliente y todos sus datos asociados.
+            </span>
+        </div>
+
+        <!-- Botones -->
         <form method="POST">
             {% csrf_token %}
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                <a href="{% url 'clientes:lista' %}" class="btn btn-secondary">Cancelar</a>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+                <a href="{% url 'clientes:lista' %}" class="btn btn-secondary">
+                    <i class="bi bi-x-lg"></i> Cancelar
+                </a>
                 <button type="submit" class="btn btn-danger">
-                    <i class="bi bi-trash"></i> Eliminar
+                    <i class="bi bi-trash"></i> Sí, eliminar
                 </button>
             </div>
         </form>
     </div>
 </div>
+
 {% endblock %}

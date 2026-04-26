@@ -1,59 +1,97 @@
 {% extends 'base.html' %}
-
-{% block title %}Clientes{% endblock %}
+{% block title %}Clientes - Facturación SUNAT{% endblock %}
+{% block page_title %}Clientes{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1><i class="bi bi-people"></i> Clientes</h1>
-        <a href="{% url 'clientes:crear' %}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Nuevo Cliente
-        </a>
+
+<!-- ── Encabezado ── -->
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-people" style="color:var(--primary-600);margin-right:8px;"></i>
+            Clientes
+        </h1>
+        <p class="page-subtitle">Directorio de clientes registrados en el sistema</p>
     </div>
+    <a href="{% url 'clientes:crear' %}" class="btn btn-primary">
+        <i class="bi bi-person-plus"></i> Nuevo Cliente
+    </a>
 </div>
 
-<div class="card mb-4">
-    <div class="card-body">
-        <form method="GET" class="row g-3">
-            <div class="col-md-8">
-                <input type="text" class="form-control" name="q" placeholder="Buscar por nombre o documento..." value="{{ query }}">
+<!-- ── Barra de búsqueda ── -->
+<div class="filter-bar fade-in">
+    <form method="GET" style="display:flex;gap:12px;align-items:flex-end;width:100%;flex-wrap:wrap;">
+        <div style="flex:1;min-width:220px;">
+            <label for="q" class="form-label">Buscar</label>
+            <div style="position:relative;">
+                <i class="bi bi-search" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:13px;"></i>
+                <input type="text" id="q" name="q"
+                       value="{{ query }}"
+                       placeholder="Nombre, RUC, DNI..."
+                       class="form-control"
+                       style="padding-left:38px;">
             </div>
-            <div class="col-md-4">
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search"></i> Buscar
-                </button>
-            </div>
-        </form>
-    </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search"></i> Buscar
+            </button>
+            <a href="{% url 'clientes:lista' %}" class="btn btn-secondary">
+                <i class="bi bi-x-circle"></i>
+            </a>
+        </div>
+    </form>
 </div>
 
-<div class="card">
-    <div class="card-body table-responsive">
-        <table class="table table-hover">
-            <thead class="table-dark">
+<!-- ── Tabla de clientes ── -->
+<div class="table-wrap fade-in">
+    <div class="card-header">
+        <span class="card-title">Directorio de Clientes</span>
+        <span style="font-size:12px;color:var(--gray-400);">
+            {{ clientes|length }} registro(s)
+        </span>
+    </div>
+    <div style="overflow-x:auto;">
+        <table>
+            <thead>
                 <tr>
-                    <th>Tipo Doc</th>
+                    <th></th>
+                    <th>Tipo Doc.</th>
                     <th>Número</th>
                     <th>Razón Social</th>
                     <th>Email</th>
                     <th>Teléfono</th>
-                    <th>Acciones</th>
+                    <th style="text-align:center;">Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for cliente in clientes %}
                 <tr>
-                    <td><span class="badge bg-secondary">{{ cliente.get_tipo_doc_display }}</span></td>
-                    <td>{{ cliente.num_doc }}</td>
-                    <td>{{ cliente.razon_social }}</td>
-                    <td>{{ cliente.email|default:"-" }}</td>
-                    <td>{{ cliente.telefono|default:"-" }}</td>
+                    <!-- Avatar con inicial -->
+                    <td style="width:44px;">
+                        <div class="avatar" style="background:var(--primary-{{ forloop.counter|add:'4' }}00,var(--primary-600));">
+                            {{ cliente.razon_social|first|upper }}
+                        </div>
+                    </td>
                     <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="{% url 'clientes:editar' cliente.id %}" class="btn btn-outline-primary" title="Editar">
+                        <span class="badge badge-gray">{{ cliente.get_tipo_doc_display }}</span>
+                    </td>
+                    <td style="font-family:monospace;font-weight:600;color:var(--gray-900);">
+                        {{ cliente.num_doc }}
+                    </td>
+                    <td style="font-weight:500;color:var(--gray-800);">
+                        {{ cliente.razon_social }}
+                    </td>
+                    <td style="color:var(--gray-500);">{{ cliente.email|default:"—" }}</td>
+                    <td style="color:var(--gray-500);">{{ cliente.telefono|default:"—" }}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
+                            <a href="{% url 'clientes:editar' cliente.id %}"
+                               class="btn-icon" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
-                            <a href="{% url 'clientes:eliminar' cliente.id %}" class="btn btn-outline-danger" title="Eliminar">
+                            <a href="{% url 'clientes:eliminar' cliente.id %}"
+                               class="btn-icon danger" title="Eliminar">
                                 <i class="bi bi-trash"></i>
                             </a>
                         </div>
@@ -61,8 +99,14 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">
-                        No hay clientes registrados
+                    <td colspan="7" style="text-align:center;padding:48px 16px;">
+                        <div style="color:var(--gray-300);font-size:40px;margin-bottom:12px;">
+                            <i class="bi bi-people"></i>
+                        </div>
+                        <p style="color:var(--gray-400);font-size:14px;">No hay clientes registrados</p>
+                        <a href="{% url 'clientes:crear' %}" class="btn btn-primary btn-sm" style="margin-top:12px;">
+                            <i class="bi bi-person-plus"></i> Agregar primero
+                        </a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -70,4 +114,5 @@
         </table>
     </div>
 </div>
+
 {% endblock %}

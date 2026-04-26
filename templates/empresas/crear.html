@@ -3,69 +3,75 @@
 {% block title %}Nueva Empresa{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1><i class="bi bi-building"></i> Nueva Empresa</h1>
-    </div>
+<div class="mb-6">
+    <h1 class="text-2xl font-display font-semibold text-slate-800 flex items-center gap-3">
+        <i class="bi bi-building text-primary-600"></i> Nueva Empresa
+    </h1>
 </div>
 
-<div class="card">
-    <div class="card-body">
-        <form method="POST">
-            {% csrf_token %}
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="ruc" class="form-label">RUC</label>
-                    <input type="text" class="form-control" name="ruc" required maxlength="11" placeholder="12345678901">
-                </div>
-                <div class="col-md-8">
-                    <label for="razon_social" class="form-label">Razón Social</label>
-                    <input type="text" class="form-control" name="razon_social" required maxlength="200">
-                </div>
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <form method="POST" class="space-y-6">
+        {% csrf_token %}
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div>
+                <label for="ruc" class="block text-sm font-medium text-slate-700 mb-2">RUC</label>
+                <input type="text" name="ruc" id="ruc" required maxlength="11" placeholder="12345678901"
+                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
             </div>
-            <div class="mb-3">
-                <label for="nombre_comercial" class="form-label">Nombre Comercial</label>
-                <input type="text" class="form-control" name="nombre_comercial" maxlength="200">
+            <div class="md:col-span-3">
+                <label for="razon_social" class="block text-sm font-medium text-slate-700 mb-2">Razón Social</label>
+                <input type="text" name="razon_social" id="razon_social" required maxlength="200"
+                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
             </div>
-            <div class="mb-3">
-                <label for="direccion" class="form-label">Dirección</label>
-                <textarea class="form-control" name="direccion" rows="2"></textarea>
+        </div>
+        <div>
+            <label for="nombre_comercial" class="block text-sm font-medium text-slate-700 mb-2">Nombre Comercial</label>
+            <input type="text" name="nombre_comercial" id="nombre_comercial" maxlength="200"
+                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+        </div>
+        <div>
+            <label for="direccion" class="block text-sm font-medium text-slate-700 mb-2">Dirección</label>
+            <textarea name="direccion" id="direccion" rows="2"
+                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition"></textarea>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label for="email" class="block text-sm font-medium text-slate-700 mb-2">Email</label>
+                <input type="email" name="email" id="email"
+                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
             </div>
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label for="email" class="form-label">Email</label>
-                    <input type="email" class="form-control" name="email">
-                </div>
-                <div class="col-md-6">
-                    <label for="telefono" class="form-label">Teléfono</label>
-                    <input type="text" class="form-control" name="telefono" maxlength="20">
-                </div>
+            <div>
+                <label for="telefono" class="block text-sm font-medium text-slate-700 mb-2">Teléfono</label>
+                <input type="text" name="telefono" id="telefono" maxlength="20"
+                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
             </div>
-            <div class="mb-3">
-                <label for="regimen_tributario" class="form-label">Régimen Tributario</label>
-                <select class="form-select" name="regimen_tributario">
-                    <option value="GENERAL">General</option>
-                    <option value="RER">RER (Régimen Especial de Renta)</option>
-                    <option value="MYPE">MYPE (Micro y Pequeña Empresa)</option>
-                    <option value="NRUS">NRUS (Régimen Unificado)</option>
-                </select>
-            </div>
-            {% if errors %}
-            <div class="alert alert-danger">
-                {% for field, errors in errors.items %}
-                    {% for error in errors %}
-                        <div>{{ error }}</div>
-                    {% endfor %}
+        </div>
+        <div>
+            <label for="regimen_tributario" class="block text-sm font-medium text-slate-700 mb-2">Régimen Tributario</label>
+            <select name="regimen_tributario" id="regimen_tributario" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+                <option value="GENERAL">General</option>
+                <option value="RER">RER (Régimen Especial de Renta)</option>
+                <option value="MYPE">MYPE (Micro y Pequeña Empresa)</option>
+                <option value="NRUS">NRUS (Régimen Unificado)</option>
+            </select>
+        </div>
+        {% if errors %}
+        <div class="p-4 rounded-xl bg-red-50 text-red-700 border border-red-200">
+            {% for field, errors in errors.items %}
+                {% for error in errors %}
+                    <div>{{ error }}</div>
                 {% endfor %}
-            </div>
-            {% endif %}
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                <a href="{% url 'empresas:lista' %}" class="btn btn-secondary">Cancelar</a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-save"></i> Guardar
-                </button>
-            </div>
-        </form>
-    </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'empresas:lista' %}" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium transition">
+                Cancelar
+            </a>
+            <button type="submit" class="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-medium transition shadow-lg shadow-primary-500/30 flex items-center gap-2">
+                <i class="bi bi-save"></i> Guardar
+            </button>
+        </div>
+    </form>
 </div>
 {% endblock %}
