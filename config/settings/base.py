@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'django_filters',
     'corsheaders',
+    'apps.core',
     'apps.empresas',
     'apps.clientes',
     'apps.productos',
@@ -140,7 +141,7 @@ REST_FRAMEWORK = {
 
 IGV_TASA = 0.18
 
-SUNAT_OSE_MOCK = True
+SUNAT_OSE_MOCK = os.getenv('SUNAT_OSE_MOCK', 'True') == 'True'
 SUNAT_OSE_URL = os.getenv('SUNAT_OSE_URL', '/api/ose/send/')
 
 LOGGING = {

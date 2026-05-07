@@ -24,8 +24,8 @@ class Empresa(models.Model):
         return f"{self.ruc} - {self.razon_social}"
 
     def clean(self):
-        if self.ruc and len(str(self.ruc)) != 10:
-            raise ValidationError("El RUC debe tener 10 dígitos")
+        if self.ruc and len(str(self.ruc)) != 11:
+            raise ValidationError("El RUC debe tener 11 dígitos")
         if self.telefono and len(str(self.telefono).strip()) != 9:
             raise ValidationError("El teléfono debe tener exactamente 9 dígitos")
 

@@ -10,6 +10,7 @@ NAMESPACES = {
     'cbc': 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2',
     'ds': 'http://www.w3.org/2000/09/xmldsig#',
     'ext': 'urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2',
+    'inv': 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2',
 }
 
 TIPO_DOC_MAP = {
@@ -58,16 +59,20 @@ UNIDADES_MEDIDA = {
 
 
 def generar_xml_ubl(comprobante):
-    # Usamos el namespace URI explícito {uri}localname en lugar del prefijo 'cac:'
-    # Esto es necesario porque lxml.etree no acepta prefijos sueltos como 'cac:Invoice'
-    # Debe usar formato completo: {urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2}Invoice
-    # NOTA: No usamos root.set('xmlns:xxx') porque lxml ya registra los namespaces automáticamente
     CAC = NAMESPACES['cac']
     CBC = NAMESPACES['cbc']
     EXT = NAMESPACES['ext']
     DS = NAMESPACES['ds']
-    
-    root = etree.Element(f'{{{CAC}}}Invoice')
+    INV = NAMESPACES['inv']
+
+    nsmap = {
+        'cac': CAC,
+        'cbc': CBC,
+        'ext': EXT,
+        'ds': DS,
+    }
+
+    root = etree.Element(f'{{{INV}}}Invoice', nsmap=nsmap)
 
     empresa = comprobante.empresa
 
@@ -425,7 +430,8 @@ def generar_nota_credito_xml(nota):
 
 
 def firmar_xml(xml_content):
-    return xml_content
+    from .firmar import sign_xml
+    return sign_xml(xml_content)
 
 
 def crear_zip(xml_content, nombre_archivo):
@@ -435,5 +441,6 @@ def crear_zip(xml_content, nombre_archivo):
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         zip_file.writestr(nombre_archivo + '.xml', xml_content)
+        zip_file.writestr('dummy/', '')
     zip_buffer.seek(0)
     return zip_buffer.getvalue()

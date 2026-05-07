@@ -34,6 +34,7 @@ services:
       POSTGRES_PASSWORD: sunat_pass_2026
       DEBUG: "False"
       SECRET_KEY: django-insecure-change-me-in-production-abc123xyz-2026
+      SUNAT_CERT_PATH: /app/media/CT2602141470.pfx
     depends_on:
       postgres:
         condition: service_healthy

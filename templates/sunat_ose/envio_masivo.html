@@ -1,95 +1,126 @@
 {% extends 'base.html' %}
 
-{% block title %}Envío Masivo de Comprobantes{% endblock %}
+{% block title %}Envío Masivo - Facturación SUNAT{% endblock %}
+{% block page_title %}Envío Masivo{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1><i class="bi bi-cloud-upload"></i> Envío Masivo de Comprobantes</h1>
-        <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Volver
-        </a>
+
+<!-- ── Encabezado de página ── -->
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-cloud-upload" style="color:var(--primary-600);margin-right:8px;"></i>
+            Envío Masivo
+        </h1>
+        <p class="page-subtitle">Seleccione comprobantes para enviar a SUNAT/OSE</p>
     </div>
+    <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
 </div>
 
+<!-- ── Tabla de selección ── -->
 <form method="POST" action="{% url 'sunat_ose:enviar_lote' %}" id="form-lote">
     {% csrf_token %}
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Seleccionar Comprobantes</h5>
-            <div>
-                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAll()">Marcar todos</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAll()">Desmarcar todos</button>
+    
+    <div class="table-wrap fade-in">
+        <div class="card-header">
+            <span class="card-title">Seleccionar Comprobantes</span>
+            <div style="display:flex;gap:8px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectAll()">
+                    <i class="bi bi-check-all"></i> Marcar todos
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="deselectAll()">
+                    <i class="bi bi-x-circle"></i> Desmarcar
+                </button>
             </div>
         </div>
-        <div class="card-body table-responsive">
-            <table class="table table-hover">
-                <thead class="table-dark">
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
                     <tr>
-                        <th width="50"><input type="checkbox" id="select-all-checkbox" onchange="toggleAll()"></th>
+                        <th width="50">
+                            <input type="checkbox" id="select-all-checkbox" onchange="toggleAll()">
+                        </th>
                         <th>Tipo</th>
                         <th>Número</th>
                         <th>Cliente</th>
                         <th>Fecha</th>
-                        <th>Total</th>
+                        <th style="text-align:right;">Total</th>
                         <th>Estado</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for comp in comprobantes %}
                     <tr>
-                        <td><input type="checkbox" name="comprobantes" value="{{ comp.id }}" class="comp-checkbox"></td>
+                        <td>
+                            <input type="checkbox" name="comprobantes" value="{{ comp.id }}" class="comp-checkbox">
+                        </td>
                         <td>
                             {% if comp.tipo == '01' %}
-                                <span class="badge bg-primary">Factura</span>
+                                <span class="badge badge-primary">Factura</span>
                             {% elif comp.tipo == '03' %}
-                                <span class="badge bg-success">Boleta</span>
+                                <span class="badge badge-success">Boleta</span>
                             {% else %}
-                                <span class="badge bg-secondary">{{ comp.tipo }}</span>
+                                <span class="badge badge-gray">{{ comp.tipo }}</span>
                             {% endif %}
                         </td>
-                        <td><strong>{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}</strong></td>
-                        <td>{{ comp.cliente.razon_social|default:"VARIOS" }}</td>
-                        <td>{{ comp.fecha|date:"d/m/Y" }}</td>
-                        <td class="text-end">S/ {{ comp.total }}</td>
+                        <td style="font-weight:600;font-family:monospace;color:var(--gray-900);">
+                            {{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }}
+                        </td>
+                        <td style="color:var(--gray-800);font-weight:500;">
+                            {{ comp.cliente.razon_social|default:"VARIOS"|truncatechars:22 }}
+                        </td>
+                        <td style="color:var(--gray-400);">{{ comp.fecha|date:"d/m/Y" }}</td>
+                        <td style="text-align:right;font-weight:600;">S/ {{ comp.total }}</td>
                         <td>
                             {% if comp.estado == 'BORRADOR' %}
-                                <span class="badge bg-secondary">{{ comp.estado }}</span>
+                                <span class="badge badge-gray">{{ comp.estado }}</span>
                             {% elif comp.estado == 'EMITIDO' %}
-                                <span class="badge bg-info">{{ comp.estado }}</span>
+                                <span class="badge badge-info">{{ comp.estado }}</span>
+                            {% elif comp.estado == 'ENVIADO' %}
+                                <span class="badge badge-info">{{ comp.estado }}</span>
+                            {% elif comp.estado == 'ACEPTADO' %}
+                                <span class="badge badge-success">{{ comp.estado }}</span>
+                            {% elif comp.estado == 'RECHAZADO' %}
+                                <span class="badge badge-danger">{{ comp.estado }}</span>
                             {% else %}
-                                <span class="badge bg-warning">{{ comp.estado }}</span>
+                                <span class="badge badge-warning">{{ comp.estado }}</span>
                             {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
-                            No hay comprobantes para enviar (estado EMITIDO o BORRADOR)
+                        <td colspan="7" style="text-align:center;padding:48px 16px;">
+                            <div style="color:var(--gray-300);font-size:40px;margin-bottom:12px;">
+                                <i class="bi bi-inbox"></i>
+                            </div>
+                            <p style="color:var(--gray-400);font-size:14px;">
+                                No hay comprobantes para enviar (estado EMITIDO o BORRADOR)
+                            </p>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        <div class="card-footer">
-            <div class="d-flex justify-content-between align-items-center">
-                <span id="selected-count">0 seleccionados</span>
-                <button type="submit" class="btn btn-primary" id="btn-enviar" disabled>
-                    <i class="bi bi-cloud-upload"></i> Enviar Lote
-                </button>
-            </div>
+        <div class="table-footer">
+            <span id="selected-count" style="color:var(--gray-600);font-weight:500;">0 seleccionados</span>
+            <button type="submit" class="btn btn-primary" id="btn-enviar" disabled>
+                <i class="bi bi-cloud-upload"></i> Enviar Lote
+            </button>
         </div>
     </div>
 </form>
 
-<div class="card">
+<!-- ── Tabla de historial ── -->
+<div class="table-wrap fade-in" style="margin-top:24px;">
     <div class="card-header">
-        <h5>Historial de Lotes Enviados</h5>
+        <span class="card-title">Historial de Lotes Enviados</span>
     </div>
-    <div class="card-body table-responsive">
-        <table class="table table-sm">
-            <thead class="table-light">
+    <div style="overflow-x:auto;">
+        <table>
+            <thead>
                 <tr>
                     <th>ID</th>
                     <th>Fecha Creación</th>
@@ -102,26 +133,31 @@
             <tbody>
                 {% for lote in lotes %}
                 <tr>
-                    <td>{{ lote.id }}</td>
-                    <td>{{ lote.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                    <td>{{ lote.fecha_emision_documentos|date:"d/m/Y" }}</td>
-                    <td>{{ lote.total_documentos }}</td>
+                    <td style="font-weight:600;">{{ lote.id }}</td>
+                    <td style="color:var(--gray-600);">{{ lote.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                    <td style="color:var(--gray-600);">{{ lote.fecha_emision_documentos|date:"d/m/Y" }}</td>
+                    <td style="text-align:center;font-weight:600;">{{ lote.total_documentos }}</td>
                     <td>
                         {% if lote.estado == 'COMPLETADO' %}
-                            <span class="badge bg-success">{{ lote.estado }}</span>
+                            <span class="badge badge-success">{{ lote.estado }}</span>
                         {% elif lote.estado == 'PROCESANDO' %}
-                            <span class="badge bg-info">{{ lote.estado }}</span>
+                            <span class="badge badge-info">{{ lote.estado }}</span>
                         {% elif lote.estado == 'ERROR' %}
-                            <span class="badge bg-danger">{{ lote.estado }}</span>
+                            <span class="badge badge-danger">{{ lote.estado }}</span>
                         {% else %}
-                            <span class="badge bg-secondary">{{ lote.estado }}</span>
+                            <span class="badge badge-warning">{{ lote.estado }}</span>
                         {% endif %}
                     </td>
-                    <td><code>{{ lote.ticket_ose|default:"-" }}</code></td>
+                    <td><code style="font-size:12px;">{{ lote.ticket_ose|default:"-" }}</code></td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-3">No hay lotes enviados</td>
+                    <td colspan="6" style="text-align:center;padding:32px 16px;">
+                        <div style="color:var(--gray-300);font-size:32px;margin-bottom:8px;">
+                            <i class="bi bi-clock-history"></i>
+                        </div>
+                        <p style="color:var(--gray-400);font-size:13px;">No hay lotes enviados</p>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -129,6 +165,9 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
 <script>
 function toggleAll() {
     const checked = document.getElementById('select-all-checkbox').checked;
@@ -138,11 +177,13 @@ function toggleAll() {
 
 function selectAll() {
     document.querySelectorAll('.comp-checkbox').forEach(cb => cb.checked = true);
+    document.getElementById('select-all-checkbox').checked = true;
     updateCount();
 }
 
 function deselectAll() {
     document.querySelectorAll('.comp-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('select-all-checkbox').checked = false;
     updateCount();
 }
 
@@ -153,6 +194,6 @@ function updateCount() {
 }
 
 document.querySelectorAll('.comp-checkbox').forEach(cb => cb.addEventListener('change', updateCount));
-updateCount();
+document.addEventListener('DOMContentLoaded', updateCount);
 </script>
 {% endblock %}

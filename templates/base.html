@@ -13,9 +13,9 @@
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
-    <!-- Estilos propios del sistema -->
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <!-- Estilos propios del sistema (con cache busting) -->
+    {% load static static_version %}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}?v={% static_version %}">
 
     {% block extra_css %}{% endblock %}
 </head>
@@ -56,29 +56,12 @@
 
         <div class="sidebar-section-label">Gestión</div>
 
-        <!-- Comprobantes (dropdown) -->
-        <div class="nav-group">
-            <button class="nav-group-toggle {% if 'comprobantes' in request.resolver_match.namespace %}open{% endif %}"
-                    onclick="toggleGroup(this)" type="button">
-                <i class="bi bi-receipt"></i>
-                <span>Comprobantes</span>
-                <i class="bi bi-chevron-right toggle-arrow"></i>
-            </button>
-            <div class="nav-group-items {% if 'comprobantes' in request.resolver_match.namespace %}open{% endif %}">
-                <a href="{% url 'comprobantes:lista' %}?tipo=01" class="nav-link">
-                    <i class="bi bi-file-earmark-ruled"></i> Facturas
-                </a>
-                <a href="{% url 'comprobantes:lista' %}?tipo=03" class="nav-link">
-                    <i class="bi bi-file-earmark"></i> Boletas
-                </a>
-                <a href="{% url 'comprobantes:lista' %}" class="nav-link">
-                    <i class="bi bi-collection"></i> Ver Todos
-                </a>
-                <a href="{% url 'comprobantes:importar' %}" class="nav-link">
-                    <i class="bi bi-cloud-upload"></i> Importar CSV
-                </a>
-            </div>
-        </div>
+        <!-- Comprobantes -->
+        <a href="{% url 'comprobantes:lista' %}"
+           class="nav-link {% if request.resolver_match.namespace == 'comprobantes' %}active{% endif %}">
+            <i class="bi bi-receipt"></i>
+            <span>Comprobantes</span>
+        </a>
 
         <!-- Clientes -->
         <a href="{% url 'clientes:lista' %}"
@@ -270,10 +253,10 @@
             input.pattern = "[0-9]{8}";
             input.title = "El DNI debe tener 8 dígitos";
         } else if (select.value === '6') { // RUC
-            input.maxLength = 10;
-            input.minLength = 10;
-            input.pattern = "[0-9]{10}";
-            input.title = "El RUC debe tener 10 dígitos";
+            input.maxLength = 11;
+            input.minLength = 11;
+            input.pattern = "[0-9]{11}";
+            input.title = "El RUC debe tener 11 dígitos";
         } else {
             input.maxLength = 15;
             input.minLength = 1;

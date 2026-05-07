@@ -85,8 +85,8 @@ MIDDLEWARE = [
     'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]]
 
-# Storage optimizado para produccion con compresion
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Storage para archivos estaticos
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 # ============================================================
 # CORS (Cross-Origin Resource Sharing)

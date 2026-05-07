@@ -66,8 +66,11 @@
             <button class="modal-close" onclick="closeModal('selectorProductoModal')"><i class="bi bi-x"></i></button>
         </div>
         <div class="modal-body">
-            <div class="form-group">
-                <input type="text" id="searchProductoInput" class="form-control" placeholder="Buscar por código o descripción..." onkeyup="searchSelector('producto')">
+            <div class="form-group" style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="searchProductoInput" class="form-control" placeholder="Buscar por código o descripción..." onkeyup="if(event.key === 'Enter') { searchSelector('producto'); }">
+                <button type="button" class="btn btn-primary btn-sm" onclick="searchSelector('producto')">
+                    <i class="bi bi-search"></i>
+                </button>
             </div>
             <div class="table-wrap" style="max-height:400px; overflow-y:auto; margin-top:10px;">
                 <table id="tableProductoSelector">
