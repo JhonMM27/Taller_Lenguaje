@@ -252,7 +252,11 @@
         data: {
             labels: ['Facturas', 'Boletas', 'Notas C.'],
             datasets: [{
-                data: [{{ facturas_mes }}, {{ boletas_mes }}, {{ notas_credito_mes }}],
+                data: [
+                    Number("{{ facturas_mes|default:0 }}"), 
+                    Number("{{ boletas_mes|default:0 }}"), 
+                    Number("{{ notas_credito_mes|default:0 }}")
+                ],
                 backgroundColor: ['#4f46e5', '#a5b4fc', '#c7d2fe'],
                 borderWidth: 0,
                 hoverOffset: 6,

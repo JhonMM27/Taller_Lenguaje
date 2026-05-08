@@ -96,6 +96,9 @@ def generar_xml_ubl(comprobante):
     hora_emision = etree.SubElement(root, f'{{{CBC}}}IssueTime')
     hora_emision.text = '00:00:00'
 
+    fecha_vencimiento = etree.SubElement(root, f'{{{CBC}}}DueDate')
+    fecha_vencimiento.text = comprobante.fecha.isoformat()
+
     tipo_doc = etree.SubElement(root, f'{{{CBC}}}InvoiceTypeCode')
     tipo_doc.set('listAgencyName', 'PE:SUNAT')
     tipo_doc.set('listURI', 'urn:pe:sunat:catalog:01')
@@ -103,18 +106,15 @@ def generar_xml_ubl(comprobante):
 
     if comprobante.tipo == '03':
         tipo_doc.set('listName', 'Tipo de Documento')
-        tipo_doc.set('listID', '01')
+        tipo_doc.set('listID', '0101')
     elif comprobante.tipo == '01':
         tipo_doc.set('listName', 'Tipo de Documento')
-        tipo_doc.set('listID', '01')
+        tipo_doc.set('listID', '0101')
 
-    num_doc_terceros = etree.SubElement(root, f'{{{CBC}}}DocumentCurrencyCode')
-    num_doc_terceros.set('listID', 'ISO 4217 Alpha')
-    num_doc_terceros.set('listName', 'Currency')
-    num_doc_terceros.text = 'PEN'
-
-    fecha_vencimiento = etree.SubElement(root, f'{{{CBC}}}DueDate')
-    fecha_vencimiento.text = comprobante.fecha.isoformat()
+    currency_code = etree.SubElement(root, f'{{{CBC}}}DocumentCurrencyCode')
+    currency_code.set('listID', 'ISO 4217 Alpha')
+    currency_code.set('listName', 'Currency')
+    currency_code.text = 'PEN'
 
     signature = etree.SubElement(root, f'{{{CAC}}}Signature')
     sign_id = etree.SubElement(signature, f'{{{CBC}}}ID')
@@ -132,65 +132,61 @@ def generar_xml_ubl(comprobante):
     sign_digital_uri.text = '#SignatureSUNAT'
 
     party_supplier = etree.SubElement(root, f'{{{CAC}}}AccountingSupplierParty')
-    party_supplier_id = etree.SubElement(party_supplier, f'{{{CBC}}}CustomerAssignedAccountID')
-    party_supplier_id.text = empresa.ruc
-    party_supplier_add = etree.SubElement(party_supplier, f'{{{CBC}}}AdditionalAccountID')
-    party_supplier_add.text = '6'
+    party_sup_party = etree.SubElement(party_supplier, f'{{{CAC}}}Party')
+    
+    party_sup_id = etree.SubElement(party_sup_party, f'{{{CAC}}}PartyIdentification')
+    party_sup_id_val = etree.SubElement(party_sup_id, f'{{{CBC}}}ID')
+    party_sup_id_val.set('schemeID', '6')
+    party_sup_id_val.text = empresa.ruc
 
-    party_supplier_name = etree.SubElement(party_supplier, f'{{{CAC}}}Party')
-    party_name = etree.SubElement(party_supplier_name, f'{{{CAC}}}PartyName')
-    party_name_val = etree.SubElement(party_name, f'{{{CBC}}}Name')
-    party_name_val.text = empresa.razon_social
+    party_sup_name = etree.SubElement(party_sup_party, f'{{{CAC}}}PartyName')
+    party_sup_name_val = etree.SubElement(party_sup_name, f'{{{CBC}}}Name')
+    party_sup_name_val.text = empresa.razon_social
 
-    postal_address_sup = etree.SubElement(party_supplier_name, f'{{{CAC}}}PostalAddress')
-    postal_address_sup_id = etree.SubElement(postal_address_sup, f'{{{CBC}}}ID')
-    postal_address_sup_id.text = getattr(empresa, 'ubigeo', None) or '150101'
-    postal_address_sup_street = etree.SubElement(postal_address_sup, f'{{{CBC}}}StreetName')
-    postal_address_sup_street.text = getattr(empresa, 'direccion', None) or 'SN'
-
-    city_sup = etree.SubElement(postal_address_sup, f'{{{CBC}}}CityName')
-    city_sup.text = getattr(empresa, 'ciudad', None) or 'LIMA'
-
-    district_sup = etree.SubElement(postal_address_sup, f'{{{CBC}}}District')
-    district_sup.text = getattr(empresa, 'distrito', None) or ''
-
-    country_sup = etree.SubElement(postal_address_sup, f'{{{CAC}}}Country')
-    country_sup_id = etree.SubElement(country_sup, f'{{{CBC}}}IdentificationCode')
-    country_sup_id.set('listID', 'ISO 3166-1')
-    country_sup_id.set('listAgencyID', 'United Nations Economic Commission for Europe')
-    country_sup_id.text = 'PE'
+    party_sup_legal = etree.SubElement(party_sup_party, f'{{{CAC}}}PartyLegalEntity')
+    party_sup_reg_name = etree.SubElement(party_sup_legal, f'{{{CBC}}}RegistrationName')
+    party_sup_reg_name.text = empresa.razon_social
+    
+    party_sup_addr = etree.SubElement(party_sup_legal, f'{{{CAC}}}RegistrationAddress')
+    party_sup_addr_id = etree.SubElement(party_sup_addr, f'{{{CBC}}}ID')
+    party_sup_addr_id.text = getattr(empresa, 'ubigeo', None) or '150101'
+    
+    party_sup_addr_code = etree.SubElement(party_sup_addr, f'{{{CBC}}}AddressTypeCode')
+    party_sup_addr_code.text = '0000'
+    party_sup_addr_street = etree.SubElement(party_sup_addr, f'{{{CBC}}}StreetName')
+    party_sup_addr_street.text = getattr(empresa, 'direccion', None) or 'SN'
+    party_sup_addr_city = etree.SubElement(party_sup_addr, f'{{{CBC}}}CityName')
+    party_sup_addr_city.text = getattr(empresa, 'ciudad', None) or 'LIMA'
+    party_sup_addr_dist = etree.SubElement(party_sup_addr, f'{{{CBC}}}District')
+    party_sup_addr_dist.text = getattr(empresa, 'distrito', None) or ''
+    party_sup_addr_country = etree.SubElement(party_sup_addr, f'{{{CAC}}}Country')
+    party_sup_addr_country_id = etree.SubElement(party_sup_addr_country, f'{{{CBC}}}IdentificationCode')
+    party_sup_addr_country_id.set('listID', 'ISO 3166-1')
+    party_sup_addr_country_id.set('listAgencyID', 'United Nations Economic Commission for Europe')
+    party_sup_addr_country_id.text = 'PE'
 
     customer_party = etree.SubElement(root, f'{{{CAC}}}AccountingCustomerParty')
-    customer_id = etree.SubElement(customer_party, f'{{{CBC}}}CustomerAssignedAccountID')
-    customer_id.text = comprobante.cliente.num_doc
-    customer_add = etree.SubElement(customer_party, f'{{{CBC}}}AdditionalAccountID')
-    customer_add.text = TIPO_DOC_MAP.get(comprobante.cliente.tipo_doc, '6')
+    customer_party_party = etree.SubElement(customer_party, f'{{{CAC}}}Party')
+    
+    customer_id = etree.SubElement(customer_party_party, f'{{{CAC}}}PartyIdentification')
+    customer_id_val = etree.SubElement(customer_id, f'{{{CBC}}}ID')
+    customer_id_val.set('schemeID', TIPO_DOC_MAP.get(comprobante.cliente.tipo_doc, '6'))
+    customer_id_val.text = comprobante.cliente.num_doc
 
-    customer_party_add = etree.SubElement(customer_party, f'{{{CAC}}}Party')
+    customer_name = etree.SubElement(customer_party_party, f'{{{CAC}}}PartyName')
+    customer_name_val = etree.SubElement(customer_name, f'{{{CBC}}}Name')
+    customer_name_val.text = comprobante.cliente.razon_social
 
-    party_identification = etree.SubElement(customer_party_add, f'{{{CAC}}}PartyIdentification')
-    party_identification_id = etree.SubElement(party_identification, f'{{{CBC}}}ID')
-    party_identification_id.set('schemeID', TIPO_DOC_MAP.get(comprobante.cliente.tipo_doc, '6'))
-    party_identification_id.text = comprobante.cliente.num_doc
+    customer_legal = etree.SubElement(customer_party_party, f'{{{CAC}}}PartyLegalEntity')
+    customer_reg_name = etree.SubElement(customer_legal, f'{{{CBC}}}RegistrationName')
+    customer_reg_name.text = comprobante.cliente.razon_social
 
-    party_name_c = etree.SubElement(customer_party_add, f'{{{CAC}}}PartyName')
-    party_name_c_val = etree.SubElement(party_name_c, f'{{{CBC}}}Name')
-    party_name_c_val.text = comprobante.cliente.razon_social
-
-    postal_address_c = etree.SubElement(customer_party_add, f'{{{CAC}}}PostalAddress')
-    postal_address_c_street = etree.SubElement(postal_address_c, f'{{{CBC}}}StreetName')
-    postal_address_c_street.text = getattr(comprobante.cliente, 'direccion', None) or 'SN'
-
-    city_c = etree.SubElement(postal_address_c, f'{{{CBC}}}CityName')
-    city_c.text = 'LIMA'
-
-    district_c = etree.SubElement(postal_address_c, f'{{{CBC}}}District')
-    district_c.text = ''
-
-    country_c = etree.SubElement(postal_address_c, f'{{{CAC}}}Country')
-    country_c_id = etree.SubElement(country_c, f'{{{CBC}}}IdentificationCode')
-    country_c_id.set('listID', 'ISO 3166-1')
-    country_c_id.text = 'PE'
+    # Forma de Pago (MANDATORIO en UBL 2.1)
+    payment_terms = etree.SubElement(root, f'{{{CAC}}}PaymentTerms')
+    payment_terms_id = etree.SubElement(payment_terms, f'{{{CBC}}}ID')
+    payment_terms_id.text = 'FormaPago'
+    payment_terms_means = etree.SubElement(payment_terms, f'{{{CBC}}}PaymentMeansID')
+    payment_terms_means.text = 'Contado'
 
     if hasattr(comprobante, 'orden_compra') and comprobante.orden_compra:
         orden_compra = etree.SubElement(root, f'{{{CBC}}}OrderReference')
@@ -203,6 +199,10 @@ def generar_xml_ubl(comprobante):
     tax_amount.text = str(comprobante.igv)
 
     tax_subtotal = etree.SubElement(tax_total, f'{{{CAC}}}TaxSubtotal')
+    tax_subtotal_base = etree.SubElement(tax_subtotal, f'{{{CBC}}}TaxableAmount')
+    tax_subtotal_base.set('currencyID', 'PEN')
+    tax_subtotal_base.text = str(comprobante.subtotal)
+    
     tax_subtotal_amount = etree.SubElement(tax_subtotal, f'{{{CBC}}}TaxAmount')
     tax_subtotal_amount.set('currencyID', 'PEN')
     tax_subtotal_amount.text = str(comprobante.igv)
@@ -211,11 +211,14 @@ def generar_xml_ubl(comprobante):
     tax_subtotal_item_id = etree.SubElement(tax_subtotal_item, f'{{{CBC}}}ID')
     tax_subtotal_item_id.set('schemeID', 'UN/ECE 5305')
     tax_subtotal_item_id.text = 'S'
+    
+    tax_subtotal_percent = etree.SubElement(tax_subtotal_item, f'{{{CBC}}}Percent')
+    tax_subtotal_percent.text = '18.00'
 
     tax_subtotal_name = etree.SubElement(tax_subtotal_item, f'{{{CAC}}}TaxScheme')
     tax_subtotal_name_id = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}ID')
     tax_subtotal_name_id.set('schemeID', 'UN/ECE 5305')
-    tax_subtotal_name_id.text = 'IGV'
+    tax_subtotal_name_id.text = '1000'
     tax_subtotal_name_name = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}Name')
     tax_subtotal_name_name.text = 'IGV'
     tax_subtotal_name_type = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}TaxTypeCode')
@@ -248,18 +251,16 @@ def generar_xml_ubl(comprobante):
         line_extension_amount.set('currencyID', 'PEN')
         line_extension_amount.text = str(detalle.subtotal)
 
-        # Referencia de precio (PricingReference) - precio original del producto
+        # Referencia de precio (PricingReference)
         pricing_reference = etree.SubElement(invoice_line, f'{{{CAC}}}PricingReference')
-        original_price = etree.SubElement(pricing_reference, f'{{{CAC}}}Condition')
-        original_price_code = etree.SubElement(original_price, f'{{{CBC}}}ConditionCode')
-        original_price_code.text = '01'
-
         line_price = etree.SubElement(pricing_reference, f'{{{CAC}}}AlternativeConditionPrice')
-        line_price_type = etree.SubElement(line_price, f'{{{CBC}}}PriceTypeCode')
-        line_price_type.text = '01'
         line_price_amount = etree.SubElement(line_price, f'{{{CBC}}}PriceAmount')
         line_price_amount.set('currencyID', 'PEN')
-        line_price_amount.text = str(detalle.precio_unitario)
+        # El precio referencial (01) debe incluir impuestos
+        precio_con_igv = detalle.precio_unitario * Decimal('1.18')
+        line_price_amount.text = f"{precio_con_igv:.2f}"
+        line_price_type = etree.SubElement(line_price, f'{{{CBC}}}PriceTypeCode')
+        line_price_type.text = '01'
 
         # Impuesto total de la línea (TaxTotal)
         line_tax = etree.SubElement(invoice_line, f'{{{CAC}}}TaxTotal')
@@ -268,6 +269,10 @@ def generar_xml_ubl(comprobante):
         line_tax_amount.text = str(detalle.igv_linea or '0.00')
 
         line_tax_item = etree.SubElement(line_tax, f'{{{CAC}}}TaxSubtotal')
+        line_tax_base = etree.SubElement(line_tax_item, f'{{{CBC}}}TaxableAmount')
+        line_tax_base.set('currencyID', 'PEN')
+        line_tax_base.text = str(detalle.subtotal)
+        
         line_tax_item_amount = etree.SubElement(line_tax_item, f'{{{CBC}}}TaxAmount')
         line_tax_item_amount.set('currencyID', 'PEN')
         line_tax_item_amount.text = str(detalle.igv_linea or '0.00')
@@ -276,18 +281,20 @@ def generar_xml_ubl(comprobante):
         line_tax_category_id = etree.SubElement(line_tax_category, f'{{{CBC}}}ID')
         line_tax_category_id.set('schemeID', 'UN/ECE 5305')
         line_tax_category_id.text = 'S'
+        
+        line_tax_percent = etree.SubElement(line_tax_category, f'{{{CBC}}}Percent')
+        line_tax_percent.text = '18.00'
 
         cod_afectacion = getattr(detalle, 'cod_tipo_afectacion', '10')
-        if cod_afectacion not in ['10', '11', '14', '15']:
-            tax_exemption = etree.SubElement(line_tax_category, f'{{{CBC}}}TaxExemptionReasonCode')
-            tax_exemption.set('listAgencyName', 'PE:SUNAT')
-            tax_exemption.set('listURI', 'urn:pe:sunat:catalog:07')
-            tax_exemption.text = cod_afectacion
+        tax_exemption = etree.SubElement(line_tax_category, f'{{{CBC}}}TaxExemptionReasonCode')
+        tax_exemption.set('listAgencyName', 'PE:SUNAT')
+        tax_exemption.set('listURI', 'urn:pe:sunat:catalog:07')
+        tax_exemption.text = cod_afectacion
 
         line_tax_scheme = etree.SubElement(line_tax_category, f'{{{CAC}}}TaxScheme')
         line_tax_scheme_id = etree.SubElement(line_tax_scheme, f'{{{CBC}}}ID')
         line_tax_scheme_id.set('schemeID', 'UN/ECE 5305')
-        line_tax_scheme_id.text = 'IGV'
+        line_tax_scheme_id.text = '1000'
         line_tax_scheme_name = etree.SubElement(line_tax_scheme, f'{{{CBC}}}Name')
         line_tax_scheme_name.text = 'IGV'
         line_tax_scheme_type = etree.SubElement(line_tax_scheme, f'{{{CBC}}}TaxTypeCode')
@@ -298,12 +305,12 @@ def generar_xml_ubl(comprobante):
         line_description = etree.SubElement(line_item, f'{{{CBC}}}Description')
         line_description.text = detalle.producto.descripcion
 
-        line_sellers_id = etree.SubElement(line_item, f'{{{CAC}}}ItemIdentification')
+        line_sellers_id = etree.SubElement(line_item, f'{{{CAC}}}SellersItemIdentification')
         line_sellers_id_val = etree.SubElement(line_sellers_id, f'{{{CBC}}}ID')
         line_sellers_id_val.text = detalle.producto.codigo
 
-        # Precio unitario (Price)
-        price = etree.SubElement(line_item, f'{{{CAC}}}Price')
+        # Precio unitario (Price) - Hijo de InvoiceLine, después de Item
+        price = etree.SubElement(invoice_line, f'{{{CAC}}}Price')
         price_amount = etree.SubElement(price, f'{{{CBC}}}PriceAmount')
         price_amount.set('currencyID', 'PEN')
         price_amount.text = str(detalle.precio_unitario)
@@ -441,6 +448,5 @@ def crear_zip(xml_content, nombre_archivo):
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         zip_file.writestr(nombre_archivo + '.xml', xml_content)
-        zip_file.writestr('dummy/', '')
     zip_buffer.seek(0)
     return zip_buffer.getvalue()

@@ -65,10 +65,26 @@ def crear_comprobante(request):
         precios = request.POST.getlist('precio_unitario')
 
         for i, producto_id in enumerate(producto_ids):
+            # Ignorar filas con producto_id vacío (campos no rellenados en el formulario)
+            if not producto_id or not producto_id.strip():
+                continue
             detalles_data.append({
                 'producto_id': producto_id,
-                'cantidad': cantidades[i],
-                'precio_unitario': precios[i],
+                'cantidad': cantidades[i] if i < len(cantidades) else 1,
+                'precio_unitario': precios[i] if i < len(precios) else 0,
+            })
+
+        # Validación temprana: al menos un producto debe ser seleccionado
+        if not detalles_data:
+            empresas = Empresa.objects.all()
+            clientes = Cliente.objects.all()
+            productos = Producto.objects.all()
+            return render(request, 'comprobantes/crear.html', {
+                'errors': {'detalles': ['Debe seleccionar al menos un producto']},
+                'empresas': empresas,
+                'clientes': clientes,
+                'productos': productos,
+                'today': datetime.now().strftime('%Y-%m-%d')
             })
 
         from apps.comprobantes.serializers import ComprobanteCreateSerializer
@@ -86,22 +102,28 @@ def crear_comprobante(request):
         empresas = Empresa.objects.all()
         clientes = Cliente.objects.all()
         productos = Producto.objects.all()
+        # Preseleccionar automáticamente si solo existe una empresa
+        empresa_default = empresas.first() if empresas.count() == 1 else None
         return render(request, 'comprobantes/crear.html', {
             'errors': serializer.errors,
             'empresas': empresas,
             'clientes': clientes,
             'productos': productos,
-            'today': datetime.now().strftime('%Y-%m-%d')
+            'today': datetime.now().strftime('%Y-%m-%d'),
+            'empresa_default': empresa_default,
         })
 
     empresas = Empresa.objects.all()
     clientes = Cliente.objects.all()
     productos = Producto.objects.all()
+    # Preseleccionar automáticamente si solo existe una empresa
+    empresa_default = empresas.first() if empresas.count() == 1 else None
     return render(request, 'comprobantes/crear.html', {
         'empresas': empresas,
         'clientes': clientes,
         'productos': productos,
-        'today': datetime.now().strftime('%Y-%m-%d')
+        'today': datetime.now().strftime('%Y-%m-%d'),
+        'empresa_default': empresa_default,
     })
 
 

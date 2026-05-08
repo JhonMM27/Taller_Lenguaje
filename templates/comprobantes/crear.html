@@ -31,7 +31,10 @@
                     <select class="form-select" name="empresa_id" id="empresa_id" required>
                         <option value="">-- Seleccionar empresa --</option>
                         {% for empresa in empresas %}
-                        <option value="{{ empresa.id }}">{{ empresa.razon_social }} ({{ empresa.ruc }})</option>
+                        {# Preseleccionar si solo hay una empresa en el sistema (empresa_default) #}
+                        <option value="{{ empresa.id }}" {% if empresa_default and empresa.id == empresa_default.id %}selected{% endif %}>
+                            {{ empresa.razon_social }} ({{ empresa.ruc }})
+                        </option>
                         {% empty %}
                         <option value="">No hay empresas. <a href="{% url 'empresas:crear' %}">Crear empresa</a></option>
                         {% endfor %}

@@ -22,19 +22,22 @@ logger = logging.getLogger(__name__)
 @method_decorator(csrf_exempt, name='dispatch')
 class EnviarComprobanteView(View):
     """
-    Vista para enviar un comprobante al OSE (Mock o Real).
-    
-    Flujo real:
-    1. Generar XML UBL 2.1
-    2. Firmar XML (en mock returns sin firma real)
-    3. Crear ZIP con el XML
-    4. Enviar via SOAP sendBill al OSE
-    5. Obtener ticket de respuesta
-    6. Guardar ticket en comprobante
-    7. Guardar Log del envío
+    Vista para enviar un comprobante individual al OSE (Mock o Real).
+
+    Flujo SUNAT para comprobantes individuales (sendBill):
+    -------------------------------------------------------
+    - sendBill retorna el CDR (Constancia de Recepción) de forma INMEDIATA
+      en el campo 'applicationResponse' (base64 del ZIP con el CDR).
+    - NO genera ticket asíncrono. El comprobante pasa a ACEPTADO en esta misma llamada.
+
+    Flujo SUNAT para lotes (sendPack) — manejado en enviar_lote():
+    ---------------------------------------------------------------
+    - sendPack retorna un ticket asíncrono que requiere consultar getStatus(ticket).
+    - ConsultarTicketView maneja ese flujo.
     """
-    
+
     def post(self, request, pk):
+        """Procesa el envío de un comprobante individual y actualiza su estado."""
         try:
             comprobante = Comprobante.objects.get(pk=pk)
         except Comprobante.DoesNotExist:
@@ -46,55 +49,76 @@ class EnviarComprobanteView(View):
             }, status=400)
 
         try:
+            # 1. Generar y firmar el XML UBL 2.1
             xml_content = generar_xml_ubl(comprobante)
-            
             from .xml_generator import firmar_xml
             xml_firmado = firmar_xml(xml_content)
-            
+
+            # 2. Empaquetar en ZIP con el nombre SUNAT requerido
             nombre_zip = comprobante.nombre_zip.replace('.zip', '')
             zip_content = crear_zip(xml_firmado, nombre_zip)
-            
             zip_base64 = base64.b64encode(zip_content).decode('utf-8')
-            
+
+            # 3. Obtener el cliente OSE (Mock o Real segun settings)
             ose_client = get_ose_client()
-            
-            file_name = f"{comprobante.empresa.ruc}-{comprobante.tipo}-{comprobante.serie.serie}-{comprobante.numero:08d}.zip"
-            
-            logger.info(f"Enviando comprobante {comprobante} al OSE...")
-            
-            respuesta = ose_client.send_bill(zip_base64, file_name)
-            
-            logger.info(f"Respuesta OSE: {respuesta}")
-            
-            estado_log = 'RECHAZADO' if respuesta.get('status') != 0 else 'ENVIADO'
-            
-            LogEnvioSUNAT.objects.create(
-                comprobante=comprobante,
-                estado_respuesta=estado_log,
-                codigo_respuesta=str(respuesta.get('status', '-1')),
-                descripcion=respuesta.get('faultstring') or 'Envío procesado',
-                uuid=respuesta.get('ticket', '')
+            file_name = (
+                f"{comprobante.empresa.ruc}-{comprobante.tipo}"
+                f"-{comprobante.serie.serie}-{comprobante.numero:08d}.zip"
             )
-            
+
+            logger.info(f"Enviando comprobante {comprobante} al OSE...")
+            respuesta = ose_client.send_bill(zip_base64, file_name)
+            logger.info(f"Respuesta OSE: status={respuesta.get('status')}")
+
+            # 4. Guardar XML firmado independientemente del resultado
+            comprobante.xml_firmado = (
+                xml_firmado.decode('utf-8') if isinstance(xml_firmado, bytes) else xml_firmado
+            )
+
             if respuesta.get('status') == 0:
-                comprobante.sunat_ticket = respuesta.get('ticket')
-                comprobante.estado = 'ENVIADO'
-                comprobante.xml_firmado = xml_firmado.decode('utf-8') if isinstance(xml_firmado, bytes) else xml_firmado
+                # EXITO: sendBill retorna CDR inmediato en 'applicationResponse'.
+                # Para comprobantes individuales NO hay ticket asincrono.
+                # El comprobante ya fue ACEPTADO por SUNAT en esta misma llamada.
+                cdr_b64 = respuesta.get('applicationResponse', '')
+
+                LogEnvioSUNAT.objects.create(
+                    comprobante=comprobante,
+                    estado_respuesta='ACEPTADO',
+                    codigo_respuesta='0',
+                    descripcion='CDR recibido - Comprobante aceptado por SUNAT/OSE',
+                    uuid=respuesta.get('ticket', ''),
+                    cdr_xml=cdr_b64
+                )
+
+                # sunat_ticket queda en None para sendBill (solo sendPack usa ticket)
+                ticket_valor = respuesta.get('ticket') or None
+                comprobante.sunat_ticket = ticket_valor
+                comprobante.estado = 'ACEPTADO'
                 comprobante.save(update_fields=['xml_firmado', 'sunat_ticket', 'estado'])
-                
+
                 return JsonResponse({
                     'success': True,
-                    'message': 'Comprobante enviado exitosamente',
-                    'ticket': respuesta.get('ticket'),
-                    'estado': 'ENVIADO'
+                    'message': 'Comprobante aceptado por SUNAT',
+                    'ticket': ticket_valor,
+                    'estado': 'ACEPTADO',
+                    'cdr': bool(cdr_b64),
                 })
             else:
+                # RECHAZO: OSE/SUNAT devolvio un error de negocio o estructura
+                LogEnvioSUNAT.objects.create(
+                    comprobante=comprobante,
+                    estado_respuesta='RECHAZADO',
+                    codigo_respuesta=str(respuesta.get('status', '-1')),
+                    descripcion=respuesta.get('faultstring') or 'Rechazado por OSE/SUNAT',
+                    uuid=''
+                )
+
                 comprobante.estado = 'RECHAZADO'
-                comprobante.save(update_fields=['estado'])
-                
+                comprobante.save(update_fields=['xml_firmado', 'estado'])
+
                 return JsonResponse({
                     'success': False,
-                    'error': respuesta.get('faultstring', 'Error en el envío'),
+                    'error': respuesta.get('faultstring', 'Error en el envio'),
                     'codigo': respuesta.get('faultcode', 'UNKNOWN'),
                     'estado': 'RECHAZADO'
                 }, status=400)

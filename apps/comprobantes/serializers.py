@@ -31,18 +31,49 @@ class ComprobanteSerializer(serializers.ModelSerializer):
 
 
 class ComprobanteCreateSerializer(serializers.Serializer):
+    """
+    Serializador para crear un Comprobante con sus líneas de detalle.
+    Valida la existencia de empresa, cliente y productos antes de persistir.
+    Campos:
+        - empresa_id: PK de la Empresa emisora.
+        - cliente_id: PK del Cliente receptor.
+        - fecha: Fecha de emisión del comprobante.
+        - tipo: Código de tipo ('01'=Factura, '03'=Boleta).
+        - detalles: Lista de dicts con producto_id, cantidad y precio_unitario.
+    """
     empresa_id = serializers.IntegerField()
     cliente_id = serializers.IntegerField()
     fecha = serializers.DateField()
     tipo = serializers.CharField(max_length=2)
     detalles = serializers.ListField(child=serializers.DictField())
 
+    def validate_empresa_id(self, value):
+        """Verifica que la empresa exista en la BD y retorna un error de validación claro si no."""
+        if not Empresa.objects.filter(id=value).exists():
+            raise serializers.ValidationError(
+                f"No existe una Empresa con id={value}. "
+                f"Por favor seleccione una empresa válida desde el formulario."
+            )
+        return value
+
+    def validate_cliente_id(self, value):
+        """Verifica que el cliente exista en la BD y retorna un error de validación claro si no."""
+        from apps.clientes.models import Cliente
+        if not Cliente.objects.filter(id=value).exists():
+            raise serializers.ValidationError(
+                f"No existe un Cliente con id={value}. "
+                f"Por favor seleccione un cliente válido desde el formulario."
+            )
+        return value
+
     def validate_tipo(self, value):
+        """Valida que el tipo de comprobante sea Factura (01) o Boleta (03)."""
         if value not in ['01', '03']:
             raise serializers.ValidationError("Tipo debe ser 01 (Factura) o 03 (Boleta)")
         return value
 
     def validate_detalles(self, value):
+        """Valida que exista al menos un detalle y que cada uno tenga producto_id y cantidad."""
         if not value:
             raise serializers.ValidationError("Debe incluir al menos un detalle")
         for detalle in value:
@@ -60,7 +91,8 @@ class ComprobanteCreateSerializer(serializers.Serializer):
         tipo = validated_data['tipo']
 
         with transaction.atomic():
-            serie_obj, created = SerieComprobante.objects.get_or_create(
+            # select_for_update bloquea la fila para evitar condiciones de carrera
+            serie_obj, created = SerieComprobante.objects.select_for_update().get_or_create(
                 empresa=empresa,
                 tipo=tipo,
                 defaults={'serie': 'F001' if tipo == '01' else 'B001', 'correlativo_actual': 0, 'activa': True}
@@ -69,8 +101,14 @@ class ComprobanteCreateSerializer(serializers.Serializer):
             if not created:
                 serie_obj.refresh_from_db()
 
-            serie_obj.correlativo_actual += 1
-            numero = serie_obj.correlativo_actual
+            # Recalcular el siguiente correlativo desde la BD real
+            # Esto evita desincronizaciones por datos de prueba o reinicios
+            from django.db.models import Max
+            max_numero_real = Comprobante.objects.filter(serie=serie_obj).aggregate(Max('numero'))['numero__max'] or 0
+            siguiente = max(serie_obj.correlativo_actual, max_numero_real) + 1
+
+            serie_obj.correlativo_actual = siguiente
+            numero = siguiente
             serie_obj.save(update_fields=['correlativo_actual'])
 
             comprobante = Comprobante.objects.create(

@@ -210,7 +210,7 @@ function enviarSunat() {
     const btn = document.getElementById('btn-enviar-sunat');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
-    
+
     mostrarAlerta('primary', 'Enviando comprobante a SUNAT...');
 
     fetch("{% url 'sunat_ose:enviar_comprobante' comprobante.id %}", {
@@ -223,9 +223,17 @@ function enviarSunat() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            mostrarAlerta('success', `Comprobante enviado. Ticket: ${data.ticket}`);
-            if (data.ticket) {
+            if (data.estado === 'ACEPTADO') {
+                // sendBill: SUNAT acepto el comprobante de forma inmediata (sin ticket)
+                mostrarAlerta('success', 'Comprobante ACEPTADO por SUNAT. Recargando...');
+                setTimeout(() => location.reload(), 2000);
+            } else if (data.ticket) {
+                // sendPack: hay ticket asincrono, consultar estado
+                mostrarAlerta('success', 'Comprobante enviado. Consultando ticket...');
                 setTimeout(() => consultarTicket(), 2000);
+            } else {
+                mostrarAlerta('success', 'Comprobante enviado correctamente. Recargando...');
+                setTimeout(() => location.reload(), 2000);
             }
         } else {
             mostrarAlerta('danger', `Error: ${data.error || data.descripcion || 'Error desconocido'}`);
@@ -235,7 +243,7 @@ function enviarSunat() {
     })
     .catch(error => {
         console.error('Error:', error);
-        mostrarAlerta('danger', 'Error de conexión');
+        mostrarAlerta('danger', 'Error de conexion');
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-send"></i> Reenviar a SUNAT';
     });
@@ -286,7 +294,8 @@ function consultarTicket() {
     });
 }
 
-{% if comprobante.estado == 'ENVIADO' %}
+{% if comprobante.estado == 'ENVIADO' and comprobante.sunat_ticket %}
+{# Auto-consultar ticket solo si el comprobante tiene un ticket real (lotes sendPack) #}
 setTimeout(() => consultarTicket(), 1000);
 {% endif %}
 </script>

@@ -1,291 +1,210 @@
 """
 SUNAT OSE Client - Para entorno BETA/DESARROLLO
-Usa requests directo para SOAP (no zeep) para evitar problemas de auth en imports del WSDL.
+Usa zeep con WSDL local para máxima compatibilidad y seguridad.
 """
 
 import logging
 import os
 import base64
 from django.conf import settings
+from zeep import Client, Settings
+from zeep.transports import Transport
+from zeep.wsse.username import UsernameToken
+import requests
 
 logger = logging.getLogger(__name__)
 
 
 class OSEClient:
-    """Cliente SOAP usando requests directo para evitar problemas de auth con zeep"""
+    """
+    Cliente SOAP para comunicación con SUNAT/OSE usando zeep con WSDL local.
 
-    def __init__(self, wsdl_url=None, ruc=None, usuario=None, password=None):
-        self.wsdl_url = wsdl_url or os.getenv('SUNAT_OSE_WSDL', '')
+    Usa un archivo WSDL local (wsdl/billService.wsdl) para evitar dependencia
+    de red en la inicialización y resolver problemas de autenticación en el handshake.
+
+    Importante: El WSDL usa <wsdl:import location="billService_ns1.wsdl"/> con
+    ruta relativa. Zeep necesita un URI file:/// (no un path Windows directo)
+    para resolver ese import correctamente.
+    """
+
+    def __init__(self, wsdl_path=None, ruc=None, usuario=None, password=None):
+        """
+        Inicializa el cliente SOAP con credenciales SOL y WSDL local.
+
+        Args:
+            wsdl_path: Path al archivo WSDL local. Si None, usa BASE_DIR/wsdl/billService.wsdl.
+            ruc: RUC de la empresa (11 dígitos).
+            usuario: Usuario SOL (solo el sufijo, ej: JAVISIS1).
+            password: Contraseña SOL.
+        Raises:
+            RuntimeError: Si Zeep no puede cargar el WSDL, con el error real detallado.
+        """
+        if not wsdl_path:
+            base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
+            wsdl_path = os.path.join(str(base_dir), 'wsdl', 'billService.wsdl')
+
         self.ruc = ruc or os.getenv('SUNAT_OSE_RUC', '')
         self.usuario = usuario or os.getenv('SUNAT_OSE_USUARIO', '')
         self.password = password or os.getenv('SUNAT_OSE_PASSWORD', '')
 
-    @property
-    def auth(self):
-        from requests.auth import HTTPBasicAuth
-        return HTTPBasicAuth(self.ruc + '-' + self.usuario, self.password)
+        # Convertir path Windows a URI file:/// para que Zeep resuelva
+        # correctamente los imports relativos del WSDL (billService_ns1.wsdl)
+        import pathlib
+        wsdl_uri = pathlib.Path(wsdl_path).as_uri()
+        self.wsdl_path = wsdl_uri
 
-    def send_bill(self, zip_content, file_name):
-        """Envía comprobante al OSE usando SOAP directo"""
-        import requests
+        logger.info(f"Cargando WSDL desde: {wsdl_uri}")
 
-        soap_body = f'''<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.sunat.gob.pe">
-   <soapenv:Header>
-      <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-         <wsse:UsernameToken>
-            <wsse:Username>{self.ruc}-{self.usuario}</wsse:Username>
-            <wsse:Password>{self.password}</wsse:Password>
-         </wsse:UsernameToken>
-      </wsse:Security>
-   </soapenv:Header>
-   <soapenv:Body>
-      <ser:sendBill>
-         <ser:fileName>{file_name}</ser:fileName>
-         <ser:zipContent>{zip_content}</ser:zipContent>
-      </ser:sendBill>
-   </soapenv:Body>
-</soapenv:Envelope>'''
+        transport = Transport(timeout=60)
+        zeep_settings = Settings(strict=False, xml_huge_tree=True)
 
-        logger.info(f"Enviando comprobante: {file_name}")
-
-        headers = {
-            'Content-Type': 'text/xml; charset=utf-8',
-            'SOAPAction': 'sendBill'
-        }
+        # SUNAT requiere credenciales en formato RUC-USUARIO
+        username = f"{self.ruc}-{self.usuario}"
+        wsse = UsernameToken(username, self.password)
 
         try:
-            response = requests.post(
-                self.wsdl_url,
-                data=soap_body.encode('utf-8'),
-                headers=headers,
-                auth=self.auth,
-                timeout=60
+            self.client = Client(
+                wsdl=wsdl_uri,
+                wsse=wsse,
+                transport=transport,
+                settings=zeep_settings
+            )
+            logger.info(f"Cliente OSE inicializado. Servicios: {list(self.client.wsdl.services.keys())}")
+        except Exception as e:
+            # Re-lanzar con mensaje claro en lugar de silenciar
+            msg = (
+                f"Error inicializando cliente Zeep con WSDL '{wsdl_uri}': {e}\n"
+                f"  RUC: {self.ruc} | Usuario: {self.ruc}-{self.usuario}\n"
+                f"  Verifique que el archivo WSDL exista y sea válido."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg) from e
+
+    def send_bill(self, zip_content, file_name):
+        """
+        Envía un comprobante individual al OSE via SOAP sendBill.
+
+        Args:
+            zip_content (bytes | str): Contenido del ZIP (bytes o base64 string).
+            file_name (str): Nombre del archivo ZIP con formato SUNAT:
+                             RUC-TIPO-SERIE-NUMERO.zip (ej: 20103129061-01-F001-00000001.zip)
+        Returns:
+            dict: {status, applicationResponse, faultcode, faultstring}
+                  status=0 indica éxito. applicationResponse contiene el CDR base64.
+        """
+        logger.info(f"Enviando comprobante: {file_name}")
+
+        try:
+            zip_bytes = base64.b64decode(zip_content) if isinstance(zip_content, str) else zip_content
+
+            response = self.client.service.sendBill(
+                fileName=file_name,
+                contentFile=zip_bytes
             )
 
-            if response.status_code == 200:
-                return self._parse_response(response.text, file_name)
-            else:
-                logger.error(f"Error HTTP {response.status_code}: {response.text}")
-                return {
-                    'status': -1,
-                    'ticket': None,
-                    'faultcode': str(response.status_code),
-                    'faultstring': f"HTTP Error: {response.status_code}"
-                }
+            return {
+                'status': 0,
+                'applicationResponse': base64.b64encode(response).decode('utf-8') if response else None,
+                'faultcode': None,
+                'faultstring': None
+            }
+
         except Exception as e:
             logger.error(f"Error enviando a OSE: {str(e)}")
             return {
                 'status': -1,
                 'ticket': None,
-                'faultcode': 'ERROR',
-                'faultstring': str(e)
-            }
-
-    def _parse_response(self, xml_response, file_name):
-        """Parsea la respuesta SOAP"""
-        from xml.etree import ElementTree as ET
-
-        try:
-            root = ET.fromstring(xml_response)
-
-            ns = {
-                'soap': 'http://schemas.xmlsoap.org/soap/envelope/',
-                'ns2': 'http://service.sunat.gob.pe'
-            }
-
-            status = root.find('.//ns2:status', ns) or root.find('.//status', ns)
-            ticket = root.find('.//ns2:ticket', ns) or root.find('.//ticket', ns)
-            faultstring = root.find('.//faultstring', ns)
-            faultcode = root.find('.//faultcode', ns)
-
-            status_val = int(status.text) if status is not None else -1
-            ticket_val = ticket.text if ticket is not None else None
-            faultstring_val = faultstring.text if faultstring is not None else None
-            faultcode_val = faultcode.text if faultcode is not None else None
-
-            logger.info(f"Respuesta OSE - status: {status_val}, ticket: {ticket_val}")
-
-            return {
-                'status': status_val,
-                'ticket': ticket_val,
-                'faultcode': faultcode_val,
-                'faultstring': faultstring_val
-            }
-        except Exception as e:
-            logger.error(f"Error parseando respuesta: {str(e)}")
-            return {
-                'status': -1,
-                'ticket': None,
-                'faultcode': 'PARSE_ERROR',
-                'faultstring': f"Error parseando respuesta: {str(e)}"
+                'faultcode': getattr(e, 'code', 'ERROR'),
+                'faultstring': getattr(e, 'message', str(e))
             }
 
     def get_status(self, ticket):
-        """Consulta estado de ticket"""
-        import requests
+        """
+        Consulta el estado de un ticket asíncrono (lotes sendPack).
 
-        soap_body = f'''<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.sunat.gob.pe">
-   <soapenv:Header>
-      <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-         <wsse:UsernameToken>
-            <wsse:Username>{self.ruc}-{self.usuario}</wsse:Username>
-            <wsse:Password>{self.password}</wsse:Password>
-         </wsse:UsernameToken>
-      </wsse:Security>
-   </soapenv:Header>
-   <soapenv:Body>
-      <ser:getStatus>
-         <ser:ticket>{ticket}</ser:ticket>
-      </ser:getStatus>
-   </soapenv:Body>
-</soapenv:Envelope>'''
-
-        logger.info(f"Consultando ticket: {ticket}")
-
-        headers = {
-            'Content-Type': 'text/xml; charset=utf-8',
-            'SOAPAction': 'getStatus'
-        }
-
+        Args:
+            ticket (str): Ticket devuelto por sendPack.
+        Returns:
+            dict: {status, ticket, faultcode, faultstring}
+        """
         try:
-            response = requests.post(
-                self.wsdl_url,
-                data=soap_body.encode('utf-8'),
-                headers=headers,
-                auth=self.auth,
-                timeout=60
-            )
-
-            if response.status_code == 200:
-                return self._parse_response(response.text, None)
-            else:
-                return {
-                    'status': -1,
-                    'ticket': ticket,
-                    'faultcode': str(response.status_code),
-                    'faultstring': f"HTTP Error: {response.status_code}"
-                }
+            response = self.client.service.getStatus(ticket=ticket)
+            return {
+                'status': response.statusCode if hasattr(response, 'statusCode') else 0,
+                'ticket': ticket,
+                'faultcode': None,
+                'faultstring': None
+            }
         except Exception as e:
             logger.error(f"Error consultando ticket: {str(e)}")
             return {
                 'status': -1,
                 'ticket': ticket,
-                'faultcode': 'ERROR',
-                'faultstring': str(e)
+                'faultcode': getattr(e, 'code', 'ERROR'),
+                'faultstring': getattr(e, 'message', str(e))
             }
 
     def get_status_cdr(self, ticket):
-        """Consulta CDR por ticket"""
-        import requests
+        """
+        Obtiene el CDR (Constancia de Recepción) de un ticket aceptado.
 
-        soap_body = f'''<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.sunat.gob.pe">
-   <soapenv:Header>
-      <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-         <wsse:UsernameToken>
-            <wsse:Username>{self.ruc}-{self.usuario}</wsse:Username>
-            <wsse:Password>{self.password}</wsse:Password>
-         </wsse:UsernameToken>
-      </wsse:Security>
-   </soapenv:Header>
-   <soapenv:Body>
-      <ser:getStatusCdr>
-         <ser:ticket>{ticket}</ser:ticket>
-      </ser:getStatusCdr>
-   </soapenv:Body>
-</soapenv:Envelope>'''
-
-        logger.info(f"Consultando CDR para ticket: {ticket}")
-
-        headers = {
-            'Content-Type': 'text/xml; charset=utf-8',
-            'SOAPAction': 'getStatusCdr'
-        }
-
+        Args:
+            ticket (str): Ticket previamente consultado con getStatus.
+        Returns:
+            dict: {status, cdrContent, faultcode, faultstring}
+        """
         try:
-            response = requests.post(
-                self.wsdl_url,
-                data=soap_body.encode('utf-8'),
-                headers=headers,
-                auth=self.auth,
-                timeout=60
-            )
-
-            if response.status_code == 200:
-                return self._parse_response(response.text, None)
-            else:
-                return {
-                    'status': -1,
-                    'ticket': ticket,
-                    'faultcode': str(response.status_code),
-                    'faultstring': f"HTTP Error: {response.status_code}"
-                }
+            response = self.client.service.getStatusCdr(ticket=ticket)
+            return {
+                'status': 0,
+                'cdrContent': response.content if hasattr(response, 'content') else None,
+                'faultcode': None,
+                'faultstring': None
+            }
         except Exception as e:
             logger.error(f"Error consultando CDR: {str(e)}")
             return {
                 'status': -1,
                 'ticket': ticket,
-                'faultcode': 'ERROR',
-                'faultstring': str(e)
+                'faultcode': getattr(e, 'code', 'ERROR'),
+                'faultstring': getattr(e, 'message', str(e))
             }
 
     def send_pack(self, zip_content, file_name):
-        """Envía lote de comprobantes"""
-        import requests
+        """
+        Envía un lote de comprobantes al OSE via SOAP sendPack.
 
-        soap_body = f'''<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.sunat.gob.pe">
-   <soapenv:Header>
-      <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-         <wsse:UsernameToken>
-            <wsse:Username>{self.ruc}-{self.usuario}</wsse:Username>
-            <wsse:Password>{self.password}</wsse:Password>
-         </wsse:UsernameToken>
-      </wsse:Security>
-   </soapenv:Header>
-   <soapenv:Body>
-      <ser:sendPack>
-         <ser:fileName>{file_name}</ser:fileName>
-         <ser:zipContent>{zip_content}</ser:zipContent>
-      </ser:sendPack>
-   </soapenv:Body>
-</soapenv:Envelope>'''
+        A diferencia de sendBill, sendPack es asíncrono: retorna un ticket
+        que debe consultarse posteriormente con getStatus().
 
-        logger.info(f"Enviando lote: {file_name}")
-
-        headers = {
-            'Content-Type': 'text/xml; charset=utf-8',
-            'SOAPAction': 'sendPack'
-        }
-
+        Args:
+            zip_content (bytes | str): ZIP con múltiples XML firmados.
+            file_name (str): Nombre del ZIP de lote.
+        Returns:
+            dict: {status, ticket, faultcode, faultstring}
+        """
         try:
-            response = requests.post(
-                self.wsdl_url,
-                data=soap_body.encode('utf-8'),
-                headers=headers,
-                auth=self.auth,
-                timeout=120
-            )
+            zip_bytes = base64.b64decode(zip_content) if isinstance(zip_content, str) else zip_content
 
-            if response.status_code == 200:
-                return self._parse_response(response.text, file_name)
-            else:
-                return {
-                    'status': -1,
-                    'ticket': None,
-                    'faultcode': str(response.status_code),
-                    'faultstring': f"HTTP Error: {response.status_code}"
-                }
+            response = self.client.service.sendPack(
+                fileName=file_name,
+                contentFile=zip_bytes
+            )
+            return {
+                'status': 0,
+                'ticket': response if isinstance(response, str) else None,
+                'faultcode': None,
+                'faultstring': None
+            }
         except Exception as e:
             logger.error(f"Error enviando lote: {str(e)}")
             return {
                 'status': -1,
                 'ticket': None,
-                'faultcode': 'ERROR',
-                'faultstring': str(e)
+                'faultcode': getattr(e, 'code', 'ERROR'),
+                'faultstring': getattr(e, 'message', str(e))
             }
+
 
 
 class MockOSEClient:
@@ -305,6 +224,7 @@ class MockOSEClient:
             return {
                 'status': 0,
                 'ticket': f"MOCK-{uuid.uuid4().hex[:10].upper()}",
+                'applicationResponse': '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',
                 'faultcode': None,
                 'faultstring': None
             }
@@ -385,6 +305,10 @@ def get_ose_client(use_mock=None):
         logger.info("Usando MockOSEClient (desarrollo local)")
         return MockOSEClient()
     else:
-        wsdl = os.getenv('SUNAT_OSE_WSDL', '')
-        logger.info("Usando OSEClient (conexión real)")
-        return OSEClient() if wsdl else None
+        ruc = os.getenv('SUNAT_OSE_RUC', '')
+        usuario = os.getenv('SUNAT_OSE_USUARIO', '')
+        password = os.getenv('SUNAT_OSE_PASSWORD', '')
+        wsdl_path = os.getenv('SUNAT_OSE_WSDL', None)
+        
+        logger.info(f"Usando OSEClient (conexión real) para RUC {ruc}")
+        return OSEClient(wsdl_path=wsdl_path, ruc=ruc, usuario=usuario, password=password) if ruc else None
