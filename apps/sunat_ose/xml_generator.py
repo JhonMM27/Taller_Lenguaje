@@ -436,9 +436,9 @@ def generar_nota_credito_xml(nota):
     return etree.tostring(root, pretty_print=True, xml_declaration=True, encoding='UTF-8')
 
 
-def firmar_xml(xml_content):
+def firmar_xml(xml_content, empresa_id=None, certificado_id=None):
     from .firmar import sign_xml
-    return sign_xml(xml_content)
+    return sign_xml(xml_content, empresa_id=empresa_id, certificado_id=certificado_id)
 
 
 def crear_zip(xml_content, nombre_archivo):
@@ -447,6 +447,7 @@ def crear_zip(xml_content, nombre_archivo):
 
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr('dummy/', b'')
         zip_file.writestr(nombre_archivo + '.xml', xml_content)
     zip_buffer.seek(0)
     return zip_buffer.getvalue()

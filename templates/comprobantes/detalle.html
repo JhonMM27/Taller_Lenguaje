@@ -201,6 +201,10 @@
 <script>
 function mostrarAlerta(tipo, mensaje) {
     const alerta = document.getElementById('alerta-envio');
+    if (!alerta) {
+        console.error('Elemento alerta-envio no encontrado');
+        return;
+    }
     alerta.className = `alert alert-${tipo} fade-in`;
     alerta.innerHTML = `<i class="bi bi-info-circle" style="margin-right:8px;"></i> ${mensaje}`;
     alerta.classList.remove('d-none');
@@ -208,6 +212,10 @@ function mostrarAlerta(tipo, mensaje) {
 
 function enviarSunat() {
     const btn = document.getElementById('btn-enviar-sunat');
+    if (!btn) {
+        console.error('Elemento btn-enviar-sunat no encontrado');
+        return;
+    }
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
 
@@ -255,7 +263,7 @@ function consultarTicket() {
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Consultando...';
     }
-    
+
     mostrarAlerta('primary', 'Consultando estado del ticket...');
 
     fetch("{% url 'sunat_ose:consultar_ticket' comprobante.id %}", {

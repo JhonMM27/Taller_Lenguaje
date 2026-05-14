@@ -10,59 +10,84 @@
 </div>
 
 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-    <form method="POST" class="space-y-6">
+    <form method="POST" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div>
                 <label for="ruc" class="block text-sm font-medium text-slate-700 mb-2">RUC</label>
-                <input type="text" name="ruc" id="ruc" required maxlength="11" minlength="11" 
+                <input type="text" name="ruc" id="ruc" required maxlength="11" minlength="11"
                     pattern="[0-9]{11}" title="El RUC debe tener 11 dígitos" placeholder="20103129061"
+                    value="{{ form.ruc.value|default:'' }}"
                     class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
             </div>
             <div class="md:col-span-3">
                 <label for="razon_social" class="block text-sm font-medium text-slate-700 mb-2">Razón Social</label>
                 <input type="text" name="razon_social" id="razon_social" required maxlength="200"
+                    value="{{ form.razon_social.value|default:'' }}"
                     class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
             </div>
         </div>
         <div>
             <label for="nombre_comercial" class="block text-sm font-medium text-slate-700 mb-2">Nombre Comercial</label>
             <input type="text" name="nombre_comercial" id="nombre_comercial" maxlength="200"
+                value="{{ form.nombre_comercial.value|default:'' }}"
                 class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
         </div>
         <div>
             <label for="direccion" class="block text-sm font-medium text-slate-700 mb-2">Dirección</label>
             <textarea name="direccion" id="direccion" rows="2"
-                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition"></textarea>
+                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">{{ form.direccion.value|default:'' }}</textarea>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
                 <label for="email" class="block text-sm font-medium text-slate-700 mb-2">Email</label>
                 <input type="email" name="email" id="email"
+                    value="{{ form.email.value|default:'' }}"
                     class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
             </div>
             <div>
                 <label for="telefono" class="block text-sm font-medium text-slate-700 mb-2">Teléfono</label>
                 <input type="text" name="telefono" id="telefono" maxlength="9" minlength="9"
                     pattern="[0-9]{9}" title="El teléfono debe tener exactamente 9 dígitos" placeholder="999999999"
+                    value="{{ form.telefono.value|default:'' }}"
                     class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
             </div>
         </div>
         <div>
             <label for="regimen_tributario" class="block text-sm font-medium text-slate-700 mb-2">Régimen Tributario</label>
             <select name="regimen_tributario" id="regimen_tributario" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
-                <option value="GENERAL">General</option>
-                <option value="RER">RER (Régimen Especial de Renta)</option>
-                <option value="MYPE">MYPE (Micro y Pequeña Empresa)</option>
-                <option value="NRUS">NRUS (Régimen Unificado)</option>
+                <option value="GENERAL" {% if form.regimen_tributario.value == 'GENERAL' %}selected{% endif %}>General</option>
+                <option value="RER" {% if form.regimen_tributario.value == 'RER' %}selected{% endif %}>RER (Régimen Especial de Renta)</option>
+                <option value="MYPE" {% if form.regimen_tributario.value == 'MYPE' %}selected{% endif %}>MYPE (Micro y Pequeña Empresa)</option>
+                <option value="NRUS" {% if form.regimen_tributario.value == 'NRUS' %}selected{% endif %}>NRUS (Régimen Unificado)</option>
             </select>
         </div>
-        {% if errors %}
+
+        <hr class="my-6 border-slate-200">
+
+        <div class="bg-slate-50 rounded-xl p-5 border border-slate-200">
+            <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <i class="bi bi-shield-lock text-primary-600"></i> Certificado Digital (Opcional)
+            </h3>
+            <p class="text-sm text-slate-500 mb-4">Si no agregas un certificado ahora, podrás hacerlo después desde el detalle de la empresa.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="cert_pfx" class="block text-sm font-medium text-slate-700 mb-2">Archivo .pfx / .p12</label>
+                    <input type="file" name="cert_pfx" id="cert_pfx" accept=".pfx,.p12"
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100">
+                </div>
+                <div>
+                    <label for="cert_password" class="block text-sm font-medium text-slate-700 mb-2">Contraseña del Certificado</label>
+                    <input type="password" name="cert_password" id="cert_password"
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+                </div>
+            </div>
+        </div>
+
+        {% if form.non_field_errors %}
         <div class="p-4 rounded-xl bg-red-50 text-red-700 border border-red-200">
-            {% for field, errors in errors.items %}
-                {% for error in errors %}
-                    <div>{{ error }}</div>
-                {% endfor %}
+            {% for error in form.non_field_errors %}
+                <div>{{ error }}</div>
             {% endfor %}
         </div>
         {% endif %}

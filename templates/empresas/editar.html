@@ -24,9 +24,9 @@
         </span>
     </div>
     <div class="card-body">
-        <form method="POST">
+        <form method="POST" action="{% url 'empresas:editar' empresa.id %}" enctype="multipart/form-data">
             {% csrf_token %}
-            
+
             <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:16px;margin-bottom:16px;">
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="codigo_empresa" class="form-label">Código</label>
@@ -34,56 +34,101 @@
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="ruc" class="form-label">RUC <span style="color:var(--danger);">*</span></label>
-                    <input type="text" name="ruc" id="ruc" required 
+                    <input type="text" name="ruc" id="ruc" required
                            maxlength="11" minlength="11" pattern="[0-9]{11}"
                            title="El RUC debe tener 11 dígitos"
-                           value="{{ empresa.ruc }}" class="form-control">
+                           value="{{ form.ruc.value|default:empresa.ruc }}" class="form-control">
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="razon_social" class="form-label">Razón Social <span style="color:var(--danger);">*</span></label>
-                    <input type="text" name="razon_social" id="razon_social" required maxlength="200" value="{{ empresa.razon_social }}" class="form-control">
+                    <input type="text" name="razon_social" id="razon_social" required maxlength="200" value="{{ form.razon_social.value|default:empresa.razon_social }}" class="form-control">
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="nombre_comercial" class="form-label">Nombre Comercial</label>
-                <input type="text" name="nombre_comercial" id="nombre_comercial" maxlength="200" value="{{ empresa.nombre_comercial|default:'' }}" class="form-control">
+                <input type="text" name="nombre_comercial" id="nombre_comercial" maxlength="200" value="{{ form.nombre_comercial.value|default:empresa.nombre_comercial|default:'' }}" class="form-control">
             </div>
 
             <div class="form-group">
                 <label for="direccion" class="form-label">Dirección</label>
-                <textarea name="direccion" id="direccion" rows="2" class="form-control">{{ empresa.direccion|default:'' }}</textarea>
+                <textarea name="direccion" id="direccion" rows="2" class="form-control">{{ form.direccion.value|default:empresa.direccion|default:'' }}</textarea>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="email" class="form-label">Email</label>
-                    <input type="email" name="email" id="email" value="{{ empresa.email|default:'' }}" class="form-control">
+                    <input type="email" name="email" id="email" value="{{ form.email.value|default:empresa.email|default:'' }}" class="form-control">
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="telefono" class="form-label">Teléfono</label>
-                    <input type="text" name="telefono" id="telefono" 
+                    <input type="text" name="telefono" id="telefono"
                            maxlength="9" minlength="9" pattern="[0-9]{9}"
                            title="El teléfono debe tener exactamente 9 dígitos"
-                           value="{{ empresa.telefono|default:'' }}" class="form-control">
+                           value="{{ form.telefono.value|default:empresa.telefono|default:'' }}" class="form-control">
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="regimen_tributario" class="form-label">Régimen Tributario</label>
                 <select name="regimen_tributario" id="regimen_tributario" class="form-select">
-                    <option value="GENERAL" {% if empresa.regimen_tributario == 'GENERAL' %}selected{% endif %}>General</option>
-                    <option value="RER" {% if empresa.regimen_tributario == 'RER' %}selected{% endif %}>RER (Régimen Especial de Renta)</option>
-                    <option value="MYPE" {% if empresa.regimen_tributario == 'MYPE' %}selected{% endif %}>MYPE (Micro y Pequeña Empresa)</option>
-                    <option value="NRUS" {% if empresa.regimen_tributario == 'NRUS' %}selected{% endif %}>NRUS (Régimen Unificado)</option>
+                    <option value="GENERAL" {% if form.regimen_tributario.value == 'GENERAL' or not form.regimen_tributario.value and empresa.regimen_tributario == 'GENERAL' %}selected{% endif %}>General</option>
+                    <option value="RER" {% if form.regimen_tributario.value == 'RER' or not form.regimen_tributario.value and empresa.regimen_tributario == 'RER' %}selected{% endif %}>RER (Régimen Especial de Renta)</option>
+                    <option value="MYPE" {% if form.regimen_tributario.value == 'MYPE' or not form.regimen_tributario.value and empresa.regimen_tributario == 'MYPE' %}selected{% endif %}>MYPE (Micro y Pequeña Empresa)</option>
+                    <option value="NRUS" {% if form.regimen_tributario.value == 'NRUS' or not form.regimen_tributario.value and empresa.regimen_tributario == 'NRUS' %}selected{% endif %}>NRUS (Régimen Unificado)</option>
                 </select>
             </div>
 
-            {% if errors %}
+            {% with cert_activo=empresa.certificado_activo %}
+            <div style="margin-top:20px;padding:16px;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-200);">
+                <h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:var(--gray-700);">
+                    <i class="bi bi-shield-lock" style="margin-right:6px;"></i>Certificado Digital
+                    {% if cert_activo %}
+                        <span style="float:right;font-size:12px;font-weight:400;color:var(--success);">
+                            <i class="bi bi-check-circle-fill"></i> Configurado
+                        </span>
+                    {% else %}
+                        <span style="float:right;font-size:12px;font-weight:400;color:var(--gray-400);">
+                            <i class="bi bi-exclamation-circle"></i> No configurado
+                        </span>
+                    {% endif %}
+                </h4>
+                {% if cert_activo %}
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;font-size:13px;color:var(--gray-600);">
+                        <div><strong>Serie:</strong> {{ cert_activo.numero_serie|truncatechars:15 }}</div>
+                        <div><strong>Desde:</strong> {{ cert_activo.fecha_desde|date:"d/m/Y" }}</div>
+                        <div><strong>Hasta:</strong> {{ cert_activo.fecha_hasta|date:"d/m/Y" }}</div>
+                    </div>
+                    <p style="margin:8px 0 0 0;font-size:12px;color:var(--gray-500);">
+                        Huella: {{ cert_activo.huella_digital|truncatechars:40 }}
+                    </p>
+                {% else %}
+                    <p style="margin:0;font-size:13px;color:var(--gray-500);">No hay certificado activo. Puedes subir uno nuevo abajo.</p>
+                {% endif %}
+            </div>
+
+            <div style="margin-top:16px;padding:16px;background:#fff;border-radius:8px;border:1px solid var(--gray-200);">
+                <p style="margin:0 0 12px 0;font-size:13px;color:var(--gray-600);">
+                    <i class="bi bi-info-circle"></i> Para actualizar el certificado, sube un nuevo archivo PFX.
+                </p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="cert_pfx" class="form-label" style="font-size:13px;">Nuevo Archivo .pfx / .p12</label>
+                        <input type="file" name="cert_pfx" id="cert_pfx" accept=".pfx,.p12" class="form-control" style="font-size:13px;">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="cert_password" class="form-label" style="font-size:13px;">Contraseña del Certificado</label>
+                        <input type="password" name="cert_password" id="cert_password" class="form-control" style="font-size:13px;" placeholder="Ingrese la contraseña" autocomplete="new-password">
+                    </div>
+                </div>
+            </div>
+            {% endwith %}
+
+            {% if form.non_field_errors %}
             <div class="alert alert-error" style="margin-top:16px;">
                 <span>
                     <i class="bi bi-exclamation-circle-fill"></i>
-                    {% for field, errs in errors.items %}{% for err in errs %}{{ err }} {% endfor %}{% endfor %}
+                    {% for error in form.non_field_errors %}{{ error }}{% endfor %}
                 </span>
             </div>
             {% endif %}

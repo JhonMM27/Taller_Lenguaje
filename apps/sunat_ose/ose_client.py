@@ -32,53 +32,75 @@ class OSEClient:
         Inicializa el cliente SOAP con credenciales SOL y WSDL local.
 
         Args:
-            wsdl_path: Path al archivo WSDL local. Si None, usa BASE_DIR/wsdl/billService.wsdl.
+            wsdl_path: Path al archivo WSDL local o URL del servicio. Si None, usa WSDL local.
             ruc: RUC de la empresa (11 dígitos).
             usuario: Usuario SOL (solo el sufijo, ej: JAVISIS1).
             password: Contraseña SOL.
         Raises:
             RuntimeError: Si Zeep no puede cargar el WSDL, con el error real detallado.
         """
-        if not wsdl_path:
-            base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
-            wsdl_path = os.path.join(str(base_dir), 'wsdl', 'billService.wsdl')
-
         self.ruc = ruc or os.getenv('SUNAT_OSE_RUC', '')
         self.usuario = usuario or os.getenv('SUNAT_OSE_USUARIO', '')
         self.password = password or os.getenv('SUNAT_OSE_PASSWORD', '')
-
-        # Convertir path Windows a URI file:/// para que Zeep resuelva
-        # correctamente los imports relativos del WSDL (billService_ns1.wsdl)
-        import pathlib
-        wsdl_uri = pathlib.Path(wsdl_path).as_uri()
-        self.wsdl_path = wsdl_uri
-
-        logger.info(f"Cargando WSDL desde: {wsdl_uri}")
-
-        transport = Transport(timeout=60)
-        zeep_settings = Settings(strict=False, xml_huge_tree=True)
 
         # SUNAT requiere credenciales en formato RUC-USUARIO
         username = f"{self.ruc}-{self.usuario}"
         wsse = UsernameToken(username, self.password)
 
-        try:
-            self.client = Client(
-                wsdl=wsdl_uri,
-                wsse=wsse,
-                transport=transport,
-                settings=zeep_settings
-            )
-            logger.info(f"Cliente OSE inicializado. Servicios: {list(self.client.wsdl.services.keys())}")
-        except Exception as e:
-            # Re-lanzar con mensaje claro en lugar de silenciar
-            msg = (
-                f"Error inicializando cliente Zeep con WSDL '{wsdl_uri}': {e}\n"
-                f"  RUC: {self.ruc} | Usuario: {self.ruc}-{self.usuario}\n"
-                f"  Verifique que el archivo WSDL exista y sea válido."
-            )
-            logger.error(msg)
-            raise RuntimeError(msg) from e
+        import pathlib
+
+        # Determinar si wsdl_path es una URL o un path local
+        if wsdl_path and (wsdl_path.startswith('http://') or wsdl_path.startswith('https://')):
+            # Es una URL - usar zeep con WSDL del servidor
+            logger.info(f"Usando WSDL desde URL: {wsdl_path}")
+            transport = Transport(timeout=60)
+            zeep_settings = Settings(strict=False, xml_huge_tree=True)
+            try:
+                self.client = Client(
+                    wsdl=wsdl_path,
+                    wsse=wsse,
+                    transport=transport,
+                    settings=zeep_settings
+                )
+                logger.info(f"Cliente OSE inicializado desde URL. Servicios: {list(self.client.wsdl.services.keys())}")
+                return
+            except Exception as e:
+                msg = f"Error inicializando cliente Zeep con URL '{wsdl_path}': {e}"
+                logger.error(msg)
+                raise RuntimeError(msg) from e
+        else:
+            # Es un path local - usar WSDL local
+            if not wsdl_path:
+                base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
+                wsdl_path = os.path.join(str(base_dir), 'wsdl', 'billService.wsdl')
+
+            # Convertir path Windows a URI file:/// para que Zeep resuelva
+            # correctamente los imports relativos del WSDL (billService_ns1.wsdl)
+            wsdl_uri = pathlib.Path(wsdl_path).as_uri()
+            self.wsdl_path = wsdl_uri
+
+            logger.info(f"Cargando WSDL desde: {wsdl_path} (uri: {wsdl_uri})")
+
+            transport = Transport(timeout=60)
+            zeep_settings = Settings(strict=False, xml_huge_tree=True)
+
+            try:
+                self.client = Client(
+                    wsdl=wsdl_path,
+                    wsse=wsse,
+                    transport=transport,
+                    settings=zeep_settings
+                )
+                logger.info(f"Cliente OSE inicializado. Servicios: {list(self.client.wsdl.services.keys())}")
+            except Exception as e:
+                # Re-lanzar con mensaje claro en lugar de silenciar
+                msg = (
+                    f"Error inicializando cliente Zeep con WSDL '{wsdl_uri}': {e}\n"
+                    f"  RUC: {self.ruc} | Usuario: {self.ruc}-{self.usuario}\n"
+                    f"  Verifique que el archivo WSDL exista y sea válido."
+                )
+                logger.error(msg)
+                raise RuntimeError(msg) from e
 
     def send_bill(self, zip_content, file_name):
         """

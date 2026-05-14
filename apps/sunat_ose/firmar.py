@@ -39,12 +39,9 @@ def get_cert_bytes(cert_path=None, cert_password=None):
     from django.conf import settings as django_settings
     import pathlib
 
-    # Leer path desde env si no se pasa explícitamente
     raw_path = cert_path or os.getenv('SUNAT_CERT_PATH', 'certs/CT2602141470.pfx')
     cert_password = cert_password or os.getenv('SUNAT_CERT_PASSWORD', '')
 
-    # Resolver como absoluto: si ya es absoluto se usa tal cual,
-    # si es relativo se construye desde BASE_DIR del proyecto.
     resolved = pathlib.Path(raw_path)
     if not resolved.is_absolute():
         resolved = pathlib.Path(django_settings.BASE_DIR) / resolved
@@ -61,17 +58,46 @@ def get_cert_bytes(cert_path=None, cert_password=None):
         return f.read(), cert_password
 
 
-def sign_xml(xml_content, ruc=None, razon_social=None):
+def get_cert_from_db(empresa_id=None, certificado_id=None):
     """
-    Firma digitalmente el XML UBL 2.1 con el certificado PFX configurado en .env.
-
-    Genera una firma XAdES/XMLDSig enveloped dentro del elemento UBLExtensions.
-    En modo MOCK (SUNAT_OSE_MOCK=True) omite la firma si el certificado no existe.
+    Obtiene el certificado activo desde la base de datos.
 
     Args:
-        xml_content (bytes): XML sin firmar generado por generar_xml_ubl().
-        ruc (str | None): RUC del emisor (fallback si no está en settings).
-        razon_social (str | None): Razón social del emisor (fallback).
+        empresa_id (int | None): ID de la empresa.
+        certificado_id (int | None): ID del certificado especifico.
+
+    Returns:
+        tuple: (pfx_bytes, password) del certificado en BD.
+    """
+    from apps.empresas.models import Certificado
+    from apps.empresas.services.certificado_service import decrypt_password
+
+    if certificado_id:
+        cert = Certificado.objects.select_related('empresa').get(id=certificado_id)
+    elif empresa_id:
+        cert = Certificado.objects.select_related('empresa').get(empresa_id=empresa_id, is_active=True)
+    else:
+        return None, None
+
+    pfx_bytes = bytes(cert.certificado_binario)
+    password = decrypt_password(cert.contrasena)
+    return pfx_bytes, password
+
+
+def sign_xml(xml_content, ruc=None, razon_social=None, empresa_id=None, certificado_id=None):
+    """
+    Firma digitalmente el XML UBL 2.1 con el certificado.
+
+    Si certificado_id o empresa_id se proporciona, usa el certificado de la BD.
+    Si no, usa el certificado del sistema de archivos (env var SUNAT_CERT_PATH).
+
+    Args:
+        xml_content (bytes): XML sin firmar.
+        ruc (str | None): RUC del emisor.
+        razon_social (str | None): Razon social del emisor.
+        empresa_id (int | None): ID de la empresa para buscar cert activo en BD.
+        certificado_id (int | None): ID especifico del certificado en BD.
+
     Returns:
         bytes: XML firmado en UTF-8.
     """
@@ -81,16 +107,26 @@ def sign_xml(xml_content, ruc=None, razon_social=None):
 
     root = etree.fromstring(xml_content)
 
-    try:
-        # get_cert_bytes retorna (bytes_del_pfx, password) con path resuelto absolutamente
-        cert_data, cert_password = get_cert_bytes()
-    except FileNotFoundError:
-        if getattr(settings, 'SUNAT_OSE_MOCK', True):
-            logger.warning(
-                "MOCK MODE: Certificado no encontrado. Saltando firma digital."
-            )
-            return xml_content
-        raise
+    cert_data = None
+    cert_password = None
+
+    if certificado_id or empresa_id:
+        try:
+            cert_data, cert_password = get_cert_from_db(empresa_id, certificado_id)
+        except Exception as e:
+            if getattr(settings, 'SUNAT_OSE_MOCK', True):
+                logger.warning(f"MOCK MODE: Error cert BD ({e}). Saltando firma.")
+                return xml_content
+            raise
+
+    if not cert_data:
+        try:
+            cert_data, cert_password = get_cert_bytes()
+        except FileNotFoundError:
+            if getattr(settings, 'SUNAT_OSE_MOCK', True):
+                logger.warning("MOCK MODE: Certificado no encontrado. Saltando firma digital.")
+                return xml_content
+            raise
 
     private_key, certificate, _ = pkcs12.load_key_and_certificates(
         cert_data,

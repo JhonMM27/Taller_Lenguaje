@@ -343,16 +343,16 @@ function checkRequirements() {
 function openEditModal(url) {
     const modal = document.getElementById('editModal');
     const content = document.getElementById('editModalContent');
-    
+
     content.innerHTML = `
         <div style="padding:60px; text-align:center;">
             <div class="spinner" style="width:40px;height:40px;border:3px solid var(--primary-100);border-top-color:var(--primary-600);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;"></div>
             <p style="color:var(--gray-500);font-weight:500;">Cargando formulario...</p>
         </div>
     `;
-    
+
     openModal('editModal');
-    
+
     fetch(url)
         .then(response => response.text())
         .then(html => {
@@ -360,7 +360,7 @@ function openEditModal(url) {
             const doc = parser.parseFromString(html, 'text/html');
             const mainContent = doc.querySelector('.card-body') || doc.querySelector('form');
             const title = doc.querySelector('.page-title') || doc.querySelector('.card-title');
-            
+
             if (mainContent) {
                 // Eliminar botones redundantes del form si existen (como "Volver")
                 const backBtn = mainContent.querySelector('a.btn-secondary, .btn-outline');
@@ -369,16 +369,28 @@ function openEditModal(url) {
                 content.innerHTML = `
                     <div class="modal-header">
                         <h2 class="modal-title">
-                            <i class="bi bi-pencil-square" style="color:var(--primary-600);"></i> 
+                            <i class="bi bi-pencil-square" style="color:var(--primary-600);"></i>
                             ${title ? title.innerText.trim() : 'Editar Registro'}
                         </h2>
                         <button class="modal-close" onclick="closeModal('editModal')">
                             <i class="bi bi-x"></i>
                         </button>
                     </div>
-                    <div class="modal-body">${mainContent.innerHTML}</div>
+                    <div class="modal-body" id="editFormContainer"></div>
                 `;
-                
+
+                // Insert content
+                document.getElementById('editFormContainer').innerHTML = mainContent.innerHTML;
+
+                // Attach event listener using addEventListener for better compatibility
+                const form = document.getElementById('editFormContainer').querySelector('form');
+                if (form) {
+                    form.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        submitEditForm(form);
+                    });
+                }
+
                 // Re-bind scripts if necessary (like doc validation)
                 const newSelect = content.querySelector('select[name="tipo_doc"]');
                 if (newSelect && typeof updateDocValidation === 'function') {
@@ -391,6 +403,100 @@ function openEditModal(url) {
         .catch(err => {
             content.innerHTML = `<div class="modal-body text-danger">Error al cargar el formulario: ${err}</div>`;
         });
+}
+
+/**
+ * Envía el formulario de edición por AJAX
+ */
+function submitEditForm(form) {
+    const formData = new FormData(form);
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Guardando...';
+
+    // Determinar la URL del formulario
+    const actionUrl = form.action || window.location.href;
+
+    fetch(actionUrl, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.redirected) {
+            // La respuesta fue un redirect - significa éxito
+            showSuccessMessage('Cambios guardados correctamente');
+            closeModal('editModal');
+            setTimeout(() => window.location.href = response.url, 1500);
+        } else if (response.headers.get('content-type')?.includes('application/json')) {
+            return response.json().then(data => {
+                if (data.success) {
+                    showSuccessMessage(data.message || 'Cambios guardados correctamente');
+                    closeModal('editModal');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showErrorMessage(data.error || 'Error al guardar');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            });
+        } else {
+            // Es HTML - verificar si tiene errores
+            return response.text().then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const errors = doc.querySelector('.alert-error, .alert-danger, .errorlist');
+
+                if (errors) {
+                    showErrorMessage('Por favor corrija los errores en el formulario');
+                    const container = document.getElementById('editFormContainer');
+                    const mainContent = doc.querySelector('.card-body') || doc.querySelector('form');
+                    if (mainContent) {
+                        container.innerHTML = mainContent.innerHTML;
+                        // Re-attach form handlers
+                        const newForm = container.querySelector('form');
+                        if (newForm) {
+                            newForm.addEventListener('submit', function(e) {
+                                e.preventDefault();
+                                submitEditForm(newForm);
+                            });
+                        }
+                    }
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                } else {
+                    showSuccessMessage('Cambios guardados');
+                    closeModal('editModal');
+                    setTimeout(() => window.location.reload(), 1500);
+                }
+            });
+        }
+    })
+    .catch(err => {
+        showErrorMessage('Error de conexión');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    });
+}
+
+function showSuccessMessage(message) {
+    // Crear toast de éxito
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-success fade-in';
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;max-width:400px;';
+    toast.innerHTML = `<span style="display:flex;align-items:center;gap:8px;"><i class="bi bi-check-circle-fill"></i> ${message}</span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+function showErrorMessage(message) {
+    // Crear toast de error
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-error fade-in';
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;max-width:400px;';
+    toast.innerHTML = `<span style="display:flex;align-items:center;gap:8px;"><i class="bi bi-exclamation-circle-fill"></i> ${message}</span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
 }
 
 // Inicializar estado

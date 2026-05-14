@@ -1,8 +1,13 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import os
 
-load_dotenv(override=True)
+# Solo cargar .env en desarrollo (local/dev), NO en produccion
+# En produccion (Docker), las variables vienen de docker-compose.yml
+env_setting = os.getenv('DJANGO_SETTINGS_MODULE', '')
+if not env_setting or 'production' not in env_setting:
+    load_dotenv(override=True)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 

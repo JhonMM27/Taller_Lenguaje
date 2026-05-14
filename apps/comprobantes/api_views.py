@@ -114,7 +114,7 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
 
         try:
             xml_content = generar_xml_ubl(comprobante)
-            xml_firmado = firmar_xml(xml_content)
+            xml_firmado = firmar_xml(xml_content, empresa_id=comprobante.empresa_id)
 
             comprobante.xml_firmado = xml_firmado.decode('utf-8') if isinstance(xml_firmado, bytes) else xml_firmado
             comprobante.estado = 'ENVIADO'

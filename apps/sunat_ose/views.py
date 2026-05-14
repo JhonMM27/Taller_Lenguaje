@@ -269,6 +269,7 @@ def enviar_lote(request):
 
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('dummy/', b'')
             for comprobante in comprobantes:
                 xml_content = generar_xml_ubl(comprobante)
                 from .xml_generator import firmar_xml

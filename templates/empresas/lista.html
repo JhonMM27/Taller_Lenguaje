@@ -116,7 +116,7 @@
             </button>
         </div>
         <div class="modal-body">
-            <form method="POST" action="{% url 'empresas:crear' %}">
+            <form method="POST" action="{% url 'empresas:crear' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:16px;margin-bottom:16px;">
                     <div class="form-group" style="margin-bottom:0;">
@@ -125,7 +125,7 @@
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
                         <label for="ruc" class="form-label">RUC <span style="color:var(--danger);">*</span></label>
-                        <input type="text" name="ruc" id="ruc" required 
+                        <input type="text" name="ruc" id="ruc" required
                                maxlength="11" minlength="11" pattern="[0-9]{11}"
                                title="El RUC debe tener exactamente 11 dígitos"
                                placeholder="12345678901" class="form-control">
@@ -150,7 +150,7 @@
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
                         <label for="telefono" class="form-label">Teléfono</label>
-                        <input type="text" name="telefono" id="telefono" 
+                        <input type="text" name="telefono" id="telefono"
                                maxlength="9" minlength="9" pattern="[0-9]{9}"
                                title="El teléfono debe tener exactamente 9 dígitos"
                                placeholder="999888777" class="form-control">
@@ -165,13 +165,38 @@
                         <option value="NRUS">NRUS (Régimen Unificado)</option>
                     </select>
                 </div>
+
+                <hr style="margin:20px 0;border:none;border-top:1px solid var(--gray-200);">
+
+                <div style="padding:16px;background:var(--gray-50);border-radius:var(--radius-md);border:1px solid var(--gray-200);">
+                    <h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:var(--gray-700);display:flex;align-items:center;gap:6px;">
+                        <i class="bi bi-shield-lock" style="color:var(--primary-600);"></i> Certificado Digital (Opcional)
+                    </h4>
+                    <p style="margin:0 0 12px 0;font-size:12px;color:var(--gray-500);">Si no agregas un certificado ahora, podrás hacerlo después desde la edición de la empresa.</p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="cert_pfx" class="form-label" style="font-size:13px;">Archivo .pfx / .p12</label>
+                            <input type="file" name="cert_pfx" id="cert_pfx" accept=".pfx,.p12" class="form-control" style="font-size:13px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="cert_password" class="form-label" style="font-size:13px;">Contraseña del Certificado</label>
+                            <input type="password" name="cert_password" id="cert_password" class="form-control" style="font-size:13px;" placeholder="Ingrese la contraseña">
+                        </div>
+                    </div>
+                </div>
+
                 <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-100);">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('nuevaEmpresaModal')">
                         <i class="bi bi-x-lg"></i> Cancelar
                     </button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" onclick="this.disabled=true; this.innerHTML='<i class=\"bi bi-check2\"></i> Guardando...'; this.form.submit();">
                         <i class="bi bi-save"></i> Guardar Empresa
                     </button>
+                    {% if messages %}
+                    <div style="margin-top:16px;padding:12px;background:#d4edda;border:1px solid #c3e6cb;border-radius:var(--radius-md);color:#155724;">
+                        <i class="bi bi-check-circle-fill"></i> Empresa guardada correctamente{% if 'certificado' in messages.0.message %} - Certificado digital almacenado{% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </form>
         </div>

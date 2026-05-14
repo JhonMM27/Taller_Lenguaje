@@ -27,6 +27,9 @@ services:
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
+      - ./wsdl:/app/wsdl:ro
+      - ./apps:/app/apps:ro
+      - ./templates:/app/templates:ro
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
       POSTGRES_DB: facturacion_db
@@ -35,6 +38,13 @@ services:
       DEBUG: "False"
       SECRET_KEY: django-insecure-change-me-in-production-abc123xyz-2026
       SUNAT_CERT_PATH: /app/media/CT2602141470.pfx
+      SUNAT_CERT_PASSWORD: Lavagna2026
+      SUNAT_OSE_MOCK: "False"
+      # SUNAT_OSE_WSDL: /app/wsdl/billService.wsdl
+      SUNAT_OSE_WSDL: https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService
+      SUNAT_OSE_RUC: "20103129061"
+      SUNAT_OSE_USUARIO: "MODDATOS"
+      SUNAT_OSE_PASSWORD: "MODDATOS"
     depends_on:
       postgres:
         condition: service_healthy
