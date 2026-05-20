@@ -3,43 +3,78 @@
 {% block title %}Editar Categoría{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <h1 class="text-2xl font-display font-semibold text-slate-800 flex items-center gap-3">
-        <i class="bi bi-tags text-primary-600"></i> Editar Categoría
-    </h1>
+<!--
+========================================================================
+Contenedor Principal de la Vista de Edición de Categoría
+------------------------------------------------------------------------
+Este bloque define la cabecera de la página. Utiliza las clases estándar
+del sistema para mantener la coherencia con el resto del catálogo.
+========================================================================
+-->
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-tags" style="color:var(--primary-600);margin-right:8px;"></i>
+            Editar Categoría
+        </h1>
+        <p class="page-subtitle">Modifique los datos de la categoría</p>
+    </div>
 </div>
 
-<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-    <form method="POST" class="space-y-6">
+<!--
+========================================================================
+Formulario de Edición de Categoría
+------------------------------------------------------------------------
+Contenedor principal con diseño y clases del sistema de diseño nativo.
+Reemplaza las clases Tailwind por clases del sistema (form-group, form-control)
+y grillas CSS nativas inline.
+========================================================================
+-->
+<div class="table-wrap fade-in" style="padding: 24px; background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);">
+    <form method="POST">
         {% csrf_token %}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label for="nombre" class="block text-sm font-medium text-slate-700 mb-2">Nombre</label>
-                <input type="text" name="nombre" id="nombre" required maxlength="100" value="{{ categoria.nombre }}"
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+        
+        <!-- ── Fila 1: Nombre y Código SUNAT ── -->
+        <!--
+        Bloque en grilla de dos columnas para agrupar el nombre de la categoría y su código oficial según SUNAT.
+        -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="nombre" class="form-label">Nombre <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="nombre" id="nombre" required maxlength="100" value="{{ categoria.nombre }}" class="form-control">
             </div>
-            <div>
-                <label for="codigo_sunat" class="block text-sm font-medium text-slate-700 mb-2">Código SUNAT</label>
-                <input type="text" name="codigo_sunat" id="codigo_sunat" maxlength="10" value="{{ categoria.codigo_sunat }}"
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
-            </div>
-        </div>
-        <div>
-            <label for="descripcion" class="block text-sm font-medium text-slate-700 mb-2">Descripción</label>
-            <textarea name="descripcion" id="descripcion" rows="3"
-                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">{{ categoria.descripcion }}</textarea>
-        </div>
-        <div class="flex items-center">
-            <div class="flex items-center h-5">
-                <input type="checkbox" name="activa" id="activa" {% if categoria.activa %}checked{% endif %}
-                    class="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500">
-            </div>
-            <div class="ml-3">
-                <label for="activa" class="text-sm font-medium text-slate-700">Categoría activa</label>
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="codigo_sunat" class="form-label">Código SUNAT</label>
+                <input type="text" name="codigo_sunat" id="codigo_sunat" maxlength="10" value="{{ categoria.codigo_sunat }}" placeholder="Ej: 241000" class="form-control">
             </div>
         </div>
+
+        <!-- ── Fila 2: Descripción ── -->
+        <!--
+        Un textarea para definir detalles opcionales de la categoría.
+        -->
+        <div class="form-group">
+            <label for="descripcion" class="form-label">Descripción</label>
+            <textarea name="descripcion" id="descripcion" rows="3" placeholder="Descripción opcional..." class="form-control">{{ categoria.descripcion }}</textarea>
+        </div>
+
+        <!-- ── Fila 3: Categoría Activa ── -->
+        <!--
+        Checkbox de selección para habilitar o deshabilitar la categoría en el catálogo.
+        -->
+        <div style="padding-bottom:2px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" name="activa" id="activa" {% if categoria.activa %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--primary-600);cursor:pointer;">
+                <span class="form-label" style="margin-bottom:0;">Categoría activa</span>
+            </label>
+        </div>
+
+        <!-- ── Mensajes de Error de Validación ── -->
+        <!--
+        Sección que renderiza dinámicamente los errores del formulario en caso de que existan fallos de validación del backend.
+        -->
         {% if errors %}
-        <div class="p-4 rounded-xl bg-red-50 text-red-700 border border-red-200">
+        <div style="margin-top:20px; padding:16px; border-radius:var(--radius-md); background-color:var(--danger-50); color:var(--danger-700); border:1px solid var(--danger-200);">
             {% for field, errors in errors.items %}
                 {% for error in errors %}
                     <div>{{ error }}</div>
@@ -47,11 +82,16 @@
             {% endfor %}
         </div>
         {% endif %}
-        <div class="flex justify-end gap-3">
-            <a href="{% url 'productos:categorias_lista' %}" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium transition">
+
+        <!-- ── Botones de Acción ── -->
+        <!--
+        Botones de pie de página para confirmar los cambios o regresar a la lista de categorías.
+        -->
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-100);">
+            <a href="{% url 'productos:categorias_lista' %}" class="btn btn-secondary">
                 Cancelar
             </a>
-            <button type="submit" class="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-medium transition shadow-lg shadow-primary-500/30 flex items-center gap-2">
+            <button type="submit" class="btn btn-primary">
                 <i class="bi bi-save"></i> Guardar Cambios
             </button>
         </div>

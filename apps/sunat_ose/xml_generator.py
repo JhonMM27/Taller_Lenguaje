@@ -59,6 +59,28 @@ UNIDADES_MEDIDA = {
 
 
 def generar_xml_ubl(comprobante):
+    """
+    Genera XML UBL 2.1 para factura/boleta electronica.
+    
+    Orden estricto requerido por SUNAT (UBL Invoice 2.1):
+    1. UBLExtensions (donde firmar.py inserta ds:Signature)
+    2. cbc:UBLVersionID
+    3. cbc:CustomizationID
+    4. cbc:ID
+    5. cbc:IssueDate
+    6. cbc:IssueTime
+    7. cbc:DueDate
+    8. cbc:InvoiceTypeCode
+    9. cbc:DocumentCurrencyCode
+    10. cac:OrderReference (opcional)
+    11. cac:Signature
+    12. cac:AccountingSupplierParty
+    13. cac:AccountingCustomerParty
+    14. cac:PaymentTerms
+    15. cac:TaxTotal
+    16. cac:LegalMonetaryTotal
+    17. cac:InvoiceLine (1..N)
+    """
     CAC = NAMESPACES['cac']
     CBC = NAMESPACES['cbc']
     EXT = NAMESPACES['ext']
@@ -76,46 +98,58 @@ def generar_xml_ubl(comprobante):
 
     empresa = comprobante.empresa
 
+    # 1. UBLExtensions (la firma ds:Signature se inserta aqui por firmar.py)
     ext_UBLExtensions = etree.SubElement(root, f'{{{EXT}}}UBLExtensions')
     ext_UBLExtension = etree.SubElement(ext_UBLExtensions, f'{{{EXT}}}UBLExtension')
     ext_ExtensionContent = etree.SubElement(ext_UBLExtension, f'{{{EXT}}}ExtensionContent')
 
+    # 2. UBLVersionID
     ubl_version = etree.SubElement(root, f'{{{CBC}}}UBLVersionID')
     ubl_version.text = '2.1'
 
+    # 3. CustomizationID
     customization_id = etree.SubElement(root, f'{{{CBC}}}CustomizationID')
     customization_id.set('schemeID', 'urn:oasis:names:specification:ubl:codelist:profile:ID')
     customization_id.text = '2.0'
 
+    # 4. ID (numero de documento)
     num_doc = etree.SubElement(root, f'{{{CBC}}}ID')
     num_doc.text = f"{comprobante.serie.serie}-{comprobante.numero:08d}"
 
+    # 5. IssueDate
     fecha_emision = etree.SubElement(root, f'{{{CBC}}}IssueDate')
     fecha_emision.text = comprobante.fecha.isoformat()
 
+    # 6. IssueTime
     hora_emision = etree.SubElement(root, f'{{{CBC}}}IssueTime')
     hora_emision.text = '00:00:00'
 
+    # 7. DueDate
     fecha_vencimiento = etree.SubElement(root, f'{{{CBC}}}DueDate')
     fecha_vencimiento.text = comprobante.fecha.isoformat()
 
+    # 8. InvoiceTypeCode
     tipo_doc = etree.SubElement(root, f'{{{CBC}}}InvoiceTypeCode')
     tipo_doc.set('listAgencyName', 'PE:SUNAT')
     tipo_doc.set('listURI', 'urn:pe:sunat:catalog:01')
+    tipo_doc.set('listName', 'Tipo de Documento')
+    tipo_doc.set('listID', '0101')
     tipo_doc.text = comprobante.tipo
 
-    if comprobante.tipo == '03':
-        tipo_doc.set('listName', 'Tipo de Documento')
-        tipo_doc.set('listID', '0101')
-    elif comprobante.tipo == '01':
-        tipo_doc.set('listName', 'Tipo de Documento')
-        tipo_doc.set('listID', '0101')
-
+    # 9. DocumentCurrencyCode
     currency_code = etree.SubElement(root, f'{{{CBC}}}DocumentCurrencyCode')
     currency_code.set('listID', 'ISO 4217 Alpha')
     currency_code.set('listName', 'Currency')
     currency_code.text = 'PEN'
 
+    # 10. OrderReference (opcional, antes de Signature)
+    if hasattr(comprobante, 'orden_compra') and comprobante.orden_compra:
+        orden_compra = etree.SubElement(root, f'{{{CAC}}}OrderReference')
+        orden_compra_id = etree.SubElement(orden_compra, f'{{{CBC}}}ID')
+        orden_compra_id.text = comprobante.orden_compra
+
+    # 11. cac:Signature (referencia UBL a la firma, NO la firma digital en si)
+    # La firma digital ds:Signature se inserta en UBLExtensions por firmar.py
     signature = etree.SubElement(root, f'{{{CAC}}}Signature')
     sign_id = etree.SubElement(signature, f'{{{CBC}}}ID')
     sign_id.text = 'SignatureSUNAT'
@@ -131,6 +165,7 @@ def generar_xml_ubl(comprobante):
     sign_digital_uri = etree.SubElement(sign_digital_ref, f'{{{CBC}}}URI')
     sign_digital_uri.text = '#SignatureSUNAT'
 
+    # 12. AccountingSupplierParty
     party_supplier = etree.SubElement(root, f'{{{CAC}}}AccountingSupplierParty')
     party_sup_party = etree.SubElement(party_supplier, f'{{{CAC}}}Party')
     
@@ -165,6 +200,7 @@ def generar_xml_ubl(comprobante):
     party_sup_addr_country_id.set('listAgencyID', 'United Nations Economic Commission for Europe')
     party_sup_addr_country_id.text = 'PE'
 
+    # 13. AccountingCustomerParty
     customer_party = etree.SubElement(root, f'{{{CAC}}}AccountingCustomerParty')
     customer_party_party = etree.SubElement(customer_party, f'{{{CAC}}}Party')
     
@@ -181,18 +217,14 @@ def generar_xml_ubl(comprobante):
     customer_reg_name = etree.SubElement(customer_legal, f'{{{CBC}}}RegistrationName')
     customer_reg_name.text = comprobante.cliente.razon_social
 
-    # Forma de Pago (MANDATORIO en UBL 2.1)
+    # 14. PaymentTerms (Forma de Pago)
     payment_terms = etree.SubElement(root, f'{{{CAC}}}PaymentTerms')
     payment_terms_id = etree.SubElement(payment_terms, f'{{{CBC}}}ID')
     payment_terms_id.text = 'FormaPago'
     payment_terms_means = etree.SubElement(payment_terms, f'{{{CBC}}}PaymentMeansID')
     payment_terms_means.text = 'Contado'
 
-    if hasattr(comprobante, 'orden_compra') and comprobante.orden_compra:
-        orden_compra = etree.SubElement(root, f'{{{CBC}}}OrderReference')
-        orden_compra_id = etree.SubElement(orden_compra, f'{{{CBC}}}ID')
-        orden_compra_id.text = comprobante.orden_compra
-
+    # 15. TaxTotal
     tax_total = etree.SubElement(root, f'{{{CAC}}}TaxTotal')
     tax_amount = etree.SubElement(tax_total, f'{{{CBC}}}TaxAmount')
     tax_amount.set('currencyID', 'PEN')
@@ -224,6 +256,7 @@ def generar_xml_ubl(comprobante):
     tax_subtotal_name_type = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}TaxTypeCode')
     tax_subtotal_name_type.text = 'VAT'
 
+    # 16. LegalMonetaryTotal
     legal_total = etree.SubElement(root, f'{{{CAC}}}LegalMonetaryTotal')
     line_extension = etree.SubElement(legal_total, f'{{{CBC}}}LineExtensionAmount')
     line_extension.set('currencyID', 'PEN')
@@ -237,6 +270,7 @@ def generar_xml_ubl(comprobante):
     payable_amount.set('currencyID', 'PEN')
     payable_amount.text = str(comprobante.total)
 
+    # 17. InvoiceLine (1..N)
     for idx, detalle in enumerate(comprobante.detalles.all(), 1):
         # Cada línea del comprobante (InvoiceLine) contiene los datos del producto/servicio
         invoice_line = etree.SubElement(root, f'{{{CAC}}}InvoiceLine')
@@ -437,17 +471,47 @@ def generar_nota_credito_xml(nota):
 
 
 def firmar_xml(xml_content, empresa_id=None, certificado_id=None):
+    """
+    Firma el XML UBL usando el certificado digital.
+    
+    Args:
+        xml_content: XML sin firmar (bytes o str)
+        empresa_id: ID de la empresa para buscar certificado en BD
+        certificado_id: ID especifico del certificado en BD
+    
+    Returns:
+        bytes: XML firmado
+    Raises:
+        ValueError: Si no se puede firmar el XML
+    """
     from .firmar import sign_xml
     return sign_xml(xml_content, empresa_id=empresa_id, certificado_id=certificado_id)
 
 
 def crear_zip(xml_content, nombre_archivo):
+    """
+    Crea un ZIP con el XML firmado para enviar a SUNAT.
+    
+    SUNAT requiere que el ZIP contenga UNICO el archivo XML en la raiz,
+    sin directorios adicionales.
+    
+    Args:
+        xml_content: Contenido del XML firmado (bytes o str)
+        nombre_archivo: Nombre sin extension (ej: 20103129061-01-F001-00000001)
+    
+    Returns:
+        bytes: Contenido del ZIP
+    """
     import zipfile
     from io import BytesIO
 
+    xml_bytes = xml_content if isinstance(xml_content, bytes) else xml_content.encode('utf-8')
+    
+    if not xml_bytes or len(xml_bytes) == 0:
+        raise ValueError("No se puede crear ZIP: el contenido XML esta vacio")
+    
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        zip_file.writestr('dummy/', b'')
-        zip_file.writestr(nombre_archivo + '.xml', xml_content)
+        zip_file.writestr(nombre_archivo + '.xml', xml_bytes)
     zip_buffer.seek(0)
     return zip_buffer.getvalue()

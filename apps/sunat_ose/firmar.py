@@ -100,6 +100,8 @@ def sign_xml(xml_content, ruc=None, razon_social=None, empresa_id=None, certific
 
     Returns:
         bytes: XML firmado en UTF-8.
+    Raises:
+        ValueError: Si no se puede firmar el XML (certificado no encontrado, password incorrecto, etc.)
     """
     from cryptography.hazmat.primitives import serialization, hashes
     from cryptography.hazmat.primitives.serialization import pkcs12
@@ -113,25 +115,32 @@ def sign_xml(xml_content, ruc=None, razon_social=None, empresa_id=None, certific
     if certificado_id or empresa_id:
         try:
             cert_data, cert_password = get_cert_from_db(empresa_id, certificado_id)
+            logger.info("Certificado cargado desde base de datos")
         except Exception as e:
-            if getattr(settings, 'SUNAT_OSE_MOCK', True):
-                logger.warning(f"MOCK MODE: Error cert BD ({e}). Saltando firma.")
-                return xml_content
-            raise
+            logger.warning(f"Certificado no encontrado en BD ({e}), intentando desde archivo...")
+            # No lanzar error, intentar fallback al archivo .pfx
+            cert_data = None
 
     if not cert_data:
         try:
             cert_data, cert_password = get_cert_bytes()
+            logger.info(f"Certificado cargado desde archivo")
         except FileNotFoundError:
-            if getattr(settings, 'SUNAT_OSE_MOCK', True):
-                logger.warning("MOCK MODE: Certificado no encontrado. Saltando firma digital.")
-                return xml_content
-            raise
+            logger.error("Certificado no encontrado en sistema de archivos")
+            raise ValueError(
+                "No se encontro el certificado digital. "
+                "Verifique SUNAT_CERT_PATH en .env o docker-compose.yml"
+            )
 
-    private_key, certificate, _ = pkcs12.load_key_and_certificates(
-        cert_data,
-        cert_password.encode('utf-8') if cert_password else None
-    )
+    try:
+        private_key, certificate, _ = pkcs12.load_key_and_certificates(
+            cert_data,
+            cert_password.encode('utf-8') if cert_password else None
+        )
+        logger.info("Certificado cargado exitosamente")
+    except Exception as e:
+        logger.error(f"Error al cargar el certificado PFX: {e}")
+        raise ValueError(f"Error al cargar el certificado digital (password incorrecto o archivo corrupto): {e}")
 
     ruc = ruc or '20103129061'
     razon_social = razon_social or 'MI EMPRESA SAC'
@@ -208,4 +217,11 @@ def sign_xml(xml_content, ruc=None, razon_social=None, empresa_id=None, certific
     cert_b64 = base64.b64encode(cert_der).decode('ascii')
     ds_x509_cert.text = cert_b64
 
-    return etree.tostring(root, xml_declaration=True, encoding='UTF-8')
+    xml_firmado = etree.tostring(root, xml_declaration=True, encoding='UTF-8')
+
+    # VALIDACION: verificar que la firma se aplico correctamente
+    if b'<ds:Signature' not in xml_firmado and b'<Signature' not in xml_firmado:
+        raise ValueError("Error critico: el XML firmado no contiene la firma digital")
+    
+    logger.info("XML firmado exitosamente con firma digital validada")
+    return xml_firmado

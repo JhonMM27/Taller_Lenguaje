@@ -3,33 +3,58 @@
 {% block title %}Editar Producto{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <h1 class="text-2xl font-display font-semibold text-slate-800 flex items-center gap-3">
-        <i class="bi bi-box-seam text-primary-600"></i> Editar Producto
-    </h1>
+<!--
+========================================================================
+Contenedor Principal de la Vista de Edición de Producto
+------------------------------------------------------------------------
+Este bloque define la cabecera de la página. Utiliza las clases estándar
+del sistema para mantener la coherencia con el resto del catálogo.
+========================================================================
+-->
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            <i class="bi bi-box-seam" style="color:var(--primary-600);margin-right:8px;"></i>
+            Editar Producto
+        </h1>
+        <p class="page-subtitle">Modifique los datos del producto o servicio</p>
+    </div>
 </div>
 
-<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-    <form method="POST" class="space-y-6">
+<!--
+========================================================================
+Formulario de Edición de Producto
+------------------------------------------------------------------------
+Contenedor principal con diseño y clases del sistema de diseño nativo.
+Reemplaza las clases Tailwind por clases del sistema (form-group, form-control,
+form-select) y grillas CSS nativas inline.
+========================================================================
+-->
+<div class="table-wrap fade-in" style="padding: 24px; background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);">
+    <form method="POST">
         {% csrf_token %}
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-                <label for="codigo" class="block text-sm font-medium text-slate-700 mb-2">Código</label>
-                <input type="text" name="codigo" id="codigo" required maxlength="30" value="{{ producto.codigo }}"
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+        
+        <!-- ── Fila 1: Código, Categoría y Tipo Operación ── -->
+        <!--
+        Este bloque agrupa los campos de identificación y clasificación del producto en una grilla de tres columnas para optimizar el espacio visual.
+        -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;margin-bottom:16px;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="codigo" class="form-label">Código <span style="color:var(--danger);">*</span></label>
+                <input type="text" name="codigo" id="codigo" required maxlength="30" value="{{ producto.codigo }}" class="form-control">
             </div>
-            <div>
-                <label for="categoria" class="block text-sm font-medium text-slate-700 mb-2">Categoría</label>
-                <select name="categoria" id="categoria" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
-                    <option value="">-- Sin categoría --</option>
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="categoria" class="form-label">Categoría</label>
+                <select name="categoria" id="categoria" class="form-select">
+                    <option value="">— Sin categoría —</option>
                     {% for cat in categorias %}
                     <option value="{{ cat.id }}" {% if producto.categoria_id == cat.id %}selected{% endif %}>{{ cat.nombre }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div>
-                <label for="tipo_operacion" class="block text-sm font-medium text-slate-700 mb-2">Tipo de Operación</label>
-                <select name="tipo_operacion" id="tipo_operacion" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="tipo_operacion" class="form-label">Tipo de Operación</label>
+                <select name="tipo_operacion" id="tipo_operacion" class="form-select">
                     <option value="GRAVADA" {% if producto.tipo_operacion == 'GRAVADA' %}selected{% endif %}>Gravada</option>
                     <option value="EXONERADA" {% if producto.tipo_operacion == 'EXONERADA' %}selected{% endif %}>Exonerada</option>
                     <option value="INAFECTA" {% if producto.tipo_operacion == 'INAFECTA' %}selected{% endif %}>Inafecta</option>
@@ -38,15 +63,24 @@
                 </select>
             </div>
         </div>
-        <div>
-            <label for="descripcion" class="block text-sm font-medium text-slate-700 mb-2">Descripción</label>
-            <textarea name="descripcion" id="descripcion" rows="2" required maxlength="500"
-                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">{{ producto.descripcion }}</textarea>
+
+        <!-- ── Fila 2: Descripción ── -->
+        <!--
+        Un campo de ancho completo para la descripción detallada del producto o servicio.
+        -->
+        <div class="form-group">
+            <label for="descripcion" class="form-label">Descripción <span style="color:var(--danger);">*</span></label>
+            <textarea name="descripcion" id="descripcion" rows="2" required maxlength="500" class="form-control">{{ producto.descripcion }}</textarea>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div>
-                <label for="unidad_medida" class="block text-sm font-medium text-slate-700 mb-2">Unidad de Medida</label>
-                <select name="unidad_medida" id="unidad_medida" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+
+        <!-- ── Fila 3: Unidad de Medida, Precio, Afectación IGV y Checkbox de Afecto ── -->
+        <!--
+        Agrupa los datos financieros y tributarios. Usa un alineamiento inferior para que el checkbox se alinee verticalmente con los campos de entrada.
+        -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)) auto;gap:16px;align-items:flex-end;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="unidad_medida" class="form-label">Unidad de Medida</label>
+                <select name="unidad_medida" id="unidad_medida" class="form-select">
                     <option value="NIU" {% if producto.unidad_medida == 'NIU' %}selected{% endif %}>NIU (Unidad)</option>
                     <option value="KG" {% if producto.unidad_medida == 'KG' %}selected{% endif %}>KG (Kilogramo)</option>
                     <option value="GR" {% if producto.unidad_medida == 'GR' %}selected{% endif %}>GR (Gramo)</option>
@@ -56,14 +90,13 @@
                     <option value="UM" {% if producto.unidad_medida == 'UM' %}selected{% endif %}>UM (Millar)</option>
                 </select>
             </div>
-            <div>
-                <label for="precio_unitario" class="block text-sm font-medium text-slate-700 mb-2">Precio Unitario</label>
-                <input type="number" name="precio_unitario" id="precio_unitario" required step="0.01" min="0" value="{{ producto.precio_unitario }}"
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="precio_unitario" class="form-label">Precio Unitario <span style="color:var(--danger);">*</span></label>
+                <input type="number" name="precio_unitario" id="precio_unitario" required step="0.01" min="0" value="{{ producto.precio_unitario }}" class="form-control">
             </div>
-            <div>
-                <label for="cod_tipo_afectacion" class="block text-sm font-medium text-slate-700 mb-2">Código Afectación IGV</label>
-                <select name="cod_tipo_afectacion" id="cod_tipo_afectacion" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition">
+            <div class="form-group" style="margin-bottom:0;">
+                <label for="cod_tipo_afectacion" class="form-label">Afectación IGV</label>
+                <select name="cod_tipo_afectacion" id="cod_tipo_afectacion" class="form-select">
                     <option value="10" {% if producto.cod_tipo_afectacion == '10' %}selected{% endif %}>10 - Gravado</option>
                     <option value="11" {% if producto.cod_tipo_afectacion == '11' %}selected{% endif %}>11 - Gravado - Consignación</option>
                     <option value="14" {% if producto.cod_tipo_afectacion == '14' %}selected{% endif %}>14 - Transacciones gratuitas</option>
@@ -72,18 +105,20 @@
                     <option value="40" {% if producto.cod_tipo_afectacion == '40' %}selected{% endif %}>40 - Exportación</option>
                 </select>
             </div>
-            <div class="flex items-center">
-                <div class="flex items-center h-5">
-                    <input type="checkbox" name="afecto_igv" id="afecto_igv" {% if producto.afecto_igv %}checked{% endif %}
-                        class="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500">
-                </div>
-                <div class="ml-3">
-                    <label for="afecto_igv" class="text-sm font-medium text-slate-700">Afecto a IGV (18%)</label>
-                </div>
+            <div style="padding-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" name="afecto_igv" id="afecto_igv" {% if producto.afecto_igv %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--primary-600);cursor:pointer;">
+                    <span class="form-label" style="margin-bottom:0;">Afecto IGV</span>
+                </label>
             </div>
         </div>
+
+        <!-- ── Mensajes de Error de Validación ── -->
+        <!--
+        Sección que renderiza dinámicamente los errores del formulario en caso de que existan fallos de validación del backend.
+        -->
         {% if errors %}
-        <div class="p-4 rounded-xl bg-red-50 text-red-700 border border-red-200">
+        <div style="margin-top:20px; padding:16px; border-radius:var(--radius-md); background-color:var(--danger-50); color:var(--danger-700); border:1px solid var(--danger-200);">
             {% for field, errors in errors.items %}
                 {% for error in errors %}
                     <div>{{ error }}</div>
@@ -91,11 +126,16 @@
             {% endfor %}
         </div>
         {% endif %}
-        <div class="flex justify-end gap-3">
-            <a href="{% url 'productos:lista' %}" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium transition">
+
+        <!-- ── Botones de Acción ── -->
+        <!--
+        Botones de pie de página para guardar cambios o cancelar la edición.
+        -->
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-100);">
+            <a href="{% url 'productos:lista' %}" class="btn btn-secondary">
                 Cancelar
             </a>
-            <button type="submit" class="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-medium transition shadow-lg shadow-primary-500/30 flex items-center gap-2">
+            <button type="submit" class="btn btn-primary">
                 <i class="bi bi-save"></i> Guardar Cambios
             </button>
         </div>

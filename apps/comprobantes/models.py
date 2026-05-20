@@ -72,20 +72,36 @@ class Comprobante(models.Model):
         return f"{self.serie.serie}-{self.numero:08d}"
 
     def calcular_totales(self):
+        """
+        Calcula y actualiza los importes del comprobante electrónico: subtotal, igv y total.
+        Realiza el cálculo de impuestos de forma individual para cada línea de detalle,
+        y luego los acumula a nivel de cabecera.
+        
+        Asegura que todos los cálculos se realicen utilizando tipos decimal.Decimal
+        para prevenir errores de precisión y el error de tipos al multiplicar por float.
+        """
+        from decimal import Decimal
         detalles = self.detalles.all()
-        subtotal = 0
-        igv_total = 0
+        subtotal = Decimal('0.00')
+        igv_total = Decimal('0.00')
+        tasa_igv = Decimal(str(settings.IGV_TASA))
+        
         for detalle in detalles:
+            # Multiplicación exacta usando Decimal en el detalle
             base = detalle.precio_unitario * detalle.cantidad
             if detalle.afecto_igv:
-                igv_linea = round(base * settings.IGV_TASA, 2)
+                # Multiplicación de Decimal por la tasa también en Decimal
+                igv_linea = round(base * tasa_igv, 2)
             else:
-                igv_linea = 0
+                igv_linea = Decimal('0.00')
+            
             detalle.subtotal = base
             detalle.igv_linea = igv_linea
             detalle.save()
+            
             subtotal += base
             igv_total += igv_linea
+            
         self.subtotal = subtotal
         self.igv = igv_total
         self.total = subtotal + igv_total

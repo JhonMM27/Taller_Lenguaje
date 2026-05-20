@@ -19,6 +19,16 @@ from datetime import date
 logger = logging.getLogger(__name__)
 
 
+def validar_xml_firmado(xml_content):
+    """Valida que el XML contenga la firma digital antes de enviar."""
+    xml_bytes = xml_content if isinstance(xml_content, bytes) else xml_content.encode('utf-8')
+    if b'<ds:Signature' not in xml_bytes and b'<Signature' not in xml_bytes:
+        return False, "El XML NO contiene firma digital (ds:Signature)"
+    if b'<ds:X509Certificate>' not in xml_bytes and b'<X509Certificate>' not in xml_bytes:
+        return False, "El XML NO contiene certificado X509 en la firma"
+    return True, "XML firmado correctamente"
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class EnviarComprobanteView(View):
     """
@@ -37,7 +47,7 @@ class EnviarComprobanteView(View):
     """
 
     def post(self, request, pk):
-        """Procesa el envío de un comprobante individual y actualiza su estado."""
+        """Procesa el envio de un comprobante individual y actualiza su estado."""
         try:
             comprobante = Comprobante.objects.get(pk=pk)
         except Comprobante.DoesNotExist:
@@ -48,37 +58,61 @@ class EnviarComprobanteView(View):
                 'error': f'No se puede enviar comprobante en estado {comprobante.estado}'
             }, status=400)
 
-        try:
-            # 1. Generar y firmar el XML UBL 2.1
-            xml_content = generar_xml_ubl(comprobante)
-            from .xml_generator import firmar_xml
-            xml_firmado = firmar_xml(xml_content)
+        # Verificar modo de conexion
+        es_mock = getattr(settings, 'SUNAT_OSE_MOCK', True)
+        logger.info(f"{'='*60}")
+        logger.info(f"ENVIANDO COMPROBANTE {comprobante} - MODO: {'MOCK (SIMULACION)' if es_mock else 'REAL (SUNAT)'}")
+        logger.info(f"{'='*60}")
 
-            # 2. Empaquetar en ZIP con el nombre SUNAT requerido
+        try:
+            # 1. Generar XML UBL 2.1
+            logger.info(f"[PASO 1] Generando XML UBL 2.1 para {comprobante}")
+            xml_content = generar_xml_ubl(comprobante)
+            logger.info(f"[PASO 1] XML generado - {len(xml_content)} bytes")
+
+            # 2. Firmar XML
+            logger.info(f"[PASO 2] Firmando XML digitalmente (empresa_id={comprobante.empresa_id})...")
+            from .xml_generator import firmar_xml
+            xml_firmado = firmar_xml(xml_content, empresa_id=comprobante.empresa_id)
+
+            # 3. VALIDAR FIRMA
+            logger.info(f"[PASO 3] Validando firma digital...")
+            firma_valida, mensaje_firma = validar_xml_firmado(xml_firmado)
+            if not firma_valida:
+                logger.error(f"[PASO 3] ERROR: {mensaje_firma}")
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Error de firma digital: {mensaje_firma}',
+                    'codigo': 'FIRMA_INVALIDA',
+                    'estado': 'ERROR_FIRMA',
+                    'es_mock': es_mock
+                }, status=500)
+            logger.info(f"[PASO 3] OK: {mensaje_firma}")
+
+            # 4. Empaquetar en ZIP
+            logger.info(f"[PASO 4] Empaquetando XML en ZIP...")
             nombre_zip = comprobante.nombre_zip.replace('.zip', '')
             zip_content = crear_zip(xml_firmado, nombre_zip)
             zip_base64 = base64.b64encode(zip_content).decode('utf-8')
+            logger.info(f"[PASO 4] ZIP creado - {len(zip_content)} bytes")
 
-            # 3. Obtener el cliente OSE (Mock o Real segun settings)
+            # 5. Obtener cliente OSE
             ose_client = get_ose_client()
             file_name = (
                 f"{comprobante.empresa.ruc}-{comprobante.tipo}"
                 f"-{comprobante.serie.serie}-{comprobante.numero:08d}.zip"
             )
 
-            logger.info(f"Enviando comprobante {comprobante} al OSE...")
+            logger.info(f"[PASO 5] Enviando a {'MOCK OSE' if es_mock else 'SUNAT/OSE REAL'}: {file_name}")
             respuesta = ose_client.send_bill(zip_base64, file_name)
-            logger.info(f"Respuesta OSE: status={respuesta.get('status')}")
+            logger.info(f"[PASO 5] Respuesta OSE: status={respuesta.get('status')}, ticket={respuesta.get('ticket')}")
 
-            # 4. Guardar XML firmado independientemente del resultado
+            # 6. Guardar XML firmado independientemente del resultado
             comprobante.xml_firmado = (
                 xml_firmado.decode('utf-8') if isinstance(xml_firmado, bytes) else xml_firmado
             )
 
             if respuesta.get('status') == 0:
-                # EXITO: sendBill retorna CDR inmediato en 'applicationResponse'.
-                # Para comprobantes individuales NO hay ticket asincrono.
-                # El comprobante ya fue ACEPTADO por SUNAT en esta misma llamada.
                 cdr_b64 = respuesta.get('applicationResponse', '')
 
                 LogEnvioSUNAT.objects.create(
@@ -90,11 +124,12 @@ class EnviarComprobanteView(View):
                     cdr_xml=cdr_b64
                 )
 
-                # sunat_ticket queda en None para sendBill (solo sendPack usa ticket)
                 ticket_valor = respuesta.get('ticket') or None
                 comprobante.sunat_ticket = ticket_valor
                 comprobante.estado = 'ACEPTADO'
                 comprobante.save(update_fields=['xml_firmado', 'sunat_ticket', 'estado'])
+
+                logger.info(f"COMPROBANTE {comprobante} ACEPTADO - Modo: {'MOCK' if es_mock else 'REAL'}")
 
                 return JsonResponse({
                     'success': True,
@@ -102,9 +137,10 @@ class EnviarComprobanteView(View):
                     'ticket': ticket_valor,
                     'estado': 'ACEPTADO',
                     'cdr': bool(cdr_b64),
+                    'es_mock': es_mock,
+                    'advertencia': 'MODO MOCK ACTIVADO - NO se envio a SUNAT real' if es_mock else None
                 })
             else:
-                # RECHAZO: OSE/SUNAT devolvio un error de negocio o estructura
                 LogEnvioSUNAT.objects.create(
                     comprobante=comprobante,
                     estado_respuesta='RECHAZADO',
@@ -116,16 +152,34 @@ class EnviarComprobanteView(View):
                 comprobante.estado = 'RECHAZADO'
                 comprobante.save(update_fields=['xml_firmado', 'estado'])
 
+                logger.warning(f"COMPROBANTE {comprobante} RECHAZADO: {respuesta.get('faultstring')}")
+
                 return JsonResponse({
                     'success': False,
                     'error': respuesta.get('faultstring', 'Error en el envio'),
                     'codigo': respuesta.get('faultcode', 'UNKNOWN'),
-                    'estado': 'RECHAZADO'
+                    'estado': 'RECHAZADO',
+                    'es_mock': es_mock
                 }, status=400)
 
+        except ValueError as e:
+            logger.error(f"Error de validacion enviando comprobante {pk}: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Error de validacion: {str(e)}',
+                'codigo': 'VALIDACION_ERROR',
+                'estado': 'ERROR_VALIDACION',
+                'es_mock': es_mock
+            }, status=400)
         except Exception as e:
             logger.error(f"Error enviando comprobante {pk}: {str(e)}", exc_info=True)
-            return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
+            return JsonResponse({
+                'success': False,
+                'error': f'Error interno: {str(e)}',
+                'codigo': 'ERROR_INTERNO',
+                'estado': 'ERROR',
+                'es_mock': es_mock
+            }, status=500)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -269,11 +323,10 @@ def enviar_lote(request):
 
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr('dummy/', b'')
             for comprobante in comprobantes:
                 xml_content = generar_xml_ubl(comprobante)
                 from .xml_generator import firmar_xml
-                xml_firmado = firmar_xml(xml_content)
+                xml_firmado = firmar_xml(xml_content, empresa_id=comprobante.empresa_id)
                 nombre_xml = comprobante.nombre_xml
                 zf.writestr(nombre_xml, xml_firmado if isinstance(xml_firmado, bytes) else xml_firmado.encode('utf-8'))
 

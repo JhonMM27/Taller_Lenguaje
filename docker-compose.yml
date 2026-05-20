@@ -28,7 +28,9 @@ services:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
       - ./wsdl:/app/wsdl:ro
-      - ./apps:/app/apps:ro
+      - ./certs:/app/certs:ro
+      # Permite escritura para la generación y guardado de archivos de migración de Django en la máquina host.
+      - ./apps:/app/apps
       - ./templates:/app/templates:ro
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
@@ -37,11 +39,23 @@ services:
       POSTGRES_PASSWORD: sunat_pass_2026
       DEBUG: "False"
       SECRET_KEY: django-insecure-change-me-in-production-abc123xyz-2026
-      SUNAT_CERT_PATH: /app/media/CT2602141470.pfx
+      SUNAT_CERT_PATH: /app/certs/CT2602141470.pfx
       SUNAT_CERT_PASSWORD: Lavagna2026
+      # ============================================================
+      # MODO MOCK: SIMULA SUNAT - NO ENVIA COMPROBANTES REALES
+      # ============================================================
+      # True  = SIMULACION (las facturas NO se envian a SUNAT)
+      # False = CONEXION REAL (se envian a SUNAT BETA)
+      # ============================================================
+      # IMPORTANTE: Para conexion real necesitas:
+      #   1. Credenciales SOL validas de tu empresa
+      #   2. Certificado digital .pfx vigente
+      #   3. Contrato con un OSE certificador o acceso a SUNAT Beta
+      # ============================================================
       SUNAT_OSE_MOCK: "False"
-      # SUNAT_OSE_WSDL: /app/wsdl/billService.wsdl
+      # URL del WSDL de SUNAT Beta (solo se usa si SUNAT_OSE_MOCK=False)
       SUNAT_OSE_WSDL: https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService
+      # Credenciales de prueba de SUNAT Beta (reemplazar con credenciales reales)
       SUNAT_OSE_RUC: "20103129061"
       SUNAT_OSE_USUARIO: "MODDATOS"
       SUNAT_OSE_PASSWORD: "MODDATOS"

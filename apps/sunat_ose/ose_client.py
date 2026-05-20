@@ -27,21 +27,23 @@ class OSEClient:
     para resolver ese import correctamente.
     """
 
-    def __init__(self, wsdl_path=None, ruc=None, usuario=None, password=None):
+    def __init__(self, wsdl_path=None, ruc=None, usuario=None, password=None, service_url=None):
         """
         Inicializa el cliente SOAP con credenciales SOL y WSDL local.
 
         Args:
-            wsdl_path: Path al archivo WSDL local o URL del servicio. Si None, usa WSDL local.
+            wsdl_path: Path al archivo WSDL local. Si None, usa WSDL local por defecto.
             ruc: RUC de la empresa (11 dígitos).
             usuario: Usuario SOL (solo el sufijo, ej: JAVISIS1).
             password: Contraseña SOL.
+            service_url: URL del servicio SOAP (endpoint). Si None, usa la del WSDL local.
         Raises:
             RuntimeError: Si Zeep no puede cargar el WSDL, con el error real detallado.
         """
         self.ruc = ruc or os.getenv('SUNAT_OSE_RUC', '')
         self.usuario = usuario or os.getenv('SUNAT_OSE_USUARIO', '')
         self.password = password or os.getenv('SUNAT_OSE_PASSWORD', '')
+        self.service_url = service_url or os.getenv('SUNAT_OSE_WSDL', '')
 
         # SUNAT requiere credenciales en formato RUC-USUARIO
         username = f"{self.ruc}-{self.usuario}"
@@ -49,58 +51,45 @@ class OSEClient:
 
         import pathlib
 
-        # Determinar si wsdl_path es una URL o un path local
-        if wsdl_path and (wsdl_path.startswith('http://') or wsdl_path.startswith('https://')):
-            # Es una URL - usar zeep con WSDL del servidor
-            logger.info(f"Usando WSDL desde URL: {wsdl_path}")
-            transport = Transport(timeout=60)
-            zeep_settings = Settings(strict=False, xml_huge_tree=True)
-            try:
-                self.client = Client(
-                    wsdl=wsdl_path,
-                    wsse=wsse,
-                    transport=transport,
-                    settings=zeep_settings
-                )
-                logger.info(f"Cliente OSE inicializado desde URL. Servicios: {list(self.client.wsdl.services.keys())}")
-                return
-            except Exception as e:
-                msg = f"Error inicializando cliente Zeep con URL '{wsdl_path}': {e}"
-                logger.error(msg)
-                raise RuntimeError(msg) from e
-        else:
-            # Es un path local - usar WSDL local
-            if not wsdl_path:
-                base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
-                wsdl_path = os.path.join(str(base_dir), 'wsdl', 'billService.wsdl')
+        # SIEMPRE usar WSDL local para evitar dependencia de red
+        if not wsdl_path:
+            base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
+            wsdl_path = os.path.join(str(base_dir), 'wsdl', 'billService.wsdl')
 
-            # Convertir path Windows a URI file:/// para que Zeep resuelva
-            # correctamente los imports relativos del WSDL (billService_ns1.wsdl)
-            wsdl_uri = pathlib.Path(wsdl_path).as_uri()
-            self.wsdl_path = wsdl_uri
+        # Convertir path Windows a URI file:/// para que Zeep resuelva
+        # correctamente los imports relativos del WSDL (billService_ns1.wsdl)
+        wsdl_uri = pathlib.Path(wsdl_path).as_uri()
+        self.wsdl_path = wsdl_uri
 
-            logger.info(f"Cargando WSDL desde: {wsdl_path} (uri: {wsdl_uri})")
+        logger.info(f"Cargando WSDL local: {wsdl_path}")
+        if self.service_url:
+            logger.info(f"Endpoint SOAP: {self.service_url}")
 
-            transport = Transport(timeout=60)
-            zeep_settings = Settings(strict=False, xml_huge_tree=True)
+        transport = Transport(timeout=60)
+        zeep_settings = Settings(strict=False, xml_huge_tree=True)
 
-            try:
-                self.client = Client(
-                    wsdl=wsdl_path,
-                    wsse=wsse,
-                    transport=transport,
-                    settings=zeep_settings
-                )
-                logger.info(f"Cliente OSE inicializado. Servicios: {list(self.client.wsdl.services.keys())}")
-            except Exception as e:
-                # Re-lanzar con mensaje claro en lugar de silenciar
-                msg = (
-                    f"Error inicializando cliente Zeep con WSDL '{wsdl_uri}': {e}\n"
-                    f"  RUC: {self.ruc} | Usuario: {self.ruc}-{self.usuario}\n"
-                    f"  Verifique que el archivo WSDL exista y sea válido."
-                )
-                logger.error(msg)
-                raise RuntimeError(msg) from e
+        try:
+            self.client = Client(
+                wsdl=wsdl_path,
+                wsse=wsse,
+                transport=transport,
+                settings=zeep_settings
+            )
+            logger.info(f"Cliente OSE inicializado. Servicios: {list(self.client.wsdl.services.keys())}")
+
+            # Override del endpoint si se proporciono una URL de servicio
+            if self.service_url:
+                service = self.client.service
+                service._binding_options['address'] = self.service_url
+                logger.info(f"Endpoint sobrescrito a: {self.service_url}")
+        except Exception as e:
+            msg = (
+                f"Error inicializando cliente Zeep con WSDL '{wsdl_uri}': {e}\n"
+                f"  RUC: {self.ruc} | Usuario: {self.ruc}-{self.usuario}\n"
+                f"  Verifique que el archivo WSDL exista y sea valido."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
     def send_bill(self, zip_content, file_name):
         """
@@ -230,22 +219,34 @@ class OSEClient:
 
 
 class MockOSEClient:
-    """Cliente MOCK para desarrollo local"""
+    """
+    Cliente MOCK para desarrollo local - SIMULA respuestas de SUNAT/OSE.
+    
+    ADVERTENCIA: Este cliente NO envia nada a SUNAT. Solo simula respuestas.
+    Para conexion real, establecer SUNAT_OSE_MOCK=False en .env o docker-compose.yml
+    """
 
     def __init__(self, *args, **kwargs):
-        pass
+        logger.warning("=" * 60)
+        logger.warning("MOCK OSE CLIENT INICIALIZADO - NO SE ENVIA A SUNAT REAL")
+        logger.warning("Para conexion real: SUNAT_OSE_MOCK=False")
+        logger.warning("=" * 60)
 
     def send_bill(self, zip_content, file_name):
         import random
         import uuid
         import time
 
+        logger.info(f"[MOCK] Simulando envio de {file_name} a SUNAT...")
         time.sleep(random.uniform(0.5, 1.5))
 
         if random.random() < 0.9:
+            ticket = f"MOCK-{uuid.uuid4().hex[:10].upper()}"
+            logger.info(f"[MOCK] Comprobante SIMULADO ACEPTADO - Ticket: {ticket}")
+            logger.warning(f"[MOCK] ESTO ES UNA SIMULACION - NO SE ENVIO A SUNAT")
             return {
                 'status': 0,
-                'ticket': f"MOCK-{uuid.uuid4().hex[:10].upper()}",
+                'ticket': ticket,
                 'applicationResponse': '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',
                 'faultcode': None,
                 'faultstring': None
@@ -267,6 +268,7 @@ class MockOSEClient:
         import random
         import time
 
+        logger.info(f"[MOCK] Consultando estado del ticket: {ticket}")
         time.sleep(random.uniform(0.3, 1.0))
 
         return {
@@ -280,6 +282,7 @@ class MockOSEClient:
         import random
         import time
 
+        logger.info(f"[MOCK] Obteniendo CDR del ticket: {ticket}")
         time.sleep(random.uniform(0.3, 1.0))
 
         mock_cdr = b'RUF== mock CDR content for development'
@@ -296,6 +299,7 @@ class MockOSEClient:
         import uuid
         import time
 
+        logger.info(f"[MOCK] Simulando envio de lote: {file_name}")
         time.sleep(random.uniform(1.0, 2.0))
 
         if random.random() < 0.9:
@@ -324,13 +328,13 @@ def get_ose_client(use_mock=None):
         use_mock = getattr(settings, 'SUNAT_OSE_MOCK', True)
 
     if use_mock:
-        logger.info("Usando MockOSEClient (desarrollo local)")
+        logger.warning("get_ose_client: Usando MockOSEClient (SIMULACION - NO envia a SUNAT)")
         return MockOSEClient()
     else:
         ruc = os.getenv('SUNAT_OSE_RUC', '')
         usuario = os.getenv('SUNAT_OSE_USUARIO', '')
         password = os.getenv('SUNAT_OSE_PASSWORD', '')
-        wsdl_path = os.getenv('SUNAT_OSE_WSDL', None)
+        service_url = os.getenv('SUNAT_OSE_WSDL', '')
         
-        logger.info(f"Usando OSEClient (conexión real) para RUC {ruc}")
-        return OSEClient(wsdl_path=wsdl_path, ruc=ruc, usuario=usuario, password=password) if ruc else None
+        logger.info(f"get_ose_client: Usando OSEClient (conexion REAL a SUNAT) para RUC {ruc}")
+        return OSEClient(ruc=ruc, usuario=usuario, password=password, service_url=service_url) if ruc else None

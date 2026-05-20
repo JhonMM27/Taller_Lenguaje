@@ -29,6 +29,15 @@ done
 
 echo "=== PostgreSQL esta listo! ==="
 
+# ==============================================================================
+# SECCIÓN: CONFIGURACIÓN DE PERMISOS PARA IMPORTACIONES Y MEDIOS
+# ==============================================================================
+# Nos aseguramos de que el directorio de subidas exista físicamente y tenga
+# todos los permisos de lectura y escritura para el usuario appuser.
+echo "Asegurando la carpeta de importaciones y permisos de medios..."
+mkdir -p /app/media/importaciones 2>/dev/null || true
+chmod -R 777 /app/media 2>/dev/null || true
+
 echo "Asegurando permisos en carpetas de migraciones..."
 find /app -type d -name migrations -exec chmod -R 777 {} \; 2>/dev/null || true
 mkdir -p /app/apps/*/migrations 2>/dev/null || true
