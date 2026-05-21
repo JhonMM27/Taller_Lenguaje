@@ -28,6 +28,13 @@
         </a>
         {% endif %}
         
+        <!-- Descargar CDR (Constancia de Recepción) -->
+        {% if comprobante.estado == 'ACEPTADO' %}
+        <a href="{% url 'comprobantes:cdr' comprobante.id %}" class="btn btn-outline" style="color:#7c3aed; border-color:#7c3aed;">
+            <i class="bi bi-file-earmark-zip"></i> Descargar CDR
+        </a>
+        {% endif %}
+        
         <div style="width:2px; height:32px; background:var(--gray-200); margin:0 5px;"></div>
 
         {% if comprobante.estado == 'BORRADOR' %}

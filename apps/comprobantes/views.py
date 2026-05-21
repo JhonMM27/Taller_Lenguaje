@@ -175,6 +175,32 @@ def descargar_xml(request, pk):
 
 
 @login_required
+def descargar_cdr(request, pk):
+    """Permite al usuario descargar el CDR (ZIP) del comprobante desde la base de datos."""
+    comprobante = get_object_or_404(Comprobante, pk=pk)
+    
+    # Obtener el último log de envío que contenga el CDR
+    log_cdr = comprobante.logs.filter(cdr_xml__isnull=False).exclude(cdr_xml='').first()
+    
+    if not log_cdr or not log_cdr.cdr_xml:
+        return HttpResponse("El CDR no está disponible para este comprobante.", status=404)
+        
+    try:
+        import base64
+        # Decodificar el zip almacenado en base64
+        cdr_bytes = base64.b64decode(log_cdr.cdr_xml)
+        nombre_cdr_zip = f"R-{comprobante.nombre_zip}"
+        
+        response = HttpResponse(cdr_bytes, content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{nombre_cdr_zip}"'
+        return response
+    except Exception as e:
+        return HttpResponse(f"Error al procesar el archivo del CDR: {str(e)}", status=500)
+
+
+
+
+@login_required
 def descargar_excel_comprobante(request, pk):
     comprobante = get_object_or_404(Comprobante.objects.select_related('cliente', 'empresa', 'serie'), pk=pk)
     import pandas as pd
