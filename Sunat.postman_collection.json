@@ -1,0 +1,187 @@
+{
+	"info": {
+		"_postman_id": "43352f22-4fc0-4547-8a04-e912a5f45724",
+		"name": "Sunat",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "48756735",
+		"_collection_link": "https://mmanayallejhone-8047893.postman.co/workspace/JHON-ESNAIDER-MESONES-MANAYALLE~ca179a61-5911-465b-8b7d-fd4ba20166b6/collection/48756735-43352f22-4fc0-4547-8a04-e912a5f45724?action=share&source=collection_link&creator=48756735"
+	},
+	"item": [
+		{
+			"name": "https://e-beta.sunat.gob.pe/443/ol-ti-itcpfegem-beta/billService",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Parse XML response",
+							"const responseText = pm.response.text();",
+							"",
+							"// Extract faultcode",
+							"const faultcodeMatch = responseText.match(/<faultcode[^>]*>(.*?)<\\/faultcode>/s);",
+							"const faultcode = faultcodeMatch ? faultcodeMatch[1] : 'N/A';",
+							"",
+							"// Extract faultstring",
+							"const faultstringMatch = responseText.match(/<faultstring[^>]*>(.*?)<\\/faultstring>/s);",
+							"const faultstring = faultstringMatch ? faultstringMatch[1] : 'N/A';",
+							"",
+							"// Extract ticket number",
+							"const ticketMatch = faultstring.match(/ticket:\\s*(\\d+)/);",
+							"const ticket = ticketMatch ? ticketMatch[1] : 'N/A';",
+							"",
+							"// Extract error type",
+							"const errorMatch = faultstring.match(/error:\\s*([^']+)/);",
+							"const errorType = errorMatch ? errorMatch[1].trim() : 'N/A';",
+							"",
+							"// Extract main message (before Detalle)",
+							"const mainMessage = faultstring.split(' - Detalle:')[0].trim();",
+							"",
+							"const template = `",
+							"<!DOCTYPE html>",
+							"<html>",
+							"<head>",
+							"  <style>",
+							"    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }",
+							"    .container { max-width: 700px; margin: 0 auto; }",
+							"    .header { background: #c0392b; color: white; padding: 15px 20px; border-radius: 8px 8px 0 0; }",
+							"    .header h2 { margin: 0; font-size: 18px; }",
+							"    .header .status { font-size: 13px; opacity: 0.85; margin-top: 4px; }",
+							"    .card { background: white; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }",
+							"    .field { display: flex; border-bottom: 1px solid #eee; }",
+							"    .field:last-child { border-bottom: none; }",
+							"    .label { background: #fdf2f2; color: #c0392b; font-weight: bold; padding: 12px 16px; min-width: 160px; font-size: 13px; }",
+							"    .value { padding: 12px 16px; color: #333; font-size: 13px; word-break: break-word; flex: 1; }",
+							"    .badge { display: inline-block; background: #c0392b; color: white; border-radius: 4px; padding: 2px 8px; font-size: 12px; }",
+							"    .ticket-badge { display: inline-block; background: #2980b9; color: white; border-radius: 4px; padding: 2px 8px; font-size: 12px; }",
+							"    .chart-section { padding: 20px; background: white; margin-top: 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }",
+							"    .chart-title { font-weight: bold; color: #555; margin-bottom: 12px; font-size: 14px; }",
+							"    canvas { max-width: 100%; }",
+							"  </style>",
+							"  <script src=\"https://cdn.jsdelivr.net/npm/chart.js\"><\\/script>",
+							"</head>",
+							"<body>",
+							"  <div class=\"container\">",
+							"    <div class=\"header\">",
+							"      <h2>&#9888; SOAP Fault Response</h2>",
+							"      <div class=\"status\">SUNAT - billService (Beta)</div>",
+							"    </div>",
+							"    <div class=\"card\">",
+							"      <div class=\"field\">",
+							"        <div class=\"label\">Fault Code</div>",
+							"        <div class=\"value\"><span class=\"badge\">{{faultcode}}</span></div>",
+							"      </div>",
+							"      <div class=\"field\">",
+							"        <div class=\"label\">Message</div>",
+							"        <div class=\"value\">{{mainMessage}}</div>",
+							"      </div>",
+							"      <div class=\"field\">",
+							"        <div class=\"label\">Ticket</div>",
+							"        <div class=\"value\"><span class=\"ticket-badge\"># {{ticket}}</span></div>",
+							"      </div>",
+							"      <div class=\"field\">",
+							"        <div class=\"label\">Error Type</div>",
+							"        <div class=\"value\">{{errorType}}</div>",
+							"      </div>",
+							"      <div class=\"field\">",
+							"        <div class=\"label\">Full Detail</div>",
+							"        <div class=\"value\">{{faultstring}}</div>",
+							"      </div>",
+							"    </div>",
+							"    <div class=\"chart-section\">",
+							"      <div class=\"chart-title\">Response Status Overview</div>",
+							"      <canvas id=\"statusChart\" height=\"120\"></canvas>",
+							"    </div>",
+							"  </div>",
+							"  <script>",
+							"    const ctx = document.getElementById('statusChart').getContext('2d');",
+							"    new Chart(ctx, {",
+							"      type: 'bar',",
+							"      data: {",
+							"        labels: ['Success', 'Client Error', 'Server Error'],",
+							"        datasets: [{",
+							"          label: 'Response Count',",
+							"          data: [0, 1, 0],",
+							"          backgroundColor: ['#27ae60', '#c0392b', '#e67e22'],",
+							"          borderRadius: 6",
+							"        }]",
+							"      },",
+							"      options: {",
+							"        responsive: true,",
+							"        plugins: { legend: { display: false } },",
+							"        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }",
+							"      }",
+							"    });",
+							"  <\\/script>",
+							"</body>",
+							"</html>",
+							"`;",
+							"",
+							"pm.visualizer.set(template, {",
+							"  faultcode: faultcode,",
+							"  faultstring: faultstring,",
+							"  ticket: ticket,",
+							"  errorType: errorType,",
+							"  mainMessage: mainMessage",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "username",
+							"value": "MODDATOS",
+							"type": "string"
+						},
+						{
+							"key": "password",
+							"value": "MODDATOS",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "text/xml; charset=utf-8"
+					},
+					{
+						"key": "SOAPAction",
+						"value": "urn:sendBill"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ser=\"http://service.sunat.gob.pe\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\">\n    <soapenv:Header>\n        <wsse:Security>\n            <wsse:UsernameToken>\n                <wsse:Username>20103129061MODDATOS</wsse:Username>\n                <wsse:Password>MODDATOS</wsse:Password>\n            </wsse:UsernameToken>\n        </wsse:Security>\n    </soapenv:Header>\n    <soapenv:Body>\n        <ser:sendBill>\n            <fileName>20103129061-01-F001-00000001.zip</fileName>\n            <contentFile>{{DATA}}</contentFile>\n        </ser:sendBill>\n    </soapenv:Body>\n</soapenv:Envelope>",
+					"options": {
+						"raw": {
+							"language": "xml"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService",
+					"protocol": "https",
+					"host": [
+						"e-beta",
+						"sunat",
+						"gob",
+						"pe"
+					],
+					"path": [
+						"ol-ti-itcpfegem-beta",
+						"billService"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

@@ -109,11 +109,13 @@ class Comprobante(models.Model):
 
     @property
     def nombre_xml(self):
-        return f"{self.empresa.ruc}-{self.tipo}-{self.serie.serie}-{self.numero:08d}.xml"
+        tipo = self.tipo or (self.serie.tipo if self.serie else '')
+        return f"{self.empresa.ruc}-{tipo}-{self.serie.serie}-{self.numero:08d}.xml"
 
     @property
     def nombre_zip(self):
-        return f"{self.empresa.ruc}-{self.tipo}-{self.serie.serie}-{self.numero:08d}.zip"
+        tipo = self.tipo or (self.serie.tipo if self.serie else '')
+        return f"{self.empresa.ruc}-{tipo}-{self.serie.serie}-{self.numero:08d}.zip"
 
 
 class DetalleComprobante(models.Model):
