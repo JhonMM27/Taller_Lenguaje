@@ -317,12 +317,15 @@ function consultarTicket() {
         }
     });
 }
+</script>
 
 {% if comprobante.estado == 'ENVIADO' and comprobante.sunat_ticket %}
-{# Auto-consultar ticket solo si el comprobante tiene un ticket real (lotes sendPack) #}
-setTimeout(() => consultarTicket(), 1000);
-{% endif %}
+<script>
+    // Consultar estado de forma automatica en segundo plano
+    setTimeout(() => consultarTicket(), 1000);
 </script>
+{% endif %}
+
 
 <style>
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
