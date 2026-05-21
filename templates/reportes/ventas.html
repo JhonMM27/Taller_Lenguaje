@@ -168,4 +168,284 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════
+     GRÁFICOS ESTADÍSTICOS
+═══════════════════════════════════════════════════════════ -->
+<div class="card fade-in" style="margin-top:24px;">
+    <div class="card-header">
+        <span class="card-title">
+            <i class="bi bi-bar-chart-fill" style="color:var(--primary-600);margin-right:6px;"></i>
+            Gráficos Estadísticos
+        </span>
+    </div>
+    <div class="card-body">
+        <!-- Fila 1: Barras (ventas por día) + Donut (por tipo) -->
+        <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:20px;margin-bottom:20px;">
+            <!-- Gráfico de Barras: Ventas por día del período -->
+            <div>
+                <h3 style="font-size:14px;font-weight:600;color:var(--gray-700);margin-bottom:12px;">
+                    <i class="bi bi-bar-chart" style="color:var(--primary-500);"></i>
+                    Ventas por Día del Período
+                </h3>
+                <div style="position:relative;height:280px;">
+                    <canvas id="chartBarrasDia"></canvas>
+                </div>
+            </div>
+            <!-- Gráfico Donut: Distribución por Tipo -->
+            <div>
+                <h3 style="font-size:14px;font-weight:600;color:var(--gray-700);margin-bottom:12px;">
+                    <i class="bi bi-pie-chart" style="color:var(--primary-500);"></i>
+                    Distribución por Tipo
+                </h3>
+                <div style="position:relative;height:280px;">
+                    <canvas id="chartDonutTipo"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fila 2: Barras horizontales (por categoría) + Línea (histórico mensual) -->
+        <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:20px;">
+            <!-- Gráfico Barras Horizontales: Ventas por Categoría -->
+            <div>
+                <h3 style="font-size:14px;font-weight:600;color:var(--gray-700);margin-bottom:12px;">
+                    <i class="bi bi-tags" style="color:var(--primary-500);"></i>
+                    Ventas por Categoría
+                </h3>
+                <div style="position:relative;height:280px;">
+                    <canvas id="chartCategorias"></canvas>
+                </div>
+            </div>
+            <!-- Gráfico de Línea: Histórico Mensual -->
+            <div>
+                <h3 style="font-size:14px;font-weight:600;color:var(--gray-700);margin-bottom:12px;">
+                    <i class="bi bi-graph-up" style="color:var(--primary-500);"></i>
+                    Tendencia de Ventas Mensuales
+                </h3>
+                <div style="position:relative;height:280px;">
+                    <canvas id="chartLineaHistorico"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Indicadores calculados -->
+        <div style="margin-top:20px;padding:16px;background:var(--gray-50);border-radius:10px;">
+            <h3 style="font-size:14px;font-weight:600;color:var(--gray-700);margin-bottom:10px;">
+                <i class="bi bi-calculator" style="color:var(--primary-500);"></i>
+                Indicadores del Período
+            </h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                <div style="padding:12px;background:white;border-radius:8px;">
+                    <p style="font-size:11px;color:var(--gray-400);margin:0;">Saldo Promedio</p>
+                    <p style="font-size:20px;font-weight:700;color:var(--gray-900);margin:4px 0 0;">
+                        S/ {{ saldo_promedio|floatformat:2 }}
+                    </p>
+                </div>
+                <div style="padding:12px;background:white;border-radius:8px;">
+                    <p style="font-size:11px;color:var(--gray-400);margin:0;">Total Facturas</p>
+                    <p style="font-size:20px;font-weight:700;color:var(--primary-600);margin:4px 0 0;">
+                        {{ resumen.total_facturas }}
+                    </p>
+                </div>
+                <div style="padding:12px;background:white;border-radius:8px;">
+                    <p style="font-size:11px;color:var(--gray-400);margin:0;">Total Boletas</p>
+                    <p style="font-size:20px;font-weight:700;color:#16a34a;margin:4px 0 0;">
+                        {{ resumen.total_boletas }}
+                    </p>
+                </div>
+                <div style="padding:12px;background:white;border-radius:8px;">
+                    <p style="font-size:11px;color:var(--gray-400);margin:0;">Proporción Egresos</p>
+                    <p style="font-size:20px;font-weight:700;color:#b45309;margin:4px 0 0;">
+                        {% if resumen.total > 0 %}
+                            {{ resumen.total_nc|floatformat:1 }}%
+                        {% else %}
+                            0.0%
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script>
+    /* ── 1. Gráfico de Barras: Ventas por día ── */
+    new Chart(document.getElementById('chartBarrasDia').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: {{ chart_dia_labels|safe }},
+            datasets: [{
+                label: 'Ventas (S/.)',
+                data: {{ chart_dia_ventas|safe }},
+                backgroundColor: '#4f46e5',
+                borderRadius: 6,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    padding: 10,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(ctx) {
+                            return 'S/ ' + ctx.parsed.y.toLocaleString('es-PE', {minimumFractionDigits: 2});
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(v) { return 'S/ ' + v.toLocaleString(); }
+                    },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+
+    /* ── 2. Gráfico Donut: Distribución por Tipo ── */
+    new Chart(document.getElementById('chartDonutTipo').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ chart_tipo_labels|safe }},
+            datasets: [{
+                data: {{ chart_tipo_ventas|safe }},
+                backgroundColor: ['#4f46e5', '#22c55e', '#f59e0b'],
+                borderWidth: 0,
+                hoverOffset: 8,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16, usePointStyle: true, pointStyle: 'circle' }
+                },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    padding: 10,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(ctx) {
+                            var total = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                            var pct = ((ctx.parsed / total) * 100).toFixed(1);
+                            return ctx.label + ': S/ ' + ctx.parsed.toLocaleString('es-PE', {minimumFractionDigits: 2}) + ' (' + pct + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    /* ── 3. Gráfico Barras Horizontales: Ventas por Categoría ── */
+    new Chart(document.getElementById('chartCategorias').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: {{ chart_cat_labels|safe }},
+            datasets: [{
+                label: 'Ventas (S/.)',
+                data: {{ chart_cat_ventas|safe }},
+                backgroundColor: ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe'],
+                borderRadius: 6,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    padding: 10,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(ctx) {
+                            return 'S/ ' + ctx.parsed.x.toLocaleString('es-PE', {minimumFractionDigits: 2});
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(v) { return 'S/ ' + v.toLocaleString(); }
+                    },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                y: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+
+    /* ── 4. Gráfico de Línea: Histórico Mensual ── */
+    new Chart(document.getElementById('chartLineaHistorico').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: {{ chart_hist_labels|safe }},
+            datasets: [{
+                label: 'Ventas Mensuales (S/.)',
+                data: {{ chart_hist_ventas|safe }},
+                borderColor: '#4f46e5',
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#4f46e5',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    padding: 10,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(ctx) {
+                            return 'S/ ' + ctx.parsed.y.toLocaleString('es-PE', {minimumFractionDigits: 2});
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(v) { return 'S/ ' + v.toLocaleString(); }
+                    },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+</script>
 {% endblock %}

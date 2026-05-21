@@ -127,6 +127,7 @@ def reporte_ventas(request):
 
     total_facturas = comprobantes.filter(tipo='01').count()
     total_boletas = comprobantes.filter(tipo='03').count()
+    total_nc = comprobantes.filter(tipo='07').count()
     subtotal_total = sum(float(c.subtotal) for c in comprobantes)
     igv_total = sum(float(c.igv) for c in comprobantes)
     total_total = sum(float(c.total) for c in comprobantes)
@@ -134,6 +135,7 @@ def reporte_ventas(request):
     resumen = {
         'total_facturas': total_facturas,
         'total_boletas': total_boletas,
+        'total_nc': total_nc,
         'subtotal': subtotal_total,
         'igv': igv_total,
         'total': total_total,
@@ -167,12 +169,80 @@ def reporte_ventas(request):
         df.to_excel(response, index=False)
         return response
 
+    from django.db.models import Sum, Count
+    from django.db.models.functions import TruncMonth
+
+    ventas_por_dia = comprobantes.values('fecha').annotate(
+        total=Sum('total'), count=Count('id')
+    ).order_by('fecha')
+
+    chart_dia_labels = [v['fecha'].strftime('%d/%m') for v in ventas_por_dia]
+    chart_dia_ventas = [float(v['total']) for v in ventas_por_dia]
+
+    ventas_por_tipo = comprobantes.values('tipo').annotate(
+        total=Sum('total'), count=Count('id')
+    ).order_by('tipo')
+
+    chart_tipo_labels = []
+    chart_tipo_ventas = []
+    chart_tipo_counts = []
+    for v in ventas_por_tipo:
+        if v['tipo'] == '01':
+            label = 'Facturas'
+        elif v['tipo'] == '03':
+            label = 'Boletas'
+        elif v['tipo'] == '07':
+            label = 'Notas Crédito'
+        else:
+            label = v['tipo']
+        chart_tipo_labels.append(label)
+        chart_tipo_ventas.append(float(v['total']))
+        chart_tipo_counts.append(v['count'])
+
+    ventas_por_categoria = comprobantes.values(
+        'detalles__producto__categoria__nombre'
+    ).annotate(
+        total=Sum('total')
+    ).order_by('-total')
+
+    chart_cat_labels = []
+    chart_cat_ventas = []
+    for v in ventas_por_categoria:
+        cat = v['detalles__producto__categoria__nombre'] or 'Sin categoría'
+        chart_cat_labels.append(cat)
+        chart_cat_ventas.append(float(v['total']))
+
+    ventas_mensuales_historico = Comprobante.objects.filter(
+        estado='ACEPTADO'
+    ).annotate(mes=TruncMonth('fecha')).values('mes').annotate(
+        total=Sum('total'), count=Count('id')
+    ).order_by('mes')
+
+    chart_hist_labels = []
+    chart_hist_ventas = []
+    for v in ventas_mensuales_historico:
+        chart_hist_labels.append(v['mes'].strftime('%b %Y'))
+        chart_hist_ventas.append(float(v['total']))
+
+    n = comprobantes.count()
+    saldo_promedio = total_total / n if n > 0 else 0
+
     return render(request, 'reportes/ventas.html', {
         'comprobantes': comprobantes,
         'resumen': resumen,
         'mes_actual': mes,
         'anio_actual': anio,
         'meses': meses,
+        'chart_dia_labels': chart_dia_labels,
+        'chart_dia_ventas': chart_dia_ventas,
+        'chart_tipo_labels': chart_tipo_labels,
+        'chart_tipo_ventas': chart_tipo_ventas,
+        'chart_tipo_counts': chart_tipo_counts,
+        'chart_cat_labels': chart_cat_labels,
+        'chart_cat_ventas': chart_cat_ventas,
+        'chart_hist_labels': chart_hist_labels,
+        'chart_hist_ventas': chart_hist_ventas,
+        'saldo_promedio': round(saldo_promedio, 2),
     })
 
 
