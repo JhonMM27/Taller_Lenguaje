@@ -26,11 +26,14 @@
             <thead>
                 <tr>
                     <th>Número</th>
+                    <th>Tipo</th>
                     <th>Fecha</th>
                     <th>Comp. Referencia</th>
                     <th>Cliente</th>
                     <th>Motivo</th>
-                    <th style="text-align:right;">Monto Afectado</th>
+                    <th style="text-align:right;">Op. Gravada</th>
+                    <th style="text-align:right;">IGV</th>
+                    <th style="text-align:right;">Importe</th>
                     <th>Estado</th>
                     <th style="text-align:center;">Acciones</th>
                 </tr>
@@ -40,6 +43,11 @@
                 <tr>
                     <td style="font-family:monospace;font-weight:600;color:var(--gray-900);">
                         {{ nota.serie }}-{{ nota.numero|stringformat:"08d" }}
+                    </td>
+                    <td>
+                        <span class="badge {% if nota.tipo_nc == 'NC' %}badge-primary{% else %}badge-info{% endif %}">
+                            {{ nota.get_tipo_nc_display }}
+                        </span>
                     </td>
                     <td style="color:var(--gray-400);">{{ nota.fecha|date:"d/m/Y" }}</td>
                     <td style="font-family:monospace;font-size:12px;color:var(--gray-500);">
@@ -51,8 +59,14 @@
                     <td>
                         <span class="badge badge-gray">{{ nota.get_tipo_nota_display }}</span>
                     </td>
+                    <td style="text-align:right;font-weight:600;color:var(--gray-700);">
+                        S/ {{ nota.op_gravada }}
+                    </td>
+                    <td style="text-align:right;font-weight:600;color:var(--gray-700);">
+                        S/ {{ nota.igv }}
+                    </td>
                     <td style="text-align:right;font-weight:700;color:var(--gray-900);">
-                        S/ {{ nota.monto_afectado }}
+                        S/ {{ nota.importe }}
                     </td>
                     <td>
                         {% if nota.estado == 'ACEPTADO' %}
@@ -80,7 +94,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" style="text-align:center;padding:48px 16px;">
+                    <td colspan="11" style="text-align:center;padding:48px 16px;">
                         <div style="color:var(--gray-300);font-size:40px;margin-bottom:12px;">
                             <i class="bi bi-journal-minus"></i>
                         </div>
@@ -96,9 +110,11 @@
     </div>
 </div>
 
-<!-- ── Modal Nueva Nota de Crédito ── -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Modal Nueva Nota de Crédito -->
+<!-- ═══════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="nuevaNotaModal">
-    <div class="modal-content" style="max-width:800px;">
+    <div class="modal-content" style="max-width:1050px;">
         <div class="modal-header">
             <h2 class="modal-title">
                 <i class="bi bi-journal-minus" style="color:var(--primary-600);"></i>
@@ -109,57 +125,120 @@
             </button>
         </div>
         <div class="modal-body">
-            <form method="POST" action="{% url 'notas_credito:crear' %}">
+            <form id="formNotaCredito">
                 {% csrf_token %}
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 2fr;gap:16px;margin-bottom:16px;">
+
+                <!-- Tipo de NC y Número -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
                     <div class="form-group" style="margin-bottom:0;">
-                        <label for="serie" class="form-label">Serie <span style="color:var(--danger);">*</span></label>
-                        <input type="text" name="serie" id="serie" required maxlength="4" value="FF01" class="form-control">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label for="numero" class="form-label">Número <span style="color:var(--danger);">*</span></label>
-                        <input type="number" name="numero" id="numero" required min="1" value="1" class="form-control">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label for="fecha" class="form-label">Fecha <span style="color:var(--danger);">*</span></label>
-                        <input type="date" name="fecha" id="fecha" required value="{{ today|date:'Y-m-d' }}" class="form-control">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label for="comprobante_referencia" class="form-label">Comprobante de Ref. <span style="color:var(--danger);">*</span></label>
-                        <select name="comprobante_referencia" id="comprobante_referencia" required class="form-select">
+                        <label class="form-label">Tipo de Nota <span style="color:var(--danger);">*</span></label>
+                        <select id="tipo_nc" class="form-select" onchange="cambiarTipoNC()">
                             <option value="">Seleccionar...</option>
-                            {% for comp in comprobantes %}
-                            <option value="{{ comp.id }}">{{ comp.serie.serie }}-{{ comp.numero|stringformat:"08d" }} | {{ comp.cliente.razon_social|truncatechars:20 }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-
-                <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px;">
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label for="tipo_nota" class="form-label">Motivo de la Nota <span style="color:var(--danger);">*</span></label>
-                        <select name="tipo_nota" id="tipo_nota" required class="form-select">
-                            {% for value, label in motivos %}
-                            <option value="{{ value }}">{{ value }} - {{ label }}</option>
-                            {% endfor %}
+                            <option value="NC">Nota de Crédito</option>
+                            <option value="NCD">Nota de Crédito x Descuento</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
-                        <label for="monto_afectado" class="form-label">Monto Afectado <span style="color:var(--danger);">*</span></label>
-                        <input type="number" name="monto_afectado" id="monto_afectado" required step="0.01" min="0" class="form-control">
+                        <label class="form-label">Número de NC</label>
+                        <input type="text" id="nc_numero_display" class="form-control" readonly style="background:var(--gray-50);font-family:monospace;font-weight:600;" value="Auto-generado">
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="descripcion" class="form-label">Descripción</label>
-                    <textarea name="descripcion" id="descripcion" rows="3" placeholder="Descripción adicional (opcional)" class="form-control"></textarea>
+                <!-- Botón buscar comprobante -->
+                <div style="margin-bottom:20px;">
+                    <label class="form-label">Comprobante de Referencia <span style="color:var(--danger);">*</span></label>
+                    <button type="button" class="btn btn-outline" style="width:100%;justify-content:center;padding:12px;" onclick="abrirModalBuscarComprobante()">
+                        <i class="bi bi-search"></i> Buscar Factura / Boleta
+                    </button>
                 </div>
 
-                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-100);">
+                <!-- Info del comprobante seleccionado -->
+                <div id="info_comprobante" style="display:none;margin-bottom:20px;background:var(--primary-50);padding:16px;border-radius:var(--radius);border:1.5px solid var(--primary-200);">
+                    <h5 style="margin-bottom:10px;color:var(--primary-700);font-size:14px;display:flex;align-items:center;gap:6px;">
+                        <i class="bi bi-file-earmark-check"></i> Comprobante Seleccionado
+                    </h5>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;font-size:13px;">
+                        <div><strong style="color:var(--gray-500);">N°:</strong> <span id="comp_numero" style="font-family:monospace;font-weight:600;"></span></div>
+                        <div><strong style="color:var(--gray-500);">Tipo:</strong> <span id="comp_tipo"></span></div>
+                        <div><strong style="color:var(--gray-500);">Fecha:</strong> <span id="comp_fecha"></span></div>
+                        <div><strong style="color:var(--gray-500);">Código:</strong> <span id="comp_cliente_codigo" style="font-family:monospace;"></span></div>
+                        <div><strong style="color:var(--gray-500);">Cliente:</strong> <span id="comp_cliente_nombre" style="font-weight:600;"></span></div>
+                        <div><strong style="color:var(--gray-500);">Total:</strong> <span id="comp_total" style="font-weight:700;color:var(--primary-700);"></span></div>
+                    </div>
+                </div>
+
+                <!-- Motivo -->
+                <div id="seccion_motivo" style="display:none;margin-bottom:20px;">
+                    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label class="form-label">Motivo <span style="color:var(--danger);">*</span></label>
+                            <select id="tipo_nota" class="form-select" onchange="cambiarMotivo()">
+                                <option value="">Seleccionar motivo...</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="button" id="btn_descuento" class="btn btn-warning" style="display:none;width:100%;justify-content:center;" onclick="abrirModalDescuento()">
+                                <i class="bi bi-percent"></i> DESCUENTO
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de productos -->
+                <div id="seccion_detalles" style="margin-bottom:20px; margin-top:20px; border-top: 1px solid var(--gray-200); padding-top: 20px;">
+                    <h5 style="font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;color:var(--slate-800);">
+                        <i class="bi bi-box-seam" style="color:var(--primary-600);font-size:18px;"></i> Productos de la Nota
+                    </h5>
+                    <div style="overflow-x:auto;border:1px solid var(--gray-200);border-radius:var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); background: white;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead style="background: var(--gray-50); border-bottom: 1px solid var(--gray-200);">
+                                <tr>
+                                    <th style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--gray-600); text-align: left; text-transform: uppercase;">Código</th>
+                                    <th style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--gray-600); text-align: left; text-transform: uppercase;">Descripción</th>
+                                    <th style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--gray-600); text-align: center; text-transform: uppercase;">UM</th>
+                                    <th style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--gray-600); text-align: center; text-transform: uppercase;">Cantidad</th>
+                                    <th style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--gray-600); text-align: right; text-transform: uppercase;">Precio</th>
+                                    <th style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--gray-600); text-align: right; text-transform: uppercase;">Descuento</th>
+                                    <th style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--gray-600); text-align: right; text-transform: uppercase;">Importe</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detalles_body">
+                                <tr>
+                                    <td colspan="7" style="text-align:center;padding:40px 20px;color:var(--gray-400);background:var(--gray-50);">
+                                        <i class="bi bi-inbox" style="font-size:32px;display:block;margin-bottom:12px;color:var(--gray-300);"></i>
+                                        <span style="font-size:14px;font-weight:500;">No hay productos agregados</span><br>
+                                        <span style="font-size:13px;color:var(--gray-400);">Seleccione un comprobante y un motivo para cargar productos.</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Totales -->
+                <div id="seccion_totales" style="margin-bottom:20px;background:var(--slate-50);padding:20px;border-radius:var(--radius-lg);border:1px solid var(--slate-200); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;text-align:center;">
+                        <div style="padding:16px;background:white;border-radius:var(--radius);border:1px solid var(--slate-200); box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s ease;">
+                            <div style="font-size:12px;color:var(--slate-500);text-transform:uppercase;letter-spacing:1px;font-weight:600;">Op. Gravada</div>
+                            <div id="total_op_gravada" style="font-size:24px;font-weight:700;color:var(--slate-800);margin-top:8px;">S/ 0.00</div>
+                        </div>
+                        <div style="padding:16px;background:white;border-radius:var(--radius);border:1px solid var(--slate-200); box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s ease;">
+                            <div style="font-size:12px;color:var(--slate-500);text-transform:uppercase;letter-spacing:1px;font-weight:600;">IGV (18%)</div>
+                            <div id="total_igv" style="font-size:24px;font-weight:700;color:var(--slate-800);margin-top:8px;">S/ 0.00</div>
+                        </div>
+                        <div style="padding:16px;background:linear-gradient(135deg, var(--primary-50) 0%, white 100%);border-radius:var(--radius);border:2px solid var(--primary-200); box-shadow: 0 4px 6px -1px rgba(var(--primary-500), 0.1);">
+                            <div style="font-size:12px;color:var(--primary-700);text-transform:uppercase;letter-spacing:1px;font-weight:700;">Importe Total</div>
+                            <div id="total_importe" style="font-size:28px;font-weight:800;color:var(--primary-600);margin-top:8px;">S/ 0.00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex;justify-content:flex-end;gap:10px;padding-top:20px;border-top:1px solid var(--gray-100);">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('nuevaNotaModal')">
                         <i class="bi bi-x-lg"></i> Cancelar
                     </button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="button" id="btn_guardar_nc" class="btn btn-primary" onclick="guardarNotaCredito()" disabled>
                         <i class="bi bi-floppy"></i> Crear Nota de Crédito
                     </button>
                 </div>
@@ -167,5 +246,565 @@
         </div>
     </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Modal Buscar Comprobante -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay selector-modal" id="modalBuscarComprobante">
+    <div class="modal-content" style="max-width:950px;">
+        <div class="modal-header">
+            <h2 class="modal-title">
+                <i class="bi bi-receipt" style="color:var(--primary-600);"></i>
+                Buscar Factura / Boleta
+            </h2>
+            <button class="modal-close" onclick="closeModal('modalBuscarComprobante')">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <!-- Filtros -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;margin-bottom:16px;align-items:end;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Cliente</label>
+                    <input type="text" id="filtro_cliente" class="form-control" placeholder="Nombre del cliente...">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Fecha Desde</label>
+                    <input type="date" id="filtro_fecha_desde" class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Fecha Hasta</label>
+                    <input type="date" id="filtro_fecha_hasta" class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <button type="button" class="btn btn-primary" onclick="buscarComprobanteModal()" style="height:42px;">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Resultados -->
+            <div class="table-wrap" style="max-height:400px;overflow-y:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Tipo</th>
+                            <th>Fecha</th>
+                            <th>Cliente</th>
+                            <th style="text-align:right;">Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultados_busqueda_body">
+                        <tr>
+                            <td colspan="6" style="text-align:center;padding:40px;color:var(--gray-400);">
+                                <i class="bi bi-search" style="font-size:28px;display:block;margin-bottom:8px;"></i>
+                                Aplique filtros y presione Buscar
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Modal Selección de Productos -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay selector-modal" id="modalSeleccionProductos">
+    <div class="modal-content" style="max-width:950px;">
+        <div class="modal-header">
+            <h2 class="modal-title">
+                <i class="bi bi-box-seam" style="color:var(--primary-600);"></i>
+                <span id="modal_productos_titulo">Seleccionar Productos</span>
+            </h2>
+            <button class="modal-close" onclick="closeModal('modalSeleccionProductos')">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="table-wrap" style="max-height:400px;overflow-y:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:40px;"><input type="checkbox" id="check_todos" onchange="seleccionarTodos(this)"></th>
+                            <th>Código</th>
+                            <th>Descripción</th>
+                            <th style="text-align:center;">UM</th>
+                            <th style="text-align:center;">Cantidad</th>
+                            <th style="text-align:right;">Precio</th>
+                            <th style="text-align:right;">Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productos_factura_body"></tbody>
+                </table>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--gray-100);">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modalSeleccionProductos')">
+                    <i class="bi bi-x-lg"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="confirmarSeleccionProductos()">
+                    <i class="bi bi-check-lg"></i> Confirmar Selección
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Modal Descuento -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay selector-modal" id="modalDescuento">
+    <div class="modal-content" style="max-width:450px;">
+        <div class="modal-header">
+            <h2 class="modal-title">
+                <i class="bi bi-percent" style="color:var(--warning-600);"></i>
+                <span id="modal_descuento_titulo">Descuento</span>
+            </h2>
+            <button class="modal-close" onclick="closeModal('modalDescuento')">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Monto a Descontar <span style="color:var(--danger);">*</span></label>
+                <input type="number" id="monto_descuento" class="form-control" step="0.01" min="0" placeholder="0.00" style="font-size:18px;font-weight:600;text-align:center;">
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modalDescuento')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="aplicarDescuento()">
+                    <i class="bi bi-check-lg"></i> Aplicar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ═══════════════════════════════════════════════════════════════
+let comprobanteSeleccionado = null;
+let detallesFactura = [];
+let detallesNC = [];
+let tipoNCActual = '';
+let motivoActual = '';
+
+// ═══════════════════════════════════════════════════════════════
+// CAMBIAR TIPO DE NC
+// ═══════════════════════════════════════════════════════════════
+function cambiarTipoNC() {
+    tipoNCActual = document.getElementById('tipo_nc').value;
+    document.getElementById('seccion_motivo').style.display = tipoNCActual ? 'block' : 'none';
+    document.getElementById('detalles_body').innerHTML = `
+        <tr>
+            <td colspan="7" style="text-align:center;padding:40px 20px;color:var(--gray-400);background:var(--gray-50);">
+                <i class="bi bi-inbox" style="font-size:32px;display:block;margin-bottom:12px;color:var(--gray-300);"></i>
+                <span style="font-size:14px;font-weight:500;">No hay productos agregados</span><br>
+                <span style="font-size:13px;color:var(--gray-400);">Seleccione un comprobante y un motivo para cargar productos.</span>
+            </td>
+        </tr>
+    `;
+    document.getElementById('total_op_gravada').textContent = 'S/ 0.00';
+    document.getElementById('total_igv').textContent = 'S/ 0.00';
+    document.getElementById('total_importe').textContent = 'S/ 0.00';
+    document.getElementById('btn_guardar_nc').disabled = true;
+    document.getElementById('btn_descuento').style.display = 'none';
+    detallesNC = [];
+
+    const selectMotivo = document.getElementById('tipo_nota');
+    selectMotivo.innerHTML = '<option value="">Seleccionar motivo...</option>';
+
+    if (tipoNCActual === 'NC') {
+        selectMotivo.innerHTML += '<option value="01">01 - Anulación de la operación</option>';
+        selectMotivo.innerHTML += '<option value="06">06 - Devolución por ítem</option>';
+        selectMotivo.innerHTML += '<option value="07">07 - Devolución total</option>';
+    } else if (tipoNCActual === 'NCD') {
+        selectMotivo.innerHTML += '<option value="04">04 - Descuento global</option>';
+        selectMotivo.innerHTML += '<option value="05">05 - Descuento por ítem</option>';
+        selectMotivo.innerHTML += '<option value="08">08 - Bonificación</option>';
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODAL BUSCAR COMPROBANTE
+// ═══════════════════════════════════════════════════════════════
+function abrirModalBuscarComprobante() {
+    document.getElementById('filtro_cliente').value = '';
+    document.getElementById('filtro_fecha_desde').value = '';
+    document.getElementById('filtro_fecha_hasta').value = '';
+    document.getElementById('resultados_busqueda_body').innerHTML = `
+        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gray-400);">
+            <i class="bi bi-search" style="font-size:28px;display:block;margin-bottom:8px;"></i>
+            Aplique filtros y presione Buscar
+        </td></tr>`;
+    openModal('modalBuscarComprobante');
+}
+
+function buscarComprobanteModal() {
+    const cliente = document.getElementById('filtro_cliente').value.trim();
+    const fechaDesde = document.getElementById('filtro_fecha_desde').value;
+    const fechaHasta = document.getElementById('filtro_fecha_hasta').value;
+
+    let url = '/api/notas-credito/buscar_comprobante/?q=' + encodeURIComponent(cliente || '*');
+    if (fechaDesde) url += '&fecha_desde=' + fechaDesde;
+    if (fechaHasta) url += '&fecha_hasta=' + fechaHasta;
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('resultados_busqueda_body');
+            tbody.innerHTML = '';
+
+            if (data.results.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--gray-400);">No se encontraron comprobantes</td></tr>';
+                return;
+            }
+
+            data.results.forEach(comp => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-family:monospace;font-weight:600;color:var(--gray-900);">${comp.numero_completo}</td>
+                    <td><span class="badge badge-gray">${comp.tipo}</span></td>
+                    <td style="color:var(--gray-400);">${comp.fecha}</td>
+                    <td style="font-weight:500;">${comp.cliente_nombre}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--gray-900);">S/ ${comp.total}</td>
+                    <td style="text-align:right;">
+                        <button type="button" class="btn btn-primary btn-sm" onclick='seleccionarComprobante(${JSON.stringify(comp).replace(/'/g, "&#39;")})'>
+                            Seleccionar
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SELECCIONAR COMPROBANTE
+// ═══════════════════════════════════════════════════════════════
+function seleccionarComprobante(comp) {
+    comprobanteSeleccionado = comp;
+    closeModal('modalBuscarComprobante');
+
+    document.getElementById('comp_numero').textContent = comp.numero_completo;
+    document.getElementById('comp_tipo').textContent = comp.tipo;
+    document.getElementById('comp_fecha').textContent = comp.fecha;
+    document.getElementById('comp_cliente_codigo').textContent = comp.cliente_codigo;
+    document.getElementById('comp_cliente_nombre').textContent = comp.cliente_nombre;
+    document.getElementById('comp_total').textContent = 'S/ ' + comp.total;
+    document.getElementById('info_comprobante').style.display = 'block';
+
+    cargarDetallesComprobante(comp.id);
+
+    const serie = comp.serie.startsWith('F') ? 'F' + comp.serie.charAt(1) : 'FC';
+    fetch(`/api/notas-credito/siguiente_numero/?serie=${serie}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('nc_numero_display').value = `${data.serie}-${String(data.numero).padStart(8, '0')}`;
+        });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CARGAR DETALLES DEL COMPROBANTE
+// ═══════════════════════════════════════════════════════════════
+function cargarDetallesComprobante(comprobanteId) {
+    fetch(`/api/notas-credito/detalles_comprobante/?comprobante_id=${comprobanteId}`)
+        .then(r => r.json())
+        .then(data => {
+            detallesFactura = data.detalles;
+            if (motivoActual) {
+                procesarMotivo(motivoActual);
+            }
+        });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CAMBIAR MOTIVO
+// ═══════════════════════════════════════════════════════════════
+function cambiarMotivo() {
+    motivoActual = document.getElementById('tipo_nota').value;
+    if (!motivoActual || !comprobanteSeleccionado) return;
+
+    if (detallesFactura.length === 0) {
+        cargarDetallesComprobante(comprobanteSeleccionado.id);
+    } else {
+        procesarMotivo(motivoActual);
+    }
+}
+
+function procesarMotivo(motivo) {
+    const btnDescuento = document.getElementById('btn_descuento');
+    btnDescuento.style.display = 'none';
+    detallesNC = [];
+
+    if (motivo === '06') {
+        abrirModalSeleccionProductos('Seleccionar Productos - Devolución');
+    } else if (motivo === '07' || motivo === '01' || motivo === '08') {
+        detallesNC = detallesFactura.map(d => ({...d, descuento: 0}));
+        renderizarDetallesNC();
+    } else if (motivo === '04') {
+        detallesNC = detallesFactura.map(d => ({...d, descuento: 0}));
+        renderizarDetallesNC();
+        btnDescuento.style.display = 'flex';
+        document.getElementById('modal_descuento_titulo').textContent = 'Descuento Global';
+    } else if (motivo === '05') {
+        detallesNC = detallesFactura.map(d => ({...d, descuento: 0}));
+        renderizarDetallesNC();
+        btnDescuento.style.display = 'flex';
+        document.getElementById('modal_descuento_titulo').textContent = 'Descuento por Ítem';
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODAL SELECCIÓN DE PRODUCTOS
+// ═══════════════════════════════════════════════════════════════
+function abrirModalSeleccionProductos(titulo) {
+    document.getElementById('modal_productos_titulo').textContent = titulo;
+    document.getElementById('check_todos').checked = false;
+
+    const tbody = document.getElementById('productos_factura_body');
+    tbody.innerHTML = '';
+
+    detallesFactura.forEach((det, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="checkbox" class="check-producto" data-idx="${idx}"></td>
+            <td style="font-family:monospace;font-weight:600;">${det.producto_codigo}</td>
+            <td style="font-weight:500;">${det.producto_descripcion}</td>
+            <td style="text-align:center;"><span class="badge badge-gray">${det.afecto_igv ? 'NIU' : 'NIU'}</span></td>
+            <td style="text-align:center;font-weight:600;">${det.cantidad}</td>
+            <td style="text-align:right;">S/ ${det.precio_unitario}</td>
+            <td style="text-align:right;font-weight:700;">S/ ${det.subtotal}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    openModal('modalSeleccionProductos');
+}
+
+function seleccionarTodos(checkbox) {
+    document.querySelectorAll('.check-producto').forEach(cb => cb.checked = checkbox.checked);
+}
+
+function confirmarSeleccionProductos() {
+    const seleccionados = [];
+    document.querySelectorAll('.check-producto:checked').forEach(cb => {
+        const idx = parseInt(cb.dataset.idx);
+        seleccionados.push({...detallesFactura[idx], descuento: 0});
+    });
+
+    if (seleccionados.length === 0) {
+        alert('Seleccione al menos un producto');
+        return;
+    }
+
+    detallesNC = seleccionados;
+    closeModal('modalSeleccionProductos');
+    renderizarDetallesNC();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODAL DESCUENTO
+// ═══════════════════════════════════════════════════════════════
+function abrirModalDescuento() {
+    document.getElementById('monto_descuento').value = '';
+    openModal('modalDescuento');
+}
+
+function aplicarDescuento() {
+    const monto = parseFloat(document.getElementById('monto_descuento').value) || 0;
+    if (monto <= 0) {
+        alert('Ingrese un monto válido mayor a 0');
+        return;
+    }
+
+    if (motivoActual === '04') {
+        // Descuento global: distribuir proporcionalmente
+        const totalFactura = detallesNC.reduce((sum, d) => sum + (parseFloat(d.cantidad) * parseFloat(d.precio_unitario)), 0);
+        detallesNC.forEach(d => {
+            const base = parseFloat(d.cantidad) * parseFloat(d.precio_unitario);
+            const proporcion = base / totalFactura;
+            d.descuento = (monto * proporcion).toFixed(2);
+        });
+    } else if (motivoActual === '05') {
+        // Descuento por ítem: aplicar el mismo monto a cada item seleccionado
+        // Si solo hay un item, aplicar todo a ese
+        if (detallesNC.length === 1) {
+            detallesNC[0].descuento = monto.toFixed(2);
+        } else {
+            const porItem = (monto / detallesNC.length).toFixed(2);
+            detallesNC.forEach(d => {
+                d.descuento = porItem;
+            });
+        }
+    }
+
+    closeModal('modalDescuento');
+    renderizarDetallesNC();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDERIZAR DETALLES DE LA NC
+// ═══════════════════════════════════════════════════════════════
+function renderizarDetallesNC() {
+    const tbody = document.getElementById('detalles_body');
+    tbody.innerHTML = '';
+
+    let opGravada = 0;
+    let igvTotal = 0;
+    let importeTotal = 0;
+    const tasaIGV = 0.18;
+
+    detallesNC.forEach((det, idx) => {
+        const cantidad = parseFloat(det.cantidad);
+        const precio = parseFloat(det.precio_unitario);
+        const descuento = parseFloat(det.descuento || 0);
+        const afectoIGV = det.afecto_igv !== false;
+
+        const bruto = cantidad * precio;
+        const base = bruto - descuento;
+        const igvLinea = afectoIGV ? Math.round(base * tasaIGV * 100) / 100 : 0;
+        const importeLinea = base + igvLinea;
+
+        opGravada += base;
+        igvTotal += igvLinea;
+        importeTotal += importeLinea;
+
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--gray-100)';
+        tr.innerHTML = `
+            <td style="padding:12px 16px;font-family:monospace;font-weight:600;color:var(--gray-900);">${det.producto_codigo}</td>
+            <td style="padding:12px 16px;font-weight:500;">${det.producto_descripcion}</td>
+            <td style="padding:12px 16px;text-align:center;"><span class="badge badge-gray">NIU</span></td>
+            <td style="padding:12px 16px;text-align:center;">
+                <input type="number" class="form-control form-control-sm mx-auto" value="${cantidad}" step="0.01" min="0" style="width:80px;text-align:center;font-weight:600;background:var(--gray-50);" onchange="actualizarCantidad(${idx}, this.value)">
+            </td>
+            <td style="padding:12px 16px;text-align:right;font-weight:500;color:var(--gray-700);">S/ ${precio.toFixed(2)}</td>
+            <td style="padding:12px 16px;text-align:right;">
+                <input type="number" class="form-control form-control-sm ml-auto" value="${descuento.toFixed(2)}" step="0.01" min="0" style="width:100px;text-align:right;background:var(--gray-50);" onchange="actualizarDescuento(${idx}, this.value)">
+            </td>
+            <td style="padding:12px 16px;text-align:right;font-weight:700;color:var(--gray-900);">S/ ${importeLinea.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('total_op_gravada').textContent = 'S/ ' + opGravada.toFixed(2);
+    document.getElementById('total_igv').textContent = 'S/ ' + igvTotal.toFixed(2);
+    document.getElementById('total_importe').textContent = 'S/ ' + importeTotal.toFixed(2);
+
+    document.getElementById('btn_guardar_nc').disabled = detallesNC.length === 0;
+}
+
+function actualizarCantidad(idx, valor) {
+    detallesNC[idx].cantidad = parseFloat(valor) || 0;
+    renderizarDetallesNC();
+}
+
+function actualizarDescuento(idx, valor) {
+    detallesNC[idx].descuento = parseFloat(valor) || 0;
+    renderizarDetallesNC();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GUARDAR NOTA DE CRÉDITO
+// ═══════════════════════════════════════════════════════════════
+function guardarNotaCredito() {
+    if (!comprobanteSeleccionado || detallesNC.length === 0) {
+        alert('Complete todos los campos requeridos');
+        return;
+    }
+
+    const data = {
+        comprobante_id: comprobanteSeleccionado.id,
+        tipo_nc: tipoNCActual,
+        tipo_nota: document.getElementById('tipo_nota').value,
+        detalles: detallesNC.map(d => ({
+            producto_id: d.producto_id,
+            cantidad: d.cantidad,
+            precio_unitario: d.precio_unitario,
+            descuento: d.descuento || 0,
+            afecto_igv: d.afecto_igv !== false,
+            cod_tipo_afectacion: d.cod_tipo_afectacion || '10'
+        }))
+    };
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    fetch('/api/notas-credito/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(data)
+    })
+    .then(r => {
+        if (r.ok) return r.json();
+        return r.json().then(err => { throw new Error(JSON.stringify(err)); });
+    })
+    .then(data => {
+        showSuccessMessage('Nota de Crédito creada exitosamente');
+        closeModal('nuevaNotaModal');
+        setTimeout(() => window.location.reload(), 1500);
+    })
+    .catch(err => {
+        showErrorMessage('Error al crear la nota de crédito: ' + err.message);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILIDADES
+// ═══════════════════════════════════════════════════════════════
+function showSuccessMessage(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;max-width:400px;padding:14px 20px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:12px;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);animation:fadeInUp .3s ease both;';
+    toast.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${message}`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+function showErrorMessage(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;max-width:400px;padding:14px 20px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:12px;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);animation:fadeInUp .3s ease both;';
+    toast.innerHTML = `<i class="bi bi-exclamation-circle-fill"></i> ${message}`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+// Reset al cerrar modal
+document.getElementById('nuevaNotaModal').addEventListener('click', function(e) {
+    if (e.target === this) resetearFormulario();
+});
+
+function resetearFormulario() {
+    comprobanteSeleccionado = null;
+    detallesFactura = [];
+    detallesNC = [];
+    tipoNCActual = '';
+    motivoActual = '';
+    document.getElementById('tipo_nc').value = '';
+    document.getElementById('tipo_nota').innerHTML = '<option value="">Seleccionar motivo...</option>';
+    document.getElementById('info_comprobante').style.display = 'none';
+    document.getElementById('seccion_motivo').style.display = 'none';
+    document.getElementById('detalles_body').innerHTML = `
+        <tr>
+            <td colspan="7" style="text-align:center;padding:40px 20px;color:var(--gray-400);background:var(--gray-50);">
+                <i class="bi bi-inbox" style="font-size:32px;display:block;margin-bottom:12px;color:var(--gray-300);"></i>
+                <span style="font-size:14px;font-weight:500;">No hay productos agregados</span><br>
+                <span style="font-size:13px;color:var(--gray-400);">Seleccione un comprobante y un motivo para cargar productos.</span>
+            </td>
+        </tr>
+    `;
+    document.getElementById('total_op_gravada').textContent = 'S/ 0.00';
+    document.getElementById('total_igv').textContent = 'S/ 0.00';
+    document.getElementById('total_importe').textContent = 'S/ 0.00';
+    document.getElementById('btn_descuento').style.display = 'none';
+    document.getElementById('btn_guardar_nc').disabled = true;
+    document.getElementById('nc_numero_display').value = 'Auto-generado';
+}
+</script>
 
 {% endblock %}

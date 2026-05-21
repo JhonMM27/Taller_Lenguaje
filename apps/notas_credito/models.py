@@ -4,17 +4,21 @@ from apps.comprobantes.models import Comprobante
 
 
 class NotaCredito(models.Model):
-    MOTIVO_CHOICES = [
+    TIPO_NC_CHOICES = [
+        ('NC', 'Nota de Crédito'),
+        ('NCD', 'Nota de Crédito por Descuento'),
+    ]
+
+    MOTIVO_NC = [
         ('01', 'Anulación de la operación'),
-        ('02', 'Anulación por error en el RUC'),
-        ('03', 'Corrección por error en la descripción'),
-        ('04', 'Descuento global'),
-        ('05', 'Descuento por ítem'),
         ('06', 'Devolución por ítem'),
         ('07', 'Devolución total'),
+    ]
+
+    MOTIVO_NCD = [
+        ('04', 'Descuento global'),
+        ('05', 'Descuento por ítem'),
         ('08', 'Bonificación'),
-        ('09', 'Disminución del valor'),
-        ('10', 'Otros'),
     ]
 
     comprobante_referencia = models.ForeignKey(
@@ -22,11 +26,14 @@ class NotaCredito(models.Model):
         on_delete=models.PROTECT,
         related_name='notas_credito'
     )
-    serie = models.CharField(max_length=4)
-    numero = models.PositiveIntegerField()
-    fecha = models.DateField()
-    tipo_nota = models.CharField(max_length=2, choices=MOTIVO_CHOICES)
-    monto_afectado = models.DecimalField(max_digits=14, decimal_places=2)
+    serie = models.CharField(max_length=4, default='FC01')
+    numero = models.PositiveIntegerField(default=1)
+    fecha = models.DateField(auto_now_add=True)
+    tipo_nc = models.CharField(max_length=3, choices=TIPO_NC_CHOICES, default='NC')
+    tipo_nota = models.CharField(max_length=2, default='01')
+    op_gravada = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    igv = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    importe = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     descripcion = models.TextField(blank=True)
     estado = models.CharField(max_length=20, default='BORRADOR')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -41,5 +48,53 @@ class NotaCredito(models.Model):
         return f"NC-{self.serie}-{self.numero:08d}"
 
     def clean(self):
-        if self.monto_afectado > self.comprobante_referencia.total:
-            raise ValidationError("El monto afectado no puede exceder el total del comprobante original")
+        if self.importe > self.comprobante_referencia.total:
+            raise ValidationError("El importe no puede exceder el total del comprobante original")
+
+    def calcular_totales(self):
+        from decimal import Decimal
+        from django.conf import settings
+        tasa_igv = Decimal(str(settings.IGV_TASA))
+        op_gravada = Decimal('0.00')
+        igv_total = Decimal('0.00')
+        importe_total = Decimal('0.00')
+
+        for detalle in self.detalles.all():
+            base = detalle.cantidad * detalle.precio_unitario
+            if detalle.afecto_igv:
+                igv_linea = round(base * tasa_igv, 2)
+            else:
+                igv_linea = Decimal('0.00')
+            subtotal_linea = base + igv_linea
+
+            op_gravada += base
+            igv_total += igv_linea
+            importe_total += subtotal_linea
+
+        self.op_gravada = op_gravada
+        self.igv = igv_total
+        self.importe = importe_total
+        self.save(update_fields=['op_gravada', 'igv', 'importe'])
+
+
+class DetalleNotaCredito(models.Model):
+    nota_credito = models.ForeignKey(
+        NotaCredito,
+        on_delete=models.CASCADE,
+        related_name='detalles'
+    )
+    producto = models.ForeignKey('productos.Producto', on_delete=models.PROTECT)
+    cantidad = models.DecimalField(max_digits=12, decimal_places=4)
+    precio_unitario = models.DecimalField(max_digits=12, decimal_places=4)
+    descuento = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    afecto_igv = models.BooleanField(default=True)
+    cod_tipo_afectacion = models.CharField(max_length=10, default='10')
+    igv_linea = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    class Meta:
+        verbose_name = "Detalle de Nota de Crédito"
+        verbose_name_plural = "Detalles de Nota de Crédito"
+
+    def __str__(self):
+        return f"{self.nota_credito} - {self.producto.codigo}"

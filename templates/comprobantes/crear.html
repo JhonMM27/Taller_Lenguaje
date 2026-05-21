@@ -103,6 +103,28 @@
                 <i class="bi bi-plus"></i> Agregar Línea
             </button>
 
+            <!-- Totales -->
+            <div class="row mt-4 mb-4">
+                <div class="col-md-12">
+                    <div style="background:var(--slate-50);padding:20px;border-radius:var(--radius-lg);border:1px solid var(--slate-200); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;text-align:center;">
+                            <div style="padding:16px;background:white;border-radius:var(--radius);border:1px solid var(--slate-200); box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s ease;">
+                                <div style="font-size:12px;color:var(--slate-500);text-transform:uppercase;letter-spacing:1px;font-weight:600;">Op. Gravada</div>
+                                <div id="total_op_gravada" style="font-size:24px;font-weight:700;color:var(--slate-800);margin-top:8px;">S/ 0.00</div>
+                            </div>
+                            <div style="padding:16px;background:white;border-radius:var(--radius);border:1px solid var(--slate-200); box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s ease;">
+                                <div style="font-size:12px;color:var(--slate-500);text-transform:uppercase;letter-spacing:1px;font-weight:600;">IGV (18%)</div>
+                                <div id="total_igv" style="font-size:24px;font-weight:700;color:var(--slate-800);margin-top:8px;">S/ 0.00</div>
+                            </div>
+                            <div style="padding:16px;background:linear-gradient(135deg, var(--primary-50) 0%, white 100%);border-radius:var(--radius);border:2px solid var(--primary-200); box-shadow: 0 4px 6px -1px rgba(var(--primary-500), 0.1);">
+                                <div style="font-size:12px;color:var(--primary-700);text-transform:uppercase;letter-spacing:1px;font-weight:700;">Importe Total</div>
+                                <div id="total_importe" style="font-size:28px;font-weight:800;color:var(--primary-600);margin-top:8px;">S/ 0.00</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <hr>
 
             <div class="d-flex justify-content-end">
@@ -123,7 +145,10 @@ document.getElementById('add-detalle').addEventListener('click', function() {
     const newRow = container.querySelector('.detalle-item').cloneNode(true);
     newRow.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
     newRow.querySelectorAll('input[type="number"]').forEach(input => input.value = '1');
+    // Clear price
+    newRow.querySelector('input[name="precio_unitario"]').value = '';
     container.appendChild(newRow);
+    recalcularTotales();
 });
 
 document.addEventListener('click', function(e) {
@@ -131,19 +156,48 @@ document.addEventListener('click', function(e) {
         const row = e.target.closest('.detalle-item');
         if (document.querySelectorAll('.detalle-item').length > 1) {
             row.remove();
+            recalcularTotales();
         }
     }
 });
 
-document.querySelectorAll('.producto-select').forEach(select => {
-    select.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
+// Event delegation for select changes to get price dynamically
+document.addEventListener('change', function(e) {
+    if (e.target.matches('.producto-select')) {
+        const select = e.target;
+        const selectedOption = select.options[select.selectedIndex];
         const precio = selectedOption.getAttribute('data-precio');
         if (precio) {
-            const row = this.closest('.detalle-item');
+            const row = select.closest('.detalle-item');
             row.querySelector('input[name="precio_unitario"]').value = precio;
+            recalcularTotales();
         }
-    });
+    }
 });
+
+document.addEventListener('input', function(e) {
+    if (e.target.matches('input[name="cantidad"], input[name="precio_unitario"]')) {
+        recalcularTotales();
+    }
+});
+
+function recalcularTotales() {
+    let subtotal = 0;
+    document.querySelectorAll('.detalle-item').forEach(row => {
+        const cantidad = parseFloat(row.querySelector('input[name="cantidad"]').value) || 0;
+        const precio = parseFloat(row.querySelector('input[name="precio_unitario"]').value) || 0;
+        subtotal += cantidad * precio;
+    });
+    
+    const igv = subtotal * 0.18;
+    const total = subtotal + igv;
+    
+    document.getElementById('total_op_gravada').textContent = 'S/ ' + subtotal.toFixed(2);
+    document.getElementById('total_igv').textContent = 'S/ ' + igv.toFixed(2);
+    document.getElementById('total_importe').textContent = 'S/ ' + total.toFixed(2);
+}
+
+// Initial calculation
+document.addEventListener("DOMContentLoaded", recalcularTotales);
 </script>
 {% endblock %}
