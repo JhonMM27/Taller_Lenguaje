@@ -200,14 +200,23 @@
 
 <script>
 function mostrarAlerta(tipo, mensaje) {
-    const alerta = document.getElementById('alerta-envio');
+    let alerta = document.getElementById('alerta-envio');
     if (!alerta) {
-        console.error('Elemento alerta-envio no encontrado');
-        return;
+        alerta = document.createElement('div');
+        alerta.id = 'alerta-envio';
+        alerta.className = 'alert';
+        alerta.style.marginBottom = '20px';
+        const header = document.querySelector('.page-header');
+        if (header && header.parentNode) {
+            header.parentNode.insertBefore(alerta, header.nextSibling);
+        } else {
+            document.querySelector('.main-content')?.prepend(alerta);
+        }
     }
     alerta.className = `alert alert-${tipo} fade-in`;
     alerta.innerHTML = `<i class="bi bi-info-circle" style="margin-right:8px;"></i> ${mensaje}`;
     alerta.classList.remove('d-none');
+    alerta.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function enviarSunat() {

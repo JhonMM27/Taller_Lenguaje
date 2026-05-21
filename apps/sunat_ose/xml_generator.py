@@ -11,6 +11,7 @@ NAMESPACES = {
     'ds': 'http://www.w3.org/2000/09/xmldsig#',
     'ext': 'urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2',
     'inv': 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2',
+    'sac': 'urn:sunat:names:specification:ubl:peru:schema:xsd:SunatAggregateComponents-1',
 }
 
 TIPO_DOC_MAP = {
@@ -49,12 +50,29 @@ TIPO_AFECTACION_MAP = {
 }
 
 UNIDADES_MEDIDA = {
-    'UNI': 'UNI',
+    'NIU': 'NIU',
     'KG': 'KGM',
-    'UND': 'UND',
+    'KGM': 'KGM',
+    'GR': 'GRM',
+    'GRM': 'GRM',
+    'LT': 'LTR',
+    'LTR': 'LTR',
+    'ML': 'MLT',
+    'MLT': 'MLT',
+    'M': 'MTR',
+    'MTR': 'MTR',
+    'M2': 'MTK',
+    'M3': 'MTC',
+    'UM': 'NIU',
     'Caja': 'CJA',
+    'CJA': 'CJA',
+    'BX': 'BX',
     'Paquete': 'PAQ',
-    'Litro': 'LTR',
+    'PAQ': 'PAQ',
+    'UND': 'NIU',
+    'UNI': 'NIU',
+    'ZZ': 'ZZ',
+    'H87': 'H87',
 }
 
 
@@ -102,30 +120,51 @@ def generar_xml_ubl(comprobante):
     EXT = NAMESPACES['ext']
     DS = NAMESPACES['ds']
     INV = NAMESPACES['inv']
+    SAC = NAMESPACES['sac']
 
     nsmap = {
         'cac': CAC,
         'cbc': CBC,
         'ext': EXT,
         'ds': DS,
+        'sac': SAC,
     }
 
     root = etree.Element(f'{{{INV}}}Invoice', nsmap=nsmap)
 
     empresa = comprobante.empresa
 
-    # 1. UBLExtensions (la firma ds:Signature se inserta aqui por firmar.py)
+    # 1. UBLExtensions
     ext_UBLExtensions = etree.SubElement(root, f'{{{EXT}}}UBLExtensions')
-    ext_UBLExtension = etree.SubElement(ext_UBLExtensions, f'{{{EXT}}}UBLExtension')
-    ext_ExtensionContent = etree.SubElement(ext_UBLExtension, f'{{{EXT}}}ExtensionContent')
 
-# 2. UBLVersionID
+    # Extension 1: Para la firma digital (ds:Signature se inserta aqui por firmar.py)
+    ext_UBLExtension_sig = etree.SubElement(ext_UBLExtensions, f'{{{EXT}}}UBLExtension')
+    ext_ExtensionContent_sig = etree.SubElement(ext_UBLExtension_sig, f'{{{EXT}}}ExtensionContent')
+
+    # Extension 2: AdditionalInformation requerido por SUNAT (AdditionalMonetaryTotal)
+    ext_UBLExtension_add = etree.SubElement(ext_UBLExtensions, f'{{{EXT}}}UBLExtension')
+    ext_ExtensionContent_add = etree.SubElement(ext_UBLExtension_add, f'{{{EXT}}}ExtensionContent')
+    sac_AdditionalInfo = etree.SubElement(ext_ExtensionContent_add, f'{{{SAC}}}AdditionalInformation')
+    sac_AdditionalMonetaryTotal = etree.SubElement(sac_AdditionalInfo, f'{{{SAC}}}AdditionalMonetaryTotal')
+    amt_id = etree.SubElement(sac_AdditionalMonetaryTotal, f'{{{CBC}}}ID')
+    amt_id.text = '1001'
+    amt_payable = etree.SubElement(sac_AdditionalMonetaryTotal, f'{{{CBC}}}PayableAmount')
+    amt_payable.set('currencyID', 'PEN')
+    amt_payable.text = str(comprobante.subtotal)
+
+    # 2. UBLVersionID
     ubl_version = etree.SubElement(root, f'{{{CBC}}}UBLVersionID')
     ubl_version.text = '2.0'
 
     # 3. CustomizationID
     customization_id = etree.SubElement(root, f'{{{CBC}}}CustomizationID')
-    customization_id.text = '1.0'
+    customization_id.text = '1.1'
+
+    profile_id = etree.SubElement(root, f'{{{CBC}}}ProfileID')
+    profile_id.set('schemeName', 'SUNAT:Identificador de Tipo de Operación')
+    profile_id.set('schemeAgencyName', 'PE:SUNAT')
+    profile_id.set('schemeURI', 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo17')
+    profile_id.text = '0101'
 
     num_doc = etree.SubElement(root, f'{{{CBC}}}ID')
     num_doc.text = f"{comprobante.serie.serie}-{comprobante.numero:08d}"
@@ -142,7 +181,12 @@ def generar_xml_ubl(comprobante):
 
     currency_code = etree.SubElement(root, f'{{{CBC}}}DocumentCurrencyCode')
     currency_code.set('listID', 'ISO 4217 Alpha')
+    currency_code.set('listName', 'Currency')
+    currency_code.set('listAgencyName', 'United Nations Economic Commission for Europe')
     currency_code.text = 'PEN'
+
+    line_count = etree.SubElement(root, f'{{{CBC}}}LineCountNumeric')
+    line_count.text = str(comprobante.detalles.count())
 
     signature = etree.SubElement(root, f'{{{CAC}}}Signature')
     sign_id = etree.SubElement(signature, f'{{{CBC}}}ID')
@@ -184,12 +228,15 @@ def generar_xml_ubl(comprobante):
     tax_subtotal_item = etree.SubElement(tax_subtotal, f'{{{CAC}}}TaxCategory')
     tax_subtotal_item_id = etree.SubElement(tax_subtotal_item, f'{{{CBC}}}ID')
     tax_subtotal_item_id.set('schemeID', 'UN/ECE 5305')
+    tax_subtotal_item_id.set('schemeName', 'Tax Category Identifier')
+    tax_subtotal_item_id.set('schemeAgencyName', 'United Nations Economic Commission for Europe')
     tax_subtotal_item_id.text = 'S'
     tax_subtotal_percent = etree.SubElement(tax_subtotal_item, f'{{{CBC}}}Percent')
     tax_subtotal_percent.text = '18.00'
     tax_subtotal_name = etree.SubElement(tax_subtotal_item, f'{{{CAC}}}TaxScheme')
     tax_subtotal_name_id = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}ID')
-    tax_subtotal_name_id.set('schemeID', 'UN/ECE 5305')
+    tax_subtotal_name_id.set('schemeID', 'UN/ECE 5153')
+    tax_subtotal_name_id.set('schemeAgencyID', '6')
     tax_subtotal_name_id.text = '1000'
     tax_subtotal_name_name = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}Name')
     tax_subtotal_name_name.text = 'IGV'
@@ -211,7 +258,7 @@ def generar_xml_ubl(comprobante):
         line_id.text = str(idx)
 
         invoiced_quantity = etree.SubElement(invoice_line, f'{{{CBC}}}InvoicedQuantity')
-        invoiced_quantity.set('unitCode', detalle.producto.unidad_medida or 'UNI')
+        invoiced_quantity.set('unitCode', UNIDADES_MEDIDA.get(detalle.producto.unidad_medida, 'NIU'))
         invoiced_quantity.text = str(detalle.cantidad)
 
         line_extension_amount = etree.SubElement(invoice_line, f'{{{CBC}}}LineExtensionAmount')
@@ -224,6 +271,9 @@ def generar_xml_ubl(comprobante):
         alt_price_amount.set('currencyID', 'PEN')
         alt_price_amount.text = str(float(detalle.precio_unitario) * 1.18)
         alt_price_type = etree.SubElement(alt_price, f'{{{CBC}}}PriceTypeCode')
+        alt_price_type.set('listName', 'SUNAT:Indicador de Tipo de Precio')
+        alt_price_type.set('listAgencyName', 'PE:SUNAT')
+        alt_price_type.set('listURI', 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo16')
         alt_price_type.text = '01'
 
         line_tax = etree.SubElement(invoice_line, f'{{{CAC}}}TaxTotal')
@@ -240,12 +290,20 @@ def generar_xml_ubl(comprobante):
         line_tax_item = etree.SubElement(line_tax_subtotal, f'{{{CAC}}}TaxCategory')
         line_tax_item_id = etree.SubElement(line_tax_item, f'{{{CBC}}}ID')
         line_tax_item_id.set('schemeID', 'UN/ECE 5305')
+        line_tax_item_id.set('schemeName', 'Tax Category Identifier')
+        line_tax_item_id.set('schemeAgencyName', 'United Nations Economic Commission for Europe')
         line_tax_item_id.text = 'S'
         line_tax_item_percent = etree.SubElement(line_tax_item, f'{{{CBC}}}Percent')
         line_tax_item_percent.text = '18.00'
+        line_tax_exemption = etree.SubElement(line_tax_item, f'{{{CBC}}}TaxExemptionReasonCode')
+        line_tax_exemption.set('listAgencyName', 'PE:SUNAT')
+        line_tax_exemption.set('listName', 'SUNAT:Codigo de Tipo de Afectación del IGV')
+        line_tax_exemption.set('listURI', 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo07')
+        line_tax_exemption.text = '10'
         line_tax_scheme = etree.SubElement(line_tax_item, f'{{{CAC}}}TaxScheme')
         line_tax_scheme_id = etree.SubElement(line_tax_scheme, f'{{{CBC}}}ID')
-        line_tax_scheme_id.set('schemeID', 'UN/ECE 5305')
+        line_tax_scheme_id.set('schemeID', 'UN/ECE 5153')
+        line_tax_scheme_id.set('schemeAgencyID', '6')
         line_tax_scheme_id.text = '1000'
         line_tax_scheme_name = etree.SubElement(line_tax_scheme, f'{{{CBC}}}Name')
         line_tax_scheme_name.text = 'IGV'

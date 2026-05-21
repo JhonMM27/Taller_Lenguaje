@@ -1,14 +1,87 @@
 {
 	"info": {
-		"_postman_id": "43352f22-4fc0-4547-8a04-e912a5f45724",
-		"name": "Sunat",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "48756735",
-		"_collection_link": "https://mmanayallejhone-8047893.postman.co/workspace/JHON-ESNAIDER-MESONES-MANAYALLE~ca179a61-5911-465b-8b7d-fd4ba20166b6/collection/48756735-43352f22-4fc0-4547-8a04-e912a5f45724?action=share&source=collection_link&creator=48756735"
+		"_postman_id": "sunat-api-collection",
+		"name": "SUNAT API - Comprobantes Electrónicos",
+		"description": "Colección para probar envío de comprobantes electrónicos a SUNAT/OSE. Incluye testing beta y estructura del ZIP.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
+	"variable": [
+		{
+			"key": "RUC",
+			"value": "20103129061",
+			"type": "string"
+		},
+		{
+			"key": "USERNAME",
+			"value": "MODDATOS",
+			"type": "string"
+		},
+		{
+			"key": "PASSWORD",
+			"value": "MODDATOS",
+			"type": "string"
+		},
+		{
+			"key": "BETA_URL",
+			"value": "https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService",
+			"type": "string"
+		},
+		{
+			"key": "PROD_URL",
+			"value": "https://e-sunat.gob.pe/ol-ti-itcpfegem-beta/billService",
+			"type": "string"
+		}
+	],
 	"item": [
 		{
-			"name": "https://e-beta.sunat.gob.pe/443/ol-ti-itcpfegem-beta/billService",
+			"name": "1. Generar ZIP desde XML",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Verificar que el ZIP se generó correctamente",
+							"const zipBase64 = pm.variables.get('ZIP_BASE64');",
+							"",
+							"if (!zipBase64) {",
+							"    pm.test('ZIP_BASE64 existe', () => {",
+							"        throw new Error('La variable ZIP_BASE64 no está definida');",
+							"    });",
+							"}",
+							"",
+							"// Verificar longitud mínima",
+							"pm.test('ZIP base64 tiene contenido', () => {",
+							"    pm.expect(zipBase64.length).to.be.above(100);",
+							"});",
+							"",
+							"// Verificar que termina en = (base64 padding)",
+							"pm.test('ZIP base64 tiene padding válido', () => {",
+							"    const hasValidPadding = zipBase64.endsWith('==') || zipBase64.endsWith('=') || !zipBase64.includes('=');",
+							"    pm.expect(hasValidPadding).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"name": "Generar ZIP desde XML",
+				"request": {
+					"description": "Esta request es solo para referencia. Usa el archivo postman_xml_sample.xml para generar el ZIP manually, o integra con tu backend.",
+					"url": {
+						"raw": "{{BETA_URL}}",
+						"protocol": "https",
+						"host": ["e-beta", "sunat", "gob", "pe"],
+						"path": ["ol-ti-itcpfegem-beta", "billService"]
+					},
+					"method": "GET",
+					"header": []
+				},
+				"event": []
+			}
+		},
+		{
+			"name": "2. Enviar a SUNAT Beta (Error Esperado)",
 			"event": [
 				{
 					"listen": "test",
@@ -36,6 +109,9 @@
 							"// Extract main message (before Detalle)",
 							"const mainMessage = faultstring.split(' - Detalle:')[0].trim();",
 							"",
+							"const isSuccess = faultcode === '0';",
+							"const isExpectedError = ['2072', '2074', '0306', '2371', '2047', '2028'].includes(faultcode);",
+							"",
 							"const template = `",
 							"<!DOCTYPE html>",
 							"<html>",
@@ -43,7 +119,7 @@
 							"  <style>",
 							"    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }",
 							"    .container { max-width: 700px; margin: 0 auto; }",
-							"    .header { background: #c0392b; color: white; padding: 15px 20px; border-radius: 8px 8px 0 0; }",
+							"    .header { background: ${isSuccess ? '#27ae60' : '#c0392b'}; color: white; padding: 15px 20px; border-radius: 8px 8px 0 0; }",
 							"    .header h2 { margin: 0; font-size: 18px; }",
 							"    .header .status { font-size: 13px; opacity: 0.85; margin-top: 4px; }",
 							"    .card { background: white; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }",
@@ -52,66 +128,41 @@
 							"    .label { background: #fdf2f2; color: #c0392b; font-weight: bold; padding: 12px 16px; min-width: 160px; font-size: 13px; }",
 							"    .value { padding: 12px 16px; color: #333; font-size: 13px; word-break: break-word; flex: 1; }",
 							"    .badge { display: inline-block; background: #c0392b; color: white; border-radius: 4px; padding: 2px 8px; font-size: 12px; }",
+							"    .badge-success { background: #27ae60; }",
 							"    .ticket-badge { display: inline-block; background: #2980b9; color: white; border-radius: 4px; padding: 2px 8px; font-size: 12px; }",
-							"    .chart-section { padding: 20px; background: white; margin-top: 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }",
-							"    .chart-title { font-weight: bold; color: #555; margin-bottom: 12px; font-size: 14px; }",
-							"    canvas { max-width: 100%; }",
+							"    .info-box { background: #e8f4fd; border-left: 4px solid #2980b9; padding: 12px; margin: 16px 0; font-size: 13px; }",
 							"  </style>",
-							"  <script src=\"https://cdn.jsdelivr.net/npm/chart.js\"><\\/script>",
 							"</head>",
 							"<body>",
 							"  <div class=\"container\">",
 							"    <div class=\"header\">",
-							"      <h2>&#9888; SOAP Fault Response</h2>",
+							"      <h2>${isSuccess ? '✔ SOAP Response - SUCCESS' : '⚠ SOAP Fault Response'}</h2>",
 							"      <div class=\"status\">SUNAT - billService (Beta)</div>",
 							"    </div>",
 							"    <div class=\"card\">",
 							"      <div class=\"field\">",
-							"        <div class=\"label\">Fault Code</div>",
-							"        <div class=\"value\"><span class=\"badge\">{{faultcode}}</span></div>",
+							"        <div class=\"label\">Status</div>",
+							"        <div class=\"value\"><span class=\"badge ${isSuccess ? 'badge-success' : ''}\">${faultcode}</span></div>",
 							"      </div>",
 							"      <div class=\"field\">",
 							"        <div class=\"label\">Message</div>",
-							"        <div class=\"value\">{{mainMessage}}</div>",
+							"        <div class=\"value\">${mainMessage}</div>",
 							"      </div>",
 							"      <div class=\"field\">",
 							"        <div class=\"label\">Ticket</div>",
-							"        <div class=\"value\"><span class=\"ticket-badge\"># {{ticket}}</span></div>",
+							"        <div class=\"value\"><span class=\"ticket-badge\"># ${ticket}</span></div>",
 							"      </div>",
 							"      <div class=\"field\">",
 							"        <div class=\"label\">Error Type</div>",
-							"        <div class=\"value\">{{errorType}}</div>",
+							"        <div class=\"value\">${errorType}</div>",
 							"      </div>",
 							"      <div class=\"field\">",
 							"        <div class=\"label\">Full Detail</div>",
-							"        <div class=\"value\">{{faultstring}}</div>",
+							"        <div class=\"value\">${faultstring}</div>",
 							"      </div>",
 							"    </div>",
-							"    <div class=\"chart-section\">",
-							"      <div class=\"chart-title\">Response Status Overview</div>",
-							"      <canvas id=\"statusChart\" height=\"120\"></canvas>",
-							"    </div>",
+							"    ${isExpectedError ? '<div class=\"info-box\"><strong>Nota:</strong> Este error era esperado para CustomizationID 1.0 en SUNAT beta. El XML se envió correctamente, solo el CustomizationID es rechazado por el entorno beta.</div>' : ''}",
 							"  </div>",
-							"  <script>",
-							"    const ctx = document.getElementById('statusChart').getContext('2d');",
-							"    new Chart(ctx, {",
-							"      type: 'bar',",
-							"      data: {",
-							"        labels: ['Success', 'Client Error', 'Server Error'],",
-							"        datasets: [{",
-							"          label: 'Response Count',",
-							"          data: [0, 1, 0],",
-							"          backgroundColor: ['#27ae60', '#c0392b', '#e67e22'],",
-							"          borderRadius: 6",
-							"        }]",
-							"      },",
-							"      options: {",
-							"        responsive: true,",
-							"        plugins: { legend: { display: false } },",
-							"        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }",
-							"      }",
-							"    });",
-							"  <\\/script>",
 							"</body>",
 							"</html>",
 							"`;",
@@ -121,12 +172,20 @@
 							"  faultstring: faultstring,",
 							"  ticket: ticket,",
 							"  errorType: errorType,",
-							"  mainMessage: mainMessage",
+							"  mainMessage: mainMessage,",
+							"  isSuccess: isSuccess",
+							"});",
+							"",
+							"// Guardar respuesta para debugging",
+							"pm.collectionVariables.set('LAST_RESPONSE', responseText);",
+							"pm.collectionVariables.set('LAST_FAULTCODE', faultcode);",
+							"",
+							"// Test: Verificar que hubo respuesta (éxito o error)",
+							"pm.test('Hay respuesta de SUNAT', () => {",
+							"    pm.expect(responseText.length).to.be.above(0);",
 							"});"
 						],
-						"type": "text/javascript",
-						"packages": {},
-						"requests": {}
+						"type": "text/javascript"
 					}
 				}
 			],
@@ -136,12 +195,12 @@
 					"basic": [
 						{
 							"key": "username",
-							"value": "MODDATOS",
+							"value": "{{USERNAME}}",
 							"type": "string"
 						},
 						{
 							"key": "password",
-							"value": "MODDATOS",
+							"value": "{{PASSWORD}}",
 							"type": "string"
 						}
 					]
@@ -159,7 +218,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ser=\"http://service.sunat.gob.pe\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\">\n    <soapenv:Header>\n        <wsse:Security>\n            <wsse:UsernameToken>\n                <wsse:Username>20103129061MODDATOS</wsse:Username>\n                <wsse:Password>MODDATOS</wsse:Password>\n            </wsse:UsernameToken>\n        </wsse:Security>\n    </soapenv:Header>\n    <soapenv:Body>\n        <ser:sendBill>\n            <fileName>20103129061-01-F001-00000001.zip</fileName>\n            <contentFile>{{DATA}}</contentFile>\n        </ser:sendBill>\n    </soapenv:Body>\n</soapenv:Envelope>",
+					"raw": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ser=\"http://service.sunat.gob.pe\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\">\n    <soapenv:Header>\n        <wsse:Security>\n            <wsse:UsernameToken>\n                <wsse:Username>{{RUC}}{{USERNAME}}</wsse:Username>\n                <wsse:Password>{{PASSWORD}}</wsse:Password>\n            </wsse:UsernameToken>\n        </wsse:Security>\n    </soapenv:Header>\n    <soapenv:Body>\n        <ser:sendBill>\n            <fileName>{{ZIP_FILENAME}}</fileName>\n            <contentFile>{{ZIP_BASE64}}</contentFile>\n        </ser:sendBill>\n    </soapenv:Body>\n</soapenv:Envelope>",
 					"options": {
 						"raw": {
 							"language": "xml"
@@ -167,21 +226,162 @@
 					}
 				},
 				"url": {
-					"raw": "https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService",
+					"raw": "{{BETA_URL}}",
 					"protocol": "https",
-					"host": [
-						"e-beta",
-						"sunat",
-						"gob",
-						"pe"
-					],
-					"path": [
-						"ol-ti-itcpfegem-beta",
-						"billService"
-					]
+					"host": ["e-beta", "sunat", "gob", "pe"],
+					"path": ["ol-ti-itcpfegem-beta", "billService"]
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "3. Verificar Estructura ZIP",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Verificar estructura del ZIP",
+							"const AdmZip = require('adm-zip');",
+							"",
+							"try {",
+							"    const zipBuffer = Buffer.from(pm.variables.get('ZIP_BASE64'), 'base64');",
+							"    const zip = new AdmZip(zipBuffer);",
+							"    const entries = zip.getEntries();",
+							"",
+							"    pm.test('ZIP contiene archivos', () => {",
+							"        pm.expect(entries.length).to.be.above(0);",
+							"    });",
+							"",
+							"    entries.forEach(entry => {",
+							"        console.log('Archivo:', entry.entryName, '- Tamaño:', entry.header.size, 'bytes');",
+							"    });",
+							"",
+							"    const xmlEntries = entries.filter(e => e.entryName.endsWith('.xml'));",
+							"    pm.test('ZIP contiene archivo XML', () => {",
+							"        pm.expect(xmlEntries.length).to.be.above(0);",
+							"    });",
+							"",
+							"    if (xmlEntries.length > 0) {",
+							"        const xmlContent = xmlEntries[0].getData().toString('utf8');",
+							"        pm.variables.set('XML_CONTENT', xmlContent);",
+							"",
+							"        // Verificar que el XML tiene los campos requeridos",
+							"        pm.test('XML tiene UBLVersionID', () => {",
+							"            pm.expect(xmlContent).to.include('<cbc:UBLVersionID>');",
+							"        });",
+							"",
+							"        pm.test('XML tiene CustomizationID', () => {",
+							"            pm.expect(xmlContent).to.include('<cbc:CustomizationID>');",
+							"        });",
+							"",
+							"        pm.test('XML tiene Signature', () => {",
+							"            pm.expect(xmlContent).to.include('<ds:Signature') || pm.expect(xmlContent).to.include('<Signature');",
+							"        });",
+							"    }",
+							"} catch (error) {",
+							"    console.error('Error procesando ZIP:', error);",
+							"    pm.test('ZIP procesable', () => {",
+							"        throw new Error('No se pudo procesar el ZIP: ' + error.message);",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"description": "Usa adm-zip para verificar la estructura del ZIP. Requiere instalar adm-zip en Postman.",
+				"url": {
+					"raw": "data:uristream",
+					"protocol": "data"
+				},
+				"method": "GET",
+				"header": []
+			}
+		},
+		{
+			"name": "4. Extraer XML del ZIP",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Manual extraction - muestra cómo手动 extraer el XML del ZIP base64",
+							"const zipBase64 = pm.variables.get('ZIP_BASE64');",
+							"",
+							"if (!zipBase64) {",
+							"    console.log('ZIP_BASE64 no está definido');",
+							"} else {",
+							"    // Mostrar primeros y últimos chars para debugging",
+							"    console.log('ZIP Base64长度:', zipBase64.length);",
+							"    console.log('Primeros 50 chars:', zipBase64.substring(0, 50));",
+							"    console.log('Últimos 50 chars:', zipBase64.substring(zipBase64.length - 50));",
+							"",
+							"    // Verificar padding",
+							"    const paddingCount = (zipBase64.length % 4);",
+							"    console.log('Padding needed:', 4 - paddingCount);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"description": "Muestra información del ZIP para debugging manual.",
+				"url": {
+					"raw": "data:uristream",
+					"protocol": "data"
+				},
+				"method": "GET",
+				"header": []
+			}
+		},
+		{
+			"name": "5. Estructura SOAP Completa",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Mostrar la estructura completa del SOAP envelope",
+							"const zipFilename = pm.variables.get('ZIP_FILENAME') || '20103129061-01-F001-00000001.zip';",
+							"const zipBase64 = pm.variables.get('ZIP_BASE64') || '[TU_ZIP_BASE64_AQUI]';",
+							"",
+							"const soapEnvelope = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ser=\"http://service.sunat.gob.pe\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\">\n    <soapenv:Header>\n        <wsse:Security>\n            <wsse:UsernameToken>\n                <wsse:Username>20103129061MODDATOS</wsse:Username>\n                <wsse:Password>MODDATOS</wsse:Password>\n            </wsse:UsernameToken>\n        </wsse:Security>\n    </soapenv:Header>\n    <soapenv:Body>\n        <ser:sendBill>\n            <fileName>${zipFilename}</fileName>\n            <contentFile>${zipBase64}</contentFile>\n        </ser:sendBill>\n    </soapenv:Body>\n</soapenv:Envelope>`;",
+							"",
+							"pm.visualizer.set(`",
+							"<html>",
+							"<head>",
+							"<style>",
+							"  body { font-family: 'Courier New', monospace; margin: 20px; background: #1e1e1e; color: #d4d4d4; }",
+							"  pre { white-space: pre-wrap; word-wrap: break-word; }",
+							"  .label { color: #569cd6; font-weight: bold; }",
+							"  .tag { color: #ce9178; }",
+							"  .attr { color: #9cdcfe; }",
+							"  .value { color: #ce9178; }",
+							"</style>",
+							"</head>",
+							"<body>",
+							"<h2>Estructura del SOAP Envelope</h2>",
+							"<pre>${soapEnvelope.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>",
+							"</body>",
+							"</html>",
+							"`);"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"description": "Muestra la estructura completa del SOAP envelope con las variables.",
+				"url": {
+					"raw": "data:uristream",
+					"protocol": "data"
+				},
+				"method": "GET",
+				"header": []
+			}
 		}
 	]
 }

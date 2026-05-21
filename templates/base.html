@@ -276,9 +276,9 @@
         }
     }
 
-    /* Auto-dismiss mensajes tras 4 segundos */
+    /* Auto-dismiss mensajes tras 4 segundos (excluir alerta-envio) */
     setTimeout(() => {
-        document.querySelectorAll('.alert').forEach(el => {
+        document.querySelectorAll('.alert:not(#alerta-envio)').forEach(el => {
             el.style.transition = 'opacity .4s ease';
             el.style.opacity = '0';
             setTimeout(() => el.remove(), 400);

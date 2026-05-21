@@ -39,7 +39,7 @@ services:
       POSTGRES_PASSWORD: sunat_pass_2026
       DEBUG: "False"
       SECRET_KEY: django-insecure-change-me-in-production-abc123xyz-2026
-      SUNAT_CERT_PATH: /app/media/CT2602141470.pfx
+      SUNAT_CERT_PATH: /app/certs/CT2602141470.pfx
       SUNAT_CERT_PASSWORD: Lavagna2026
       # ============================================================
       # MODO MOCK: SIMULA SUNAT - NO ENVIA COMPROBANTES REALES
@@ -57,8 +57,8 @@ services:
       SUNAT_OSE_WSDL: https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService
       # Credenciales de prueba de SUNAT Beta (reemplazar con credenciales reales)
       SUNAT_OSE_RUC: "20103129061"
-      SUNAT_OSE_USUARIO: "MODDATOS"
-      SUNAT_OSE_PASSWORD: "MODDATOS"
+      SUNAT_OSE_USUARIO: "JAVISIS1"
+      SUNAT_OSE_PASSWORD: "Javiersist1"
     depends_on:
       postgres:
         condition: service_healthy
