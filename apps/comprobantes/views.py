@@ -323,37 +323,27 @@ def emitir_comprobante(request, pk):
 
 
 # ==============================================================================
-# SECCIÓN: IMPORTACIÓN DE COMPROBANTES DESDE ARCHIVOS CSV
+# SECCIÓN: IMPORTACIÓN DE COMPROBANTES DESDE ARCHIVOS CSV / EXCEL
 # ==============================================================================
 
 def clean_val(val, default=''):
-    """
-    Función utilitaria para limpiar valores leídos de un archivo CSV.
-    Evita errores si el valor es None al quitarle espacios sobrantes.
-    
-    Parámetros:
-    - val: El valor a limpiar (puede ser string o None).
-    - default: Valor retornado si 'val' es None.
-    
-    Retorna:
-    - El valor limpio en formato de cadena (string) sin espacios iniciales ni finales.
-    """
+    """Limpia valores de CSV/Excel: maneja None, NaN de pandas y fechas datetime."""
     if val is None:
         return default
+    # Manejo de NaN de pandas
+    try:
+        import math
+        if isinstance(val, float) and math.isnan(val):
+            return default
+    except Exception:
+        pass
+    # Si es un objeto fecha/datetime de pandas/Python, formatearlo
+    if hasattr(val, 'strftime'):
+        return val.strftime('%Y-%m-%d')
     return str(val).strip()
 
 
 def parse_date(date_str):
-    """
-    Función utilitaria para intentar parsear fechas en diferentes formatos comunes.
-    Permite flexibilidad para que los archivos CSV usen guiones o barras.
-    
-    Parámetros:
-    - date_str: Cadena de texto que representa la fecha.
-    
-    Retorna:
-    - Un objeto date de Python.
-    """
     if not date_str:
         return datetime.now().date()
     for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d', '%d-%m-%Y'):
@@ -364,196 +354,209 @@ def parse_date(date_str):
     raise ValueError(f"Formato de fecha no válido: {date_str}")
 
 
+def _procesar_fila_comprobante(row, row_num, errores, exitosos):
+    """
+    Procesa una fila de datos (desde CSV o Excel) para crear un comprobante.
+    Retorna la cantidad de exitosos incrementada o no.
+    """
+    from decimal import Decimal
+
+    tipo_raw = clean_val(row.get('tipo'), '01')
+    # Normalizar tipo: puede venir como '1', '3', '7', '8' (desde Excel) o '01', '03', etc.
+    TIPO_MAP = {
+        '1': '01', '01': '01',
+        '3': '03', '03': '03',
+        '7': '07', '07': '07',
+        '8': '08', '08': '08',
+    }
+    tipo = TIPO_MAP.get(tipo_raw.strip(), tipo_raw.strip().zfill(2))
+    serie = clean_val(row.get('serie'), '')
+
+    numero_str = clean_val(row.get('numero'), '0')
+    # Excel puede leer números como float: '1.0', '2.0', etc.
+    try:
+        numero = int(float(numero_str)) if numero_str else 0
+    except (ValueError, TypeError):
+        numero = 0
+
+    fecha_str = clean_val(row.get('fecha'), '')
+    cliente_tipo_doc = clean_val(row.get('cliente_tipo_doc'), '6')
+    cliente_num_doc = clean_val(row.get('cliente_num_doc'), '')
+    cliente_nombre = clean_val(row.get('cliente_nombre'), 'Cliente Varios')
+    producto_codigo = clean_val(row.get('producto_codigo'), '')
+
+    cantidad_str = clean_val(row.get('cantidad'), '1')
+    precio_unitario_str = clean_val(row.get('precio_unitario'), '0')
+    try:
+        cantidad = Decimal(cantidad_str)
+    except Exception:
+        cantidad = Decimal('1.0')
+    try:
+        precio_unitario = Decimal(precio_unitario_str)
+    except Exception:
+        precio_unitario = Decimal('0.0')
+
+    categoria_nombre = clean_val(row.get('categoria'), '')
+
+    if not serie or not cliente_num_doc or not producto_codigo:
+        errores.append(f"Fila {row_num}: Falta información obligatoria (serie, cliente_num_doc o producto_codigo)")
+        return exitosos
+
+    cliente, _ = Cliente.objects.get_or_create(
+        tipo_doc=cliente_tipo_doc,
+        num_doc=cliente_num_doc,
+        defaults={'razon_social': cliente_nombre}
+    )
+
+    categoria = None
+    if categoria_nombre:
+        categoria, _ = CategoriaProducto.objects.get_or_create(
+            nombre__iexact=categoria_nombre,
+            defaults={'nombre': categoria_nombre}
+        )
+
+    producto, created = Producto.objects.get_or_create(
+        codigo=producto_codigo,
+        defaults={
+            'descripcion': producto_codigo,
+            'precio_unitario': precio_unitario,
+            'categoria': categoria,
+        }
+    )
+    if created:
+        producto.descripcion = clean_val(row.get('producto_descripcion'), producto_codigo)
+        producto.save()
+
+    empresa = Empresa.objects.first()
+    if not empresa:
+        errores.append(f"Fila {row_num}: No hay ninguna empresa emisora configurada en el sistema.")
+        return exitosos
+
+    serie_obj = SerieComprobante.objects.filter(
+        empresa=empresa,
+        serie=serie,
+        tipo=tipo,
+        activa=True
+    ).first()
+
+    if not serie_obj:
+        errores.append(f"Fila {row_num}: La serie '{serie}' del tipo '{tipo}' no existe o no está activa.")
+        return exitosos
+
+    existe = Comprobante.objects.filter(
+        serie=serie_obj,
+        numero=numero
+    ).exists()
+    if existe:
+        errores.append(f"Fila {row_num}: Comprobante {serie}-{numero:08d} ya existe en el sistema.")
+        return exitosos
+
+    fecha = parse_date(fecha_str)
+
+    comprobante = Comprobante.objects.create(
+        empresa=empresa,
+        cliente=cliente,
+        serie=serie_obj,
+        numero=numero,
+        fecha=fecha,
+        tipo=tipo,
+        estado='BORRADOR'
+    )
+
+    DetalleComprobante.objects.create(
+        comprobante=comprobante,
+        producto=producto,
+        cantidad=cantidad,
+        precio_unitario=precio_unitario,
+        afecto_igv=producto.afecto_igv,
+        cod_tipo_afectacion=producto.cod_tipo_afectacion,
+    )
+
+    comprobante.calcular_totales()
+    return exitosos + 1
+
+
 @login_required
 def importar_csv(request):
-    """
-    Vista que procesa la subida de un archivo CSV para importar de forma masiva
-    comprobantes electrónicos (facturas y boletas) al sistema.
-    
-    Realiza las siguientes acciones:
-    1. Valida que el archivo exista en la petición.
-    2. Registra el intento de importación en el modelo ImportacionComprobante.
-    3. Auto-detecta si el separador es coma (,) o punto y coma (;) para mayor tolerancia.
-    4. Normaliza los nombres de las columnas para evitar errores de mayúsculas/minúsculas y espacios.
-    5. Itera cada línea del archivo, gestionando y creando automáticamente clientes,
-       categorías y productos si no existen en el sistema.
-    6. Valida la existencia y estado de la serie correspondiente al comprobante.
-    7. Inserta el Comprobante en base de datos en estado BORRADOR y crea su detalle.
-    8. Registra y almacena un log completo de errores si ocurre alguna falla en alguna fila.
-    """
     if request.method == 'POST':
         archivo = request.FILES.get('archivo_csv')
         if not archivo:
             messages.error(request, 'No se seleccionó ningún archivo')
             return redirect('comprobantes:importar')
 
-        # Intentamos registrar y crear la importación.
-        # En caso de fallas de permisos de escritura física, manejamos la excepción.
+        nombre_archivo = archivo.name
+
         try:
             importacion = ImportacionComprobante.objects.create(
                 archivo_csv=archivo,
                 usuario=request.user,
                 estado='PROCESANDO'
             )
-        except PermissionError:
-            # Si hay un error de permisos con la carpeta de subidas, intentamos guardar sin guardar el archivo físico
+        except (PermissionError, OSError):
+            # OSError errno 30 = Read-only file system (común en Docker con volúmenes no montados)
             importacion = ImportacionComprobante(
                 usuario=request.user,
                 estado='PROCESANDO'
             )
-            importacion.archivo_csv.name = f"importaciones/fallo_permiso_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv"
+            if nombre_archivo and '.' in nombre_archivo:
+                ext = nombre_archivo.rsplit('.', 1)[-1]
+            else:
+                ext = 'csv'
+            importacion.archivo_csv.name = f"importaciones/fallo_permiso_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
             importacion.save()
+
+        # Resetear puntero del archivo porque Django lo consumió al guardarlo en el modelo
+        try:
+            archivo.seek(0)
+        except Exception:
+            pass
 
         errores = []
         exitosos = 0
         total = 0
 
         try:
-            # Leer el contenido del archivo con soporte para BOM de UTF-8
-            decoded_file = archivo.read().decode('utf-8-sig')
-            
-            # Auto-detección del delimitador (punto y coma o coma)
-            primeras_lineas = decoded_file.split('\n')
-            delimiter = ';'
-            if primeras_lineas:
-                cabecera = primeras_lineas[0]
-                if ',' in cabecera and ';' not in cabecera:
-                    delimiter = ','
+            nombre = nombre_archivo.lower() if nombre_archivo else ''
 
-            # Configuración del lector de CSV utilizando en memoria StringIO
-            csv_file = io.StringIO(decoded_file)
-            csv_reader = csv.DictReader(csv_file, delimiter=delimiter)
-            
-            # Normalización y limpieza de las cabeceras (nombres de las columnas)
-            if csv_reader.fieldnames:
-                csv_reader.fieldnames = [clean_val(name).lower() for name in csv_reader.fieldnames if name]
+            if nombre.endswith('.xlsx') or nombre.endswith('.xls'):
+                # ─── LECTURA DESDE EXCEL ──────────────────────────────────
+                import pandas as pd
 
-            # Procesamiento de cada registro / fila
-            for row_num, row in enumerate(csv_reader, start=2):
-                total += 1
-                try:
-                    # Extracción y limpieza segura de datos de la fila
-                    tipo = clean_val(row.get('tipo'), '01')
-                    serie = clean_val(row.get('serie'), '')
-                    
-                    # Limpieza segura del correlativo de comprobante
-                    numero_str = clean_val(row.get('numero'), '0')
-                    numero = int(numero_str) if numero_str.isdigit() else 0
-                    
-                    fecha_str = clean_val(row.get('fecha'), '')
-                    cliente_tipo_doc = clean_val(row.get('cliente_tipo_doc'), '6')
-                    cliente_num_doc = clean_val(row.get('cliente_num_doc'), '')
-                    cliente_nombre = clean_val(row.get('cliente_nombre'), 'Cliente Varios')
-                    producto_codigo = clean_val(row.get('producto_codigo'), '')
-                    
-                    # Limpieza segura de los Decimal (cantidad y precio unitario) para evitar incompatibilidades con los campos del modelo
-                    from decimal import Decimal
-                    cantidad_str = clean_val(row.get('cantidad'), '1')
-                    precio_unitario_str = clean_val(row.get('precio_unitario'), '0')
+                df = pd.read_excel(archivo, engine='openpyxl')
+                df.columns = [clean_val(str(c)).lower() for c in df.columns]
+                rows = df.to_dict('records')
+
+                for row_num, row in enumerate(rows, start=2):
+                    total += 1
                     try:
-                        cantidad = Decimal(cantidad_str)
-                    except Exception:
-                        cantidad = Decimal('1.0')
+                        exitosos = _procesar_fila_comprobante(row, row_num, errores, exitosos)
+                    except Exception as e:
+                        errores.append(f"Fila {row_num}: Error inesperado: {str(e)}")
+
+            else:
+                # ─── LECTURA DESDE CSV ─────────────────────────────────────
+                archivo.seek(0)
+                decoded_file = archivo.read().decode('utf-8-sig')
+                primeras_lineas = decoded_file.split('\n')
+                delimiter = ';'
+                if primeras_lineas:
+                    cabecera = primeras_lineas[0]
+                    if ',' in cabecera and ';' not in cabecera:
+                        delimiter = ','
+
+                csv_file = io.StringIO(decoded_file)
+                csv_reader = csv.DictReader(csv_file, delimiter=delimiter)
+
+                if csv_reader.fieldnames:
+                    csv_reader.fieldnames = [clean_val(name).lower() for name in csv_reader.fieldnames if name]
+
+                for row_num, row in enumerate(csv_reader, start=2):
+                    total += 1
                     try:
-                        precio_unitario = Decimal(precio_unitario_str)
-                    except Exception:
-                        precio_unitario = Decimal('0.0')
+                        exitosos = _procesar_fila_comprobante(row, row_num, errores, exitosos)
+                    except Exception as e:
+                        errores.append(f"Fila {row_num}: Error inesperado: {str(e)}")
 
-                    categoria_nombre = clean_val(row.get('categoria'), '')
-
-                    # Validación de campos obligatorios mínimos
-                    if not serie or not cliente_num_doc or not producto_codigo:
-                        errores.append(f"Fila {row_num}: Falta información obligatoria (serie, cliente_num_doc o producto_codigo)")
-                        continue
-
-                    # Obtención o creación automática del Cliente en base a su número de documento
-                    cliente, _ = Cliente.objects.get_or_create(
-                        tipo_doc=cliente_tipo_doc,
-                        num_doc=cliente_num_doc,
-                        defaults={'razon_social': cliente_nombre}
-                    )
-
-                    # Obtención o creación de la Categoría de Producto
-                    categoria = None
-                    if categoria_nombre:
-                        categoria, _ = CategoriaProducto.objects.get_or_create(
-                            nombre__iexact=categoria_nombre,
-                            defaults={'nombre': categoria_nombre}
-                        )
-
-                    # Obtención o creación automática del Producto
-                    producto, created = Producto.objects.get_or_create(
-                        codigo=producto_codigo,
-                        defaults={
-                            'descripcion': producto_codigo,
-                            'precio_unitario': precio_unitario,
-                            'categoria': categoria,
-                        }
-                    )
-                    # Si el producto se acaba de crear, actualizamos su descripción
-                    if created:
-                        producto.descripcion = clean_val(row.get('producto_descripcion'), producto_codigo)
-                        producto.save()
-
-                    # Validación de Empresa emisora configurada en el sistema
-                    empresa = Empresa.objects.first()
-                    if not empresa:
-                        errores.append(f"Fila {row_num}: No hay ninguna empresa emisora configurada en el sistema.")
-                        continue
-
-                    # Verificación y obtención de la Serie del Comprobante
-                    serie_obj = SerieComprobante.objects.filter(
-                        empresa=empresa,
-                        serie=serie,
-                        tipo=tipo,  # Agregamos filtrado por tipo de comprobante para mayor precisión
-                        activa=True
-                    ).first()
-                    
-                    if not serie_obj:
-                        errores.append(f"Fila {row_num}: La serie '{serie}' del tipo '{tipo}' no existe o no está activa.")
-                        continue
-
-                    # Verificación de unicidad del comprobante (evitar duplicados)
-                    existe = Comprobante.objects.filter(
-                        serie=serie_obj,
-                        numero=numero
-                    ).exists()
-                    if existe:
-                        errores.append(f"Fila {row_num}: Comprobante {serie}-{numero:08d} ya existe en el sistema.")
-                        continue
-
-                    # Parseo seguro de la fecha
-                    fecha = parse_date(fecha_str)
-
-                    # Creación física del comprobante
-                    comprobante = Comprobante.objects.create(
-                        empresa=empresa,
-                        cliente=cliente,
-                        serie=serie_obj,
-                        numero=numero,
-                        fecha=fecha,
-                        tipo=tipo,
-                        estado='BORRADOR'
-                    )
-
-                    # Creación del detalle de la venta/servicio
-                    DetalleComprobante.objects.create(
-                        comprobante=comprobante,
-                        producto=producto,
-                        cantidad=cantidad,
-                        precio_unitario=precio_unitario,
-                        afecto_igv=producto.afecto_igv,
-                        cod_tipo_afectacion=producto.cod_tipo_afectacion,
-                    )
-                    
-                    # Cálculo automático de impuestos (IGV) y totales
-                    comprobante.calcular_totales()
-                    exitosos += 1
-                    
-                except Exception as e:
-                    errores.append(f"Fila {row_num}: Error inesperado: {str(e)}")
-
-            # Actualización del registro de importación en BD con estadísticas
             importacion.total_registros = total
             importacion.importados_exitosos = exitosos
             importacion.errores = len(errores)
@@ -561,7 +564,11 @@ def importar_csv(request):
             importacion.estado = 'COMPLETADO' if exitosos > 0 else 'ERROR'
             importacion.save()
 
-            messages.success(request, f'Importación completada: {exitosos} exitosos, {len(errores)} errores')
+            if errores:
+                primer_error = errores[0][:200]
+                messages.warning(request, f'Importación completada: {exitosos} exitosos, {len(errores)} errores. Primer error: {primer_error}')
+            else:
+                messages.success(request, f'Importación completada: {exitosos} exitosos, {len(errores)} errores')
         except Exception as e:
             importacion.estado = 'ERROR'
             importacion.log_errores = f"Error crítico al leer el archivo: {str(e)}"

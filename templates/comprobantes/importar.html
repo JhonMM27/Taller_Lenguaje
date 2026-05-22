@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Importar Comprobantes desde CSV{% endblock %}
+{% block title %}Importar Comprobantes desde CSV / Excel{% endblock %}
 {% block page_title %}Importación Masiva{% endblock %}
 
 {% block content %}
@@ -10,7 +10,7 @@
             <i class="bi bi-cloud-upload" style="color:var(--primary-600);margin-right:8px;"></i>
             Importar Comprobantes
         </h1>
-        <p class="page-subtitle">Carga masiva de facturas y boletas mediante archivos CSV</p>
+        <p class="page-subtitle">Carga masiva de facturas y boletas mediante archivos CSV o Excel</p>
     </div>
     <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Volver a la Lista
@@ -30,12 +30,12 @@
                     {% csrf_token %}
                     <div id="drop-zone" style="border:2px dashed var(--gray-300); border-radius:var(--radius-md); padding:60px 40px; text-align:center; transition: all 0.2s; cursor:pointer; background:var(--gray-50);">
                         <div style="width:80px; height:80px; background:white; border-radius:50%; box-shadow:var(--shadow-md); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; color:var(--primary-600);">
-                            <i class="bi bi-filetype-csv" style="font-size:32px;"></i>
+                            <i class="bi bi-file-spreadsheet" style="font-size:32px;"></i>
                         </div>
-                        <h4 style="font-size:18px; font-weight:700; color:var(--gray-900); margin-bottom:10px;">Arrastra tu archivo CSV aquí</h4>
+                        <h4 style="font-size:18px; font-weight:700; color:var(--gray-900); margin-bottom:10px;">Arrastra tu archivo CSV o Excel aquí</h4>
                         <p style="color:var(--gray-500); font-size:14px; margin-bottom:24px;">O haz clic para buscar en tu equipo (Máx 10MB)</p>
                         
-                        <input type="file" name="archivo_csv" id="archivo_csv" accept=".csv" required style="display:none;">
+                        <input type="file" name="archivo_csv" id="archivo_csv" accept=".csv,.xlsx,.xls" required style="display:none;">
                         <button type="button" class="btn btn-primary" onclick="document.getElementById('archivo_csv').click()">
                             <i class="bi bi-search"></i> Seleccionar Archivo
                         </button>
@@ -56,13 +56,63 @@
 
         <div class="card fade-in" style="animation-delay:0.1s;">
             <div class="card-header">
-                <span class="card-title"><i class="bi bi-code-square"></i> Ejemplo de Estructura</span>
+                <span class="card-title"><i class="bi bi-code-square"></i> Estructura del Archivo</span>
             </div>
             <div class="card-body">
-                <p style="font-size:13px; color:var(--gray-500); margin-bottom:15px;">Asegúrate de que la primera línea contenga los encabezados exactos:</p>
-                <div style="background:var(--gray-900); padding:20px; border-radius:var(--radius-sm); position:relative;">
-                    <code style="color:#d1d5db; font-family:monospace; font-size:12px; white-space:pre-wrap; display:block;">tipo;serie;numero;fecha;cliente_tipo_doc;cliente_num_doc;cliente_nombre;producto_codigo;producto_descripcion;cantidad;precio_unitario;categoria</code>
-                    <code style="color:#10b981; font-family:monospace; font-size:12px; white-space:pre-wrap; display:block; margin-top:8px;">01;F001;1;2026-04-25;6;20123456789;Empresa ABC S.A.;MED001;Paracetamol 500mg;10;15.50;FARMACIA</code>
+                <p style="font-size:13px; color:var(--gray-500); margin-bottom:15px;">La primera fila debe contener los encabezados exactos. Compatible con <strong>CSV</strong> (separador <code>;</code>) y <strong>Excel</strong> (.xlsx).</p>
+                
+                <!-- Pestañas: CSV / Excel -->
+                <div style="display:flex; gap:4px; margin-bottom:15px;">
+                    <button type="button" id="tab-csv" class="btn btn-sm" style="background:var(--primary-600);color:white;border:none;padding:6px 16px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;" onclick="mostrarTab('csv')">CSV</button>
+                    <button type="button" id="tab-excel" class="btn btn-sm" style="background:var(--gray-200);color:var(--gray-600);border:none;padding:6px 16px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;" onclick="mostrarTab('excel')">Excel</button>
+                </div>
+
+                <!-- Ejemplo CSV -->
+                <div id="ejemplo-csv">
+                    <div style="background:var(--gray-900); padding:20px; border-radius:var(--radius-sm);">
+                        <code style="color:#d1d5db; font-family:monospace; font-size:12px; white-space:pre-wrap; display:block;">tipo;serie;numero;fecha;cliente_tipo_doc;cliente_num_doc;cliente_nombre;producto_codigo;producto_descripcion;cantidad;precio_unitario;categoria</code>
+                        <code style="color:#10b981; font-family:monospace; font-size:12px; white-space:pre-wrap; display:block; margin-top:8px;">01;F001;1;2026-04-25;6;20123456789;Empresa ABC S.A.;MED001;Paracetamol 500mg;10;15.50;FARMACIA</code>
+                    </div>
+                </div>
+
+                <!-- Ejemplo Excel -->
+                <div id="ejemplo-excel" style="display:none;">
+                    <div style="background:var(--gray-900); padding:20px; border-radius:var(--radius-sm);">
+                        <table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:11px;">
+                            <thead>
+                                <tr style="color:#60a5fa;border-bottom:1px solid #374151;">
+                                    <th style="padding:6px 8px;text-align:left;">tipo</th>
+                                    <th style="padding:6px 8px;text-align:left;">serie</th>
+                                    <th style="padding:6px 8px;text-align:right;">numero</th>
+                                    <th style="padding:6px 8px;text-align:left;">fecha</th>
+                                    <th style="padding:6px 8px;text-align:center;">cliente_tipo_doc</th>
+                                    <th style="padding:6px 8px;text-align:right;">cliente_num_doc</th>
+                                    <th style="padding:6px 8px;text-align:left;">cliente_nombre</th>
+                                    <th style="padding:6px 8px;text-align:left;">producto_codigo</th>
+                                    <th style="padding:6px 8px;text-align:left;">producto_descripcion</th>
+                                    <th style="padding:6px 8px;text-align:right;">cantidad</th>
+                                    <th style="padding:6px 8px;text-align:right;">precio_unitario</th>
+                                    <th style="padding:6px 8px;text-align:left;">categoria</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="color:#d1d5db;border-bottom:1px solid #1f2937;">
+                                    <td style="padding:6px 8px;">01</td>
+                                    <td style="padding:6px 8px;">F001</td>
+                                    <td style="padding:6px 8px;text-align:right;">1</td>
+                                    <td style="padding:6px 8px;">2026-04-25</td>
+                                    <td style="padding:6px 8px;text-align:center;">6</td>
+                                    <td style="padding:6px 8px;text-align:right;">20123456789</td>
+                                    <td style="padding:6px 8px;">Empresa ABC S.A.</td>
+                                    <td style="padding:6px 8px;">MED001</td>
+                                    <td style="padding:6px 8px;">Paracetamol 500mg</td>
+                                    <td style="padding:6px 8px;text-align:right;">10</td>
+                                    <td style="padding:6px 8px;text-align:right;">15.50</td>
+                                    <td style="padding:6px 8px;">FARMACIA</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -78,9 +128,9 @@
                 <div style="padding:16px; border-bottom:1px solid var(--gray-50);">
                     <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
                         <span style="width:8px; height:8px; border-radius:50%; background:var(--primary-600);"></span>
-                        <span style="font-weight:700; font-size:13px; color:var(--gray-900);">Separador</span>
+                        <span style="font-weight:700; font-size:13px; color:var(--gray-900);">Formatos</span>
                     </div>
-                    <p style="font-size:12px; color:var(--gray-500); padding-left:18px;">Usa punto y coma (<code>;</code>) exclusivamente.</p>
+                    <p style="font-size:12px; color:var(--gray-500); padding-left:18px;">Compatibles: <code>.csv</code> (separador <code>;</code>), <code>.xlsx</code> y <code>.xls</code>.</p>
                 </div>
                 <div style="padding:16px; border-bottom:1px solid var(--gray-50);">
                     <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
@@ -137,6 +187,29 @@
         fileName.innerText = `📄 Seleccionado: ${name}`;
         fileInfo.style.display = 'block';
         dropZone.style.background = 'var(--primary-50)';
+    }
+
+    function mostrarTab(tab) {
+        const csvEjemplo = document.getElementById('ejemplo-csv');
+        const excelEjemplo = document.getElementById('ejemplo-excel');
+        const tabCsv = document.getElementById('tab-csv');
+        const tabExcel = document.getElementById('tab-excel');
+
+        if (tab === 'csv') {
+            csvEjemplo.style.display = 'block';
+            excelEjemplo.style.display = 'none';
+            tabCsv.style.background = 'var(--primary-600)';
+            tabCsv.style.color = 'white';
+            tabExcel.style.background = 'var(--gray-200)';
+            tabExcel.style.color = 'var(--gray-600)';
+        } else {
+            csvEjemplo.style.display = 'none';
+            excelEjemplo.style.display = 'block';
+            tabExcel.style.background = 'var(--primary-600)';
+            tabExcel.style.color = 'white';
+            tabCsv.style.background = 'var(--gray-200)';
+            tabCsv.style.color = 'var(--gray-600)';
+        }
     }
 </script>
 {% endblock %}
