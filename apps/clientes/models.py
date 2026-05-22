@@ -43,11 +43,19 @@ class Cliente(models.Model):
                     self.codigo = "CL0001"
             else:
                 self.codigo = "CL0001"
+        self.full_clean()
         super().save(*args, **kwargs)
 
     def clean(self):
-        num_doc_str = str(self.num_doc) if self.num_doc else ''
-        if self.tipo_doc == '6' and num_doc_str and len(num_doc_str) != 10:
-            raise ValidationError("El RUC debe tener 10 dígitos")
-        if self.tipo_doc == '1' and num_doc_str and len(num_doc_str) != 8:
-            raise ValidationError("El DNI debe tener 8 dígitos")
+        num_doc_str = str(self.num_doc).strip() if self.num_doc else ''
+        errors = {}
+        if self.tipo_doc == '6' and num_doc_str and len(num_doc_str) != 11:
+            errors['num_doc'] = "El RUC debe tener exactamente 11 dígitos"
+        elif self.tipo_doc == '1' and num_doc_str and len(num_doc_str) != 8:
+            errors['num_doc'] = "El DNI debe tener exactamente 8 dígitos"
+        
+        if self.telefono and len(str(self.telefono).strip()) != 9:
+            errors['telefono'] = "El teléfono debe tener exactamente 9 dígitos"
+            
+        if errors:
+            raise ValidationError(errors)

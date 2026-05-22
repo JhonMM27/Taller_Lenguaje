@@ -48,9 +48,10 @@
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="num_doc" class="form-label">N° Documento <span style="color:var(--danger);">*</span></label>
                     <input type="text" name="num_doc" id="num_doc" required 
-                           maxlength="{% if cliente.tipo_doc == '6' %}10{% elif cliente.tipo_doc == '1' %}8{% else %}15{% endif %}" 
-                           minlength="{% if cliente.tipo_doc == '6' %}10{% elif cliente.tipo_doc == '1' %}8{% else %}1{% endif %}"
-                           pattern="{% if cliente.tipo_doc == '6' %}[0-9]{10}{% elif cliente.tipo_doc == '1' %}[0-9]{8}{% else %}.*{% endif %}"
+                           maxlength="{% if cliente.tipo_doc == '6' %}11{% elif cliente.tipo_doc == '1' %}8{% else %}15{% endif %}" 
+                           minlength="{% if cliente.tipo_doc == '6' %}11{% elif cliente.tipo_doc == '1' %}8{% else %}1{% endif %}"
+                           pattern="{% if cliente.tipo_doc == '6' %}[0-9]{11}{% elif cliente.tipo_doc == '1' %}[0-9]{8}{% else %}.*{% endif %}"
+                           title="{% if cliente.tipo_doc == '6' %}El RUC debe tener 11 dígitos{% elif cliente.tipo_doc == '1' %}El DNI debe tener 8 dígitos{% else %}Documento de identidad{% endif %}"
                            value="{{ cliente.num_doc }}" class="form-control">
                 </div>
                 <div class="form-group" style="margin-bottom:0;">

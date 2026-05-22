@@ -250,19 +250,23 @@
      */
     function updateDocValidation(select) {
         const input = select.closest('form').querySelector('input[name="num_doc"]');
+        // Reset min/max properties temporarily to prevent IndexSizeError in browsers
+        input.removeAttribute('minlength');
+        input.removeAttribute('maxlength');
+        
         if (select.value === '1') { // DNI
-            input.maxLength = 8;
             input.minLength = 8;
+            input.maxLength = 8;
             input.pattern = "[0-9]{8}";
             input.title = "El DNI debe tener 8 dígitos";
         } else if (select.value === '6') { // RUC
-            input.maxLength = 11;
             input.minLength = 11;
+            input.maxLength = 11;
             input.pattern = "[0-9]{11}";
             input.title = "El RUC debe tener 11 dígitos";
         } else {
-            input.maxLength = 15;
             input.minLength = 1;
+            input.maxLength = 15;
             input.pattern = ".*";
             input.title = "Documento de identidad";
         }
