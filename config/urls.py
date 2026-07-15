@@ -46,4 +46,5 @@ urlpatterns = [
     path('notas-credito/', include('apps.notas_credito.urls')),
     path('comprobantes/', include('apps.comprobantes.urls')),
     path('reportes/', include('apps.reportes.urls')),
+    path('sunat-ose/', include('apps.sunat_ose.urls')),
 ]
