@@ -14,8 +14,12 @@ from typing import Protocol, runtime_checkable
 class IOSEService(Protocol):
     """Contrato con un OSE (Operador de Servicios Electronicos)."""
 
-    def send_bill(self, file_content: bytes, file_name: str) -> dict:
+    def send_bill(self, file_content, file_name: str) -> dict:
         """Envia un comprobante (XML+ZIP) al OSE.
+
+        Args:
+            file_content: ZIP en bytes o base64 str.
+            file_name: nombre del archivo ZIP con formato SUNAT.
 
         Returns:
             dict con al menos:
@@ -32,6 +36,10 @@ class IOSEService(Protocol):
 
     def get_status_cdr(self, ticket: str) -> dict:
         """Obtiene el CDR (constancia de recepcion) de un ticket."""
+        ...
+
+    def send_pack(self, file_content, file_name: str) -> dict:
+        """Envia un lote de comprobantes (asincrono) via sendPack."""
         ...
 
 

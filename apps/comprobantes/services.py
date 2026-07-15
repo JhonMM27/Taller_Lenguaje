@@ -6,10 +6,15 @@ Para no romperlas, este modulo expone una clase-compatible que delega al
 servicio del dominio via DI y devuelve modelos Django ORM (manteniendo
 la firma original).
 """
+import logging
+
 from interfaces.container import (
     get_comprobante_service,
     get_uow,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _modelo_desde_entidad(ent):
@@ -20,6 +25,26 @@ def _modelo_desde_entidad(ent):
     return CompModel.objects.select_related(
         'cliente', 'empresa', 'serie'
     ).get(pk=ent.id)
+
+
+def _generar_y_firmar_xml(comprobante_model):
+    """
+    Genera el XML UBL 2.1 del comprobante y lo firma digitalmente.
+
+    Retorna el XML firmado (str) o None si falla.
+    """
+    try:
+        from apps.sunat_ose.xml_generator import generar_xml_ubl
+        from apps.sunat_ose.firmar import firmar_xml
+
+        xml_content = generar_xml_ubl(comprobante_model)
+        xml_firmado = firmar_xml(xml_content, empresa_id=comprobante_model.empresa_id)
+        if isinstance(xml_firmado, bytes):
+            return xml_firmado.decode('utf-8')
+        return xml_firmado
+    except Exception as exc:
+        logger.exception("Error generando/firmando XML para comprobante %s", comprobante_model.pk)
+        return None
 
 
 class ComprobanteService:
@@ -47,13 +72,32 @@ class ComprobanteService:
 
     @staticmethod
     def emitir(comprobante_id):
+        """
+        Cambia estado BORRADOR -> EMITIDO y genera el XML firmado.
+        """
         ent = get_comprobante_service().emitir(comprobante_id=comprobante_id)
-        return _modelo_desde_entidad(ent)
+        # Generar XML firmado en el modelo Django
+        modelo = _modelo_desde_entidad(ent)
+        if modelo is not None:
+            xml_firmado = _generar_y_firmar_xml(modelo)
+            if xml_firmado:
+                modelo.xml_firmado = xml_firmado
+                modelo.save(update_fields=['xml_firmado'])
+        return modelo
 
     @staticmethod
     def reenviar(comprobante_id):
+        """
+        Regenera XML de un comprobante RECHAZADO y cambia estado a ENVIADO.
+        """
         ent = get_comprobante_service().reenviar(comprobante_id=comprobante_id)
-        return _modelo_desde_entidad(ent)
+        modelo = _modelo_desde_entidad(ent)
+        if modelo is not None:
+            xml_firmado = _generar_y_firmar_xml(modelo)
+            if xml_firmado:
+                modelo.xml_firmado = xml_firmado
+                modelo.save(update_fields=['xml_firmado'])
+        return modelo
 
     @staticmethod
     def eliminar(comprobante_id, usuario=None):

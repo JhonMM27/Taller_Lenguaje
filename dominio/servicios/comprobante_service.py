@@ -92,28 +92,29 @@ class ComprobanteService:
         """
         empresa = self._obtener_empresa(empresa_id)
         cliente = self._uow.clientes.obtener_por_id(cliente_id)
-
         self._validar_tipo_documento(tipo, cliente)
-        serie, numero = self._uow.series.siguiente_correlativo(empresa_id, tipo)
 
         detalles = [
             self._construir_detalle(d) for d in detalles_data
         ]
 
-        comprobante = Comprobante(
-            id=None,
-            empresa_id=empresa_id,
-            cliente_id=cliente_id,
-            serie_id=serie.id if serie.id else 0,
-            numero=numero,
-            fecha=fecha,
-            tipo=tipo,
-            estado=ESTADO_BORRADOR,
-            detalles=detalles,
-        )
-        comprobante.calcular_totales(self._tasa_igv)
-
         with self._uow:
+            # siguiente_correlativo usa select_for_update → debe correr dentro de una transacción
+            serie, numero = self._uow.series.siguiente_correlativo(empresa_id, tipo)
+
+            comprobante = Comprobante(
+                id=None,
+                empresa_id=empresa_id,
+                cliente_id=cliente_id,
+                serie_id=serie.id if serie.id else 0,
+                numero=numero,
+                fecha=fecha,
+                tipo=tipo,
+                estado=ESTADO_BORRADOR,
+                detalles=detalles,
+            )
+            comprobante.calcular_totales(self._tasa_igv)
+
             guardado = self._uow.comprobantes.guardar(comprobante)
             self._uow.commit()
 
@@ -128,6 +129,7 @@ class ComprobanteService:
             ))
 
         return guardado
+
 
     def emitir(
         self,

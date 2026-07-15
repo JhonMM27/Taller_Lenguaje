@@ -147,10 +147,12 @@
                             </a>
                             {% endif %}
                             {% if comp.estado == 'RECHAZADO' %}
-                            <a href="{% url 'comprobantes:reenviar' comp.id %}"
-                               class="btn-icon danger" title="Reenviar">
-                                <i class="bi bi-arrow-clockwise"></i>
-                            </a>
+                            <form method="post" action="{% url 'comprobantes:reenviar' comp.id %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-icon danger" title="Reenviar" style="background:none; border:none; cursor:pointer; color:inherit;">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </form>
                             {% endif %}
                         </div>
                     </td>

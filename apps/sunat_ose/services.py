@@ -4,6 +4,7 @@ Service Layer para el módulo de envío a SUNAT/OSE.
 Toda la lógica de negocio de envío, firma, empaquetado y consulta de tickets.
 """
 
+from dominio.excepciones import RecursoNoEncontrado
 import base64
 import logging
 import zipfile
