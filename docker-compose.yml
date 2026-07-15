@@ -105,6 +105,23 @@ services:
       - sunat_network
     restart: unless-stopped
 
+  # Redis (opcional) - cache para listados de alta frecuencia
+  redis:
+    image: redis:7-alpine
+    container_name: sunat_redis
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - sunat_network
+    restart: unless-stopped
+
 networks:
   sunat_network:
     driver: bridge
@@ -114,3 +131,4 @@ volumes:
   pgadmin_data:
   static_volume:
   media_volume:
+  redis_data:

@@ -145,6 +145,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'interfaces.api.exception_handler.domain_exception_handler',
 }
 
 # JWT Configuration
@@ -168,6 +169,23 @@ IGV_TASA = 0.18
 
 SUNAT_OSE_MOCK = os.getenv('SUNAT_OSE_MOCK', 'True') == 'True'
 SUNAT_OSE_URL = os.getenv('SUNAT_OSE_URL', '/api/ose/send/')
+
+# Cache con Redis (opcional). Si no hay REDIS_URL, usa LocMemCache.
+REDIS_URL = os.getenv('REDIS_URL', '')
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "sunat-cache",
+        }
+    }
 
 LOGGING = {
     'version': 1,
