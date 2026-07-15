@@ -92,7 +92,7 @@ form-select) y grillas CSS nativas inline.
             </div>
             <div class="form-group" style="margin-bottom:0;">
                 <label for="precio_unitario" class="form-label">Precio Unitario <span style="color:var(--danger);">*</span></label>
-                <input type="number" name="precio_unitario" id="precio_unitario" required step="0.01" min="0" value="{{ producto.precio_unitario }}" class="form-control">
+                <input type="number" name="precio_unitario" id="precio_unitario" required step="0.01" min="0" value="{{ producto.precio_unitario|stringformat:".2f" }}" class="form-control">
             </div>
             <div class="form-group" style="margin-bottom:0;">
                 <label for="cod_tipo_afectacion" class="form-label">Afectación IGV</label>

@@ -19,15 +19,15 @@ def lista_productos(request):
 
     return render(request, 'productos/lista.html', {
         # Se ordena por fecha de creación ascendente (del más antiguo al más nuevo)
-        'productos': productos.order_by('created_at')[:100],
+        'productos': productos.order_by('creado_en')[:100],
         'query': query,
-        'categorias': CategoriaProducto.objects.filter(activa=True).order_by('id'),
+        'categorias': CategoriaProducto.objects.filter(activo=True).order_by('id'),
     })
 
 
 @login_required
 def crear_producto(request):
-    categorias = CategoriaProducto.objects.filter(activa=True).order_by('nombre')
+    categorias = CategoriaProducto.activos.all().order_by('nombre')
     if request.method == 'POST':
         serializer = ProductoSerializer(data=request.POST)
         if serializer.is_valid():
@@ -41,7 +41,7 @@ def crear_producto(request):
 @login_required
 def editar_producto(request, pk):
     producto = get_object_or_404(Producto, pk=pk)
-    categorias = CategoriaProducto.objects.filter(activa=True).order_by('nombre')
+    categorias = CategoriaProducto.activos.all().order_by('nombre')
     if request.method == 'POST':
         serializer = ProductoSerializer(instance=producto, data=request.POST)
         if serializer.is_valid():
@@ -56,7 +56,7 @@ def editar_producto(request, pk):
 def eliminar_producto(request, pk):
     producto = get_object_or_404(Producto, pk=pk)
     if request.method == 'POST':
-        producto.delete()
+        producto.eliminar(usuario=request.user)
         messages.success(request, 'Producto eliminado exitosamente')
         return redirect('productos:lista')
     return render(request, 'productos/eliminar.html', {'producto': producto})
@@ -105,7 +105,7 @@ def editar_categoria(request, pk):
 def eliminar_categoria(request, pk):
     categoria = get_object_or_404(CategoriaProducto, pk=pk)
     if request.method == 'POST':
-        categoria.delete()
+        categoria.eliminar(usuario=request.user)
         messages.success(request, 'Categoría eliminada exitosamente')
         return redirect('productos:categorias_lista')
     return render(request, 'productos/categorias/eliminar.html', {'categoria': categoria})

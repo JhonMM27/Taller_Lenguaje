@@ -1,9 +1,9 @@
 from django.db import models
-from django.core.exceptions import ValidationError
+from apps.core.models import ModeloBase
 from apps.comprobantes.models import Comprobante
 
 
-class NotaCredito(models.Model):
+class NotaCredito(ModeloBase):
     TIPO_NC_CHOICES = [
         ('NC', 'Nota de Crédito'),
         ('NCD', 'Nota de Crédito por Descuento'),
@@ -36,20 +36,28 @@ class NotaCredito(models.Model):
     importe = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     descripcion = models.TextField(blank=True)
     estado = models.CharField(max_length=20, default='BORRADOR')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Campos SUNAT
+    xml_firmado = models.TextField(blank=True, null=True)
+    sunat_ticket = models.CharField(max_length=100, blank=True, null=True)
+    cdr_xml = models.TextField(blank=True, null=True)
+    mensaje_sunat = models.TextField(blank=True, null=True)
 
     class Meta:
         verbose_name = "Nota de Crédito"
         verbose_name_plural = "Notas de Crédito"
-        ordering = ['-fecha', '-created_at']
+        ordering = ['-fecha', '-creado_en']
 
     def __str__(self):
         return f"NC-{self.serie}-{self.numero:08d}"
 
-    def clean(self):
-        if self.importe > self.comprobante_referencia.total:
-            raise ValidationError("El importe no puede exceder el total del comprobante original")
+    @property
+    def nombre_xml(self):
+        return f"{self.comprobante_referencia.empresa.ruc}-07-{self.serie}-{self.numero:08d}.xml"
+
+    @property
+    def nombre_zip(self):
+        return f"{self.comprobante_referencia.empresa.ruc}-07-{self.serie}-{self.numero:08d}.zip"
 
     def calcular_totales(self):
         from decimal import Decimal
@@ -77,7 +85,7 @@ class NotaCredito(models.Model):
         self.save(update_fields=['op_gravada', 'igv', 'importe'])
 
 
-class DetalleNotaCredito(models.Model):
+class DetalleNotaCredito(ModeloBase):
     nota_credito = models.ForeignKey(
         NotaCredito,
         on_delete=models.CASCADE,

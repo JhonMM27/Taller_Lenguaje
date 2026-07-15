@@ -1,17 +1,28 @@
+"""
+API Views del módulo de Comprobantes.
+
+Views delgadas: delegan toda lógica al ComprobanteService.
+Capturan excepciones de dominio con handlers específicos.
+"""
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db import transaction
-from django.db.models import Q
-from apps.comprobantes.models import Comprobante, SerieComprobante, LogEnvioSUNAT
+
+from apps.comprobantes.models import Comprobante, LogEnvioSUNAT
 from apps.comprobantes.serializers import (
     ComprobanteSerializer,
     ComprobanteCreateSerializer,
-    LogEnvioSUNATSerializer
+    LogEnvioSUNATSerializer,
 )
-from apps.sunat_ose.xml_generator import generar_xml_ubl, firmar_xml, crear_zip
+from apps.comprobantes.services import ComprobanteService
+from apps.core.exceptions import (
+    AppError, ReglaNegocioViolada, RecursoNoEncontrado,
+    TipoDocumentoInvalido, EstadoInvalido, ComprobanteNoAnulable,
+)
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -31,7 +42,16 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
     filterset_fields = ['tipo', 'estado', 'fecha']
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = Comprobante.activos.select_related('cliente', 'empresa', 'serie').all()
+        
+        user = self.request.user
+        if user and user.is_authenticated:
+            try:
+                perfil = user.perfil
+                if perfil.rol != 'ADMIN' and perfil.empresa:
+                    queryset = queryset.filter(empresa=perfil.empresa)
+            except AttributeError:
+                pass
         
         ruc_cliente = self.request.GET.get('ruc_cliente', '')
         if ruc_cliente:
@@ -52,6 +72,26 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
             return ComprobanteCreateSerializer
         return ComprobanteSerializer
 
+    def create(self, request, *args, **kwargs):
+        """View delgada: delega al ComprobanteService.crear()."""
+        try:
+            comprobante = ComprobanteService.crear(
+                data=request.data,
+                usuario=request.user,
+            )
+            return Response(
+                ComprobanteSerializer(comprobante).data,
+                status=status.HTTP_201_CREATED,
+            )
+        except TipoDocumentoInvalido as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except RecursoNoEncontrado as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except ReglaNegocioViolada as e:
+            return Response({'error': str(e)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        except AppError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=False, methods=['get'])
     def buscar(self, request):
         serie = request.GET.get('serie', '')
@@ -65,20 +105,19 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
                     numero=numero_int
                 ).select_related('cliente', 'empresa', 'serie')
                 
-                if comprobantes.exists():
-                    data = []
-                    for comp in comprobantes:
-                        data.append({
-                            'id': comp.id,
-                            'numero': f"{comp.serie.serie}-{comp.numero:08d}",
-                            'cliente': comp.cliente.razon_social,
-                            'ruc': comp.cliente.num_doc,
-                            'fecha': comp.fecha.strftime('%Y-%m-%d'),
-                            'total': float(comp.total),
-                            'estado': comp.estado,
-                        })
-                    return Response(data)
-                return Response([], status=status.HTTP_200_OK)
+                data = [
+                    {
+                        'id': comp.id,
+                        'numero': f"{comp.serie.serie}-{comp.numero:08d}",
+                        'cliente': comp.cliente.razon_social,
+                        'ruc': comp.cliente.num_doc,
+                        'fecha': comp.fecha.strftime('%Y-%m-%d'),
+                        'total': float(comp.total),
+                        'estado': comp.estado,
+                    }
+                    for comp in comprobantes
+                ]
+                return Response(data)
             except ValueError:
                 return Response(
                     {'error': 'Número inválido'},
@@ -91,47 +130,39 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def emitir(self, request, pk=None):
-        comprobante = self.get_object()
-        if comprobante.estado != 'BORRADOR':
-            return Response(
-                {'error': 'Solo se pueden emitir comprobantes en estado BORRADOR'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        comprobante.estado = 'EMITIDO'
-        comprobante.save(update_fields=['estado'])
-        serializer = self.get_serializer(comprobante)
-        return Response(serializer.data)
+        """View delgada: delega al ComprobanteService.emitir()."""
+        try:
+            comprobante = ComprobanteService.emitir(pk)
+            serializer = self.get_serializer(comprobante)
+            return Response(serializer.data)
+        except EstadoInvalido as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except RecursoNoEncontrado as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except AppError as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'])
     def reenviar(self, request, pk=None):
-        comprobante = self.get_object()
-        if comprobante.estado != 'RECHAZADO':
-            return Response(
-                {'error': 'Solo se pueden reenviar comprobantes en estado RECHAZADO'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+        """View delgada: delega al ComprobanteService.reenviar()."""
         try:
-            xml_content = generar_xml_ubl(comprobante)
-            xml_firmado = firmar_xml(xml_content, empresa_id=comprobante.empresa_id)
-
-            comprobante.xml_firmado = xml_firmado.decode('utf-8') if isinstance(xml_firmado, bytes) else xml_firmado
-            comprobante.estado = 'ENVIADO'
-            comprobante.save(update_fields=['xml_firmado', 'estado'])
-
+            comprobante = ComprobanteService.reenviar(pk)
             logger.info(f"Comprobante {comprobante} reenviado exitosamente")
             serializer = self.get_serializer(comprobante)
             return Response(serializer.data)
-
-        except Exception as e:
-            logger.error(f"Error reenviando comprobante {comprobante}: {str(e)}")
+        except EstadoInvalido as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except RecursoNoEncontrado as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except AppError as e:
+            logger.error(f"Error reenviando comprobante {pk}: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def pdf(self, request, pk=None):
         comprobante = self.get_object()
         from django.http import HttpResponse
+        # pyrefly: ignore [missing-import]
         from weasyprint import HTML
         from django.template.loader import render_to_string
 
@@ -156,6 +187,7 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        from django.http import HttpResponse
         response = HttpResponse(comprobante.xml_firmado.encode('utf-8'), content_type='application/xml')
         response['Content-Disposition'] = f'attachment; filename="{comprobante.nombre_xml}"'
         return response
@@ -165,6 +197,17 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
         comprobante = self.get_object()
         serializer = self.get_serializer(comprobante)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['delete'])
+    def eliminar_soft(self, request, pk=None):
+        """Soft delete — comprobantes ACEPTADOS no se pueden eliminar."""
+        try:
+            ComprobanteService.eliminar(pk, usuario=request.user)
+            return Response({'status': 'eliminado'}, status=status.HTTP_200_OK)
+        except ComprobanteNoAnulable as e:
+            return Response({'error': str(e)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        except RecursoNoEncontrado as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 
 class LogEnvioSUNATViewSet(viewsets.ReadOnlyModelViewSet):

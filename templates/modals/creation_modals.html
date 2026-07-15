@@ -380,11 +380,18 @@ function openEditModal(url) {
                 `;
 
                 // Insert content
-                document.getElementById('editFormContainer').innerHTML = mainContent.innerHTML;
+                if (mainContent.tagName === 'FORM') {
+                    document.getElementById('editFormContainer').innerHTML = mainContent.outerHTML;
+                } else {
+                    document.getElementById('editFormContainer').innerHTML = mainContent.innerHTML;
+                }
 
                 // Attach event listener using addEventListener for better compatibility
                 const form = document.getElementById('editFormContainer').querySelector('form');
                 if (form) {
+                    if (!form.getAttribute('action')) {
+                        form.setAttribute('action', url);
+                    }
                     form.addEventListener('submit', function(e) {
                         e.preventDefault();
                         submitEditForm(form);
@@ -452,10 +459,17 @@ function submitEditForm(form) {
                     const container = document.getElementById('editFormContainer');
                     const mainContent = doc.querySelector('.card-body') || doc.querySelector('form');
                     if (mainContent) {
-                        container.innerHTML = mainContent.innerHTML;
+                        if (mainContent.tagName === 'FORM') {
+                            container.innerHTML = mainContent.outerHTML;
+                        } else {
+                            container.innerHTML = mainContent.innerHTML;
+                        }
                         // Re-attach form handlers
                         const newForm = container.querySelector('form');
                         if (newForm) {
+                            if (!newForm.getAttribute('action')) {
+                                newForm.setAttribute('action', form.action);
+                            }
                             newForm.addEventListener('submit', function(e) {
                                 e.preventDefault();
                                 submitEditForm(newForm);

@@ -1,14 +1,12 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from apps.core.models import ModeloBase
 
 
-class CategoriaProducto(models.Model):
+class CategoriaProducto(ModeloBase):
     nombre = models.CharField(max_length=100, unique=True, verbose_name="Nombre")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
     codigo_sunat = models.CharField(max_length=10, blank=True, verbose_name="Código SUNAT")
-    activa = models.BooleanField(default=True, verbose_name="Activa")
-    created_at = models.DateTimeField(auto_now_add=True, null=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Categoría de Producto"
@@ -19,7 +17,7 @@ class CategoriaProducto(models.Model):
         return self.nombre
 
 
-class Producto(models.Model):
+class Producto(ModeloBase):
     TIPO_OPERACION_CHOICES = [
         ('GRAVADA', 'Operación Gravada'),
         ('EXONERADA', 'Operación Exonerada'),
@@ -34,8 +32,6 @@ class Producto(models.Model):
     precio_unitario = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Precio Unitario")
     afecto_igv = models.BooleanField(default=True, verbose_name="Afecto IGV")
     cod_tipo_afectacion = models.CharField(max_length=10, default='10', verbose_name="Tipo de Afectación IGV")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     categoria = models.ForeignKey(
         CategoriaProducto,

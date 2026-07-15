@@ -4,9 +4,9 @@ from .models import Producto, CategoriaProducto
 
 @admin.register(CategoriaProducto)
 class CategoriaProductoAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'codigo_sunat', 'activa']
+    list_display = ['nombre', 'codigo_sunat', 'activo']
     search_fields = ['nombre', 'codigo_sunat']
-    list_filter = ['activa']
+    list_filter = ['activo']
 
 
 @admin.register(Producto)

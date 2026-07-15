@@ -25,9 +25,9 @@ class CertificadoSerializer(serializers.ModelSerializer):
             'id', 'empresa', 'empresa_ruc', 'empresa_nombre',
             'nombre', 'numero_serie', 'fecha_desde', 'fecha_hasta',
             'huella_digital', 'is_active', 'is_vencido',
-            'created_at', 'updated_at'
+            'creado_en', 'actualizado_en'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'creado_en', 'actualizado_en']
 
     def get_is_vencido(self, obj):
         from datetime import date

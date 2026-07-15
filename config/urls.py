@@ -4,6 +4,15 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 from apps.comprobantes.api_views import ComprobanteViewSet
 from apps.clientes.api_views import ClienteViewSet
 from apps.productos.api_views import ProductoViewSet
@@ -36,7 +45,14 @@ urlpatterns = [
     path('dashboard/', login_required(dashboard_view), name='dashboard'),
     
     path('api/', include(router.urls)),
+    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/login/', csrf_exempt(login_page), name='api_login'),
+    
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/docs/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    
     path('api/reportes/ventas-por-periodo/', ReporteVentasPeriodoView.as_view(), name='reporte_ventas_periodo'),
     path('api/reportes/dashboard/', DashboardView.as_view(), name='api_dashboard'),
     path('api/ose/', include('apps.sunat_ose.urls')),

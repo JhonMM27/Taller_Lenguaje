@@ -1,9 +1,10 @@
 from django.db import models
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
+from apps.core.models import ModeloBase
 
 
-class Cliente(models.Model):
+class Cliente(ModeloBase):
     TIPO_DOC_CHOICES = [
         ('1', 'DNI'),
         ('6', 'RUC'),
@@ -20,8 +21,6 @@ class Cliente(models.Model):
     telefono = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
     ubigeo = models.CharField(max_length=6, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Cliente"

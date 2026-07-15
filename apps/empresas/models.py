@@ -1,8 +1,9 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from apps.core.models import ModeloBase
 
 
-class Certificado(models.Model):
+class Certificado(ModeloBase):
     empresa = models.ForeignKey(
         'Empresa',
         on_delete=models.CASCADE,
@@ -16,8 +17,6 @@ class Certificado(models.Model):
     fecha_hasta = models.DateField(verbose_name="Valido hasta")
     huella_digital = models.CharField(max_length=64, verbose_name="Huella Digital (SHA256)")
     is_active = models.BooleanField(default=False, verbose_name="Activo")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Certificado"
@@ -41,7 +40,7 @@ class Certificado(models.Model):
         super().save(*args, **kwargs)
 
 
-class Empresa(models.Model):
+class Empresa(ModeloBase):
     ruc = models.CharField(max_length=11, unique=True, verbose_name="RUC")
     codigo = models.CharField(max_length=10, unique=True, blank=True, null=True, verbose_name="Código")
     razon_social = models.CharField(max_length=200, verbose_name="Razón Social")
@@ -51,8 +50,6 @@ class Empresa(models.Model):
     email = models.EmailField(blank=True, null=True)
     regimen_tributario = models.CharField(max_length=50, default="GENERAL", verbose_name="Régimen Tributario")
     logo = models.ImageField(upload_to='logos/', blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Empresa"

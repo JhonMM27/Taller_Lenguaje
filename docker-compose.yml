@@ -40,7 +40,7 @@ services:
       DEBUG: "False"
       SECRET_KEY: django-insecure-change-me-in-production-abc123xyz-2026
       SUNAT_CERT_PATH: /app/certs/CT2602141470.pfx
-      SUNAT_CERT_PASSWORD: Lavagna2026
+      SUNAT_CERT_PASSWORD: testpass
       # ============================================================
       # MODO MOCK: SIMULA SUNAT - NO ENVIA COMPROBANTES REALES
       # ============================================================

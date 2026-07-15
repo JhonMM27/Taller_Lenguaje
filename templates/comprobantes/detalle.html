@@ -235,7 +235,15 @@ function enviarSunat() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
 
-    mostrarAlerta('primary', 'Enviando comprobante a SUNAT...');
+    Swal.fire({
+        title: 'Enviando a SUNAT/OSE',
+        text: 'Por favor, espere mientras se firma y valida el comprobante...',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
 
     fetch("{% url 'sunat_ose:enviar_comprobante' comprobante.id %}", {
         method: 'POST',
@@ -247,27 +255,36 @@ function enviarSunat() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            if (data.estado === 'ACEPTADO') {
-                // sendBill: SUNAT acepto el comprobante de forma inmediata (sin ticket)
-                mostrarAlerta('success', 'Comprobante ACEPTADO por SUNAT. Recargando...');
-                setTimeout(() => location.reload(), 2000);
-            } else if (data.ticket) {
-                // sendPack: hay ticket asincrono, consultar estado
-                mostrarAlerta('success', 'Comprobante enviado. Consultando ticket...');
-                setTimeout(() => consultarTicket(), 2000);
-            } else {
-                mostrarAlerta('success', 'Comprobante enviado correctamente. Recargando...');
-                setTimeout(() => location.reload(), 2000);
-            }
+            Swal.fire({
+                icon: 'success',
+                title: 'Éxito',
+                text: data.descripcion || 'Comprobante enviado y ACEPTADO por SUNAT.',
+                confirmButtonText: 'Aceptar',
+                confirmButtonColor: '#2563eb'
+            }).then(() => {
+                location.reload();
+            });
         } else {
-            mostrarAlerta('danger', `Error: ${data.error || data.descripcion || 'Error desconocido'}`);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de Validación',
+                text: data.error || data.descripcion || 'Ocurrió un error al enviar el comprobante.',
+                confirmButtonText: 'Aceptar',
+                confirmButtonColor: '#dc2626'
+            });
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-send"></i> Reenviar a SUNAT';
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        mostrarAlerta('danger', 'Error de conexion');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error de Conexión',
+            text: 'No se pudo establecer comunicación con el servidor.',
+            confirmButtonText: 'Aceptar',
+            confirmButtonColor: '#dc2626'
+        });
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-send"></i> Reenviar a SUNAT';
     });
@@ -280,7 +297,15 @@ function consultarTicket() {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Consultando...';
     }
 
-    mostrarAlerta('primary', 'Consultando estado del ticket...');
+    Swal.fire({
+        title: 'Consultando ticket',
+        text: 'Por favor, espere mientras se obtiene la respuesta del OSE/SUNAT...',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
 
     fetch("{% url 'sunat_ose:consultar_ticket' comprobante.id %}", {
         method: 'POST',
@@ -292,16 +317,33 @@ function consultarTicket() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            let icon = 'info';
+            let title = 'Procesando';
             if (data.estado === 'ACEPTADO') {
-                mostrarAlerta('success', 'Comprobante ACEPTADO por SUNAT');
+                icon = 'success';
+                title = 'Comprobante Aceptado';
             } else if (data.estado === 'RECHAZADO') {
-                mostrarAlerta('danger', `Comprobante RECHAZADO: ${data.descripcion}`);
-            } else {
-                mostrarAlerta('warning', `Estado: ${data.estado} - ${data.descripcion}`);
+                icon = 'error';
+                title = 'Comprobante Rechazado';
             }
-            setTimeout(() => location.reload(), 3000);
+
+            Swal.fire({
+                icon: icon,
+                title: title,
+                text: data.descripcion || `Estado: ${data.estado}`,
+                confirmButtonText: 'Aceptar',
+                confirmButtonColor: '#2563eb'
+            }).then(() => {
+                location.reload();
+            });
         } else {
-            mostrarAlerta('danger', `Error: ${data.error || 'Error consultando ticket'}`);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de Consulta',
+                text: data.error || 'Ocurrió un error al consultar el ticket.',
+                confirmButtonText: 'Aceptar',
+                confirmButtonColor: '#dc2626'
+            });
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-search"></i> Consultar Ticket';
@@ -310,7 +352,13 @@ function consultarTicket() {
     })
     .catch(error => {
         console.error('Error:', error);
-        mostrarAlerta('danger', 'Error de conexión');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error de Conexión',
+            text: 'Error de conexión con el servidor.',
+            confirmButtonText: 'Aceptar',
+            confirmButtonColor: '#dc2626'
+        });
         if (btn) {
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-search"></i> Consultar Ticket';

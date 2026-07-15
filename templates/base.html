@@ -20,6 +20,9 @@
     {% load static static_version %}
     <link rel="stylesheet" href="{% static 'css/styles.css' %}?v={% static_version %}">
 
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -289,6 +292,24 @@
         });
     }, 4000);
 </script>
+
+{% if messages %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        {% for message in messages %}
+            Swal.fire({
+                icon: "{% if message.tags == 'error' %}error{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}",
+                title: "{% if message.tags == 'error' %}Atención{% elif message.tags == 'success' %}Éxito{% else %}Información{% endif %}",
+                text: "{{ message|escapejs }}",
+                confirmButtonColor: "#2563eb",
+                confirmButtonText: "Aceptar"
+            });
+            // Ocultar las alertas div tradicionales para que no se dupliquen
+            document.querySelectorAll('.alert').forEach(el => el.style.display = 'none');
+        {% endfor %}
+    });
+</script>
+{% endif %}
 
 {% block extra_js %}{% endblock %}
 </body>

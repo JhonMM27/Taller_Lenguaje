@@ -12,9 +12,31 @@
         </h1>
         <p class="page-subtitle">{{ nota.serie }}-{{ nota.numero|stringformat:"08d" }}</p>
     </div>
-    <a href="{% url 'notas_credito:lista' %}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Volver
-    </a>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a href="{% url 'notas_credito:lista' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+        
+        {% if nota.xml_firmado %}
+        <a href="{% url 'notas_credito:xml' nota.id %}" class="btn btn-outline" style="color:var(--primary-600); border-color:var(--primary-600);">
+            <i class="bi bi-file-code"></i> XML
+        </a>
+        {% endif %}
+        
+        {% if nota.estado == 'ACEPTADO' and nota.cdr_xml %}
+        <a href="{% url 'notas_credito:cdr' nota.id %}" class="btn btn-outline" style="color:#7c3aed; border-color:#7c3aed;">
+            <i class="bi bi-file-earmark-zip"></i> Descargar CDR
+        </a>
+        {% endif %}
+        
+        <div style="width:2px; height:32px; background:var(--gray-200); margin:0 5px;"></div>
+
+        {% if nota.estado == 'BORRADOR' or nota.estado == 'RECHAZADO' %}
+        <button type="button" class="btn btn-primary" id="btn-enviar-sunat" onclick="enviarSunat()">
+            <i class="bi bi-send"></i> Enviar a SUNAT
+        </button>
+        {% endif %}
+    </div>
 </div>
 
 <!-- Info General -->
@@ -164,4 +186,67 @@
     </div>
 </div>
 
+<script>
+function mostrarAlerta(tipo, mensaje) {
+    let alerta = document.getElementById('alerta-envio');
+    if (!alerta) {
+        alerta = document.createElement('div');
+        alerta.id = 'alerta-envio';
+        alerta.className = 'alert';
+        alerta.style.marginBottom = '20px';
+        const header = document.querySelector('.page-header');
+        if (header && header.parentNode) {
+            header.parentNode.insertBefore(alerta, header.nextSibling);
+        } else {
+            document.querySelector('.main-content')?.prepend(alerta);
+        }
+    }
+    alerta.className = `alert alert-${tipo} fade-in`;
+    alerta.innerHTML = `<i class="bi bi-info-circle" style="margin-right:8px;"></i> ${mensaje}`;
+    alerta.classList.remove('d-none');
+    alerta.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function enviarSunat() {
+    const btn = document.getElementById('btn-enviar-sunat');
+    if (!btn) {
+        console.error('Elemento btn-enviar-sunat no encontrado');
+        return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
+
+    mostrarAlerta('primary', 'Enviando nota de crédito a SUNAT...');
+
+    fetch("{% url 'sunat_ose:enviar_nota_credito' nota.id %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarAlerta('success', 'Nota de Crédito ACEPTADA por SUNAT. Recargando...');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            mostrarAlerta('danger', `Error: ${data.error || 'Error de envío'}`);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send"></i> Reenviar a SUNAT';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarAlerta('danger', 'Error de conexión');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-send"></i> Reenviar a SUNAT';
+    });
+}
+</script>
+
+<style>
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .spinner-border-sm { width: 1rem; height: 1rem; border-width: 0.2em; display: inline-block; vertical-align: text-bottom; border: .25em solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .75s linear infinite; }
+</style>
 {% endblock %}

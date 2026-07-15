@@ -1,11 +1,11 @@
 from django.db import models
-from django.core.exceptions import ValidationError
 from django.conf import settings
+from apps.core.models import ModeloBase
 from apps.empresas.models import Empresa
 from apps.clientes.models import Cliente
 
 
-class SerieComprobante(models.Model):
+class SerieComprobante(ModeloBase):
     TIPO_CHOICES = [
         ('01', 'Factura'),
         ('03', 'Boleta'),
@@ -17,7 +17,6 @@ class SerieComprobante(models.Model):
     tipo = models.CharField(max_length=2, choices=TIPO_CHOICES)
     serie = models.CharField(max_length=4)
     correlativo_actual = models.PositiveIntegerField(default=0)
-    activa = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = "Serie de Comprobante"
@@ -28,14 +27,8 @@ class SerieComprobante(models.Model):
     def __str__(self):
         return f"{self.empresa.ruc}-{self.tipo}-{self.serie}"
 
-    def siguiente_correlativo(self):
-        with models.Q.objects.filter(pk=self.pk).select_for_update():
-            self.correlativo_actual += 1
-            self.save(update_fields=['correlativo_actual'])
-            return self.correlativo_current
 
-
-class Comprobante(models.Model):
+class Comprobante(ModeloBase):
     ESTADO_CHOICES = [
         ('BORRADOR', 'Borrador'),
         ('EMITIDO', 'Emitido'),
@@ -45,6 +38,14 @@ class Comprobante(models.Model):
         ('ANULADO_PARCIAL', 'Anulado Parcial'),
         ('ANULADO_TOTAL', 'Anulado Total'),
     ]
+
+    TRANSICIONES_VALIDAS = {
+        'BORRADOR': ['EMITIDO'],
+        'EMITIDO': ['ENVIADO', 'BORRADOR'],
+        'ENVIADO': ['ACEPTADO', 'RECHAZADO'],
+        'RECHAZADO': ['ENVIADO'],
+        'ACEPTADO': ['ANULADO_PARCIAL', 'ANULADO_TOTAL'],
+    }
 
     empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, related_name='comprobantes')
     cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name='comprobantes')
@@ -59,13 +60,11 @@ class Comprobante(models.Model):
     xml_firmado = models.TextField(blank=True, null=True)
     zip_path = models.CharField(max_length=500, blank=True, null=True)
     sunat_ticket = models.CharField(max_length=100, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Comprobante"
         verbose_name_plural = "Comprobantes"
-        ordering = ['-fecha', '-created_at']
+        ordering = ['-fecha', '-creado_en']
         unique_together = ['serie', 'numero']
 
     def __str__(self):
@@ -76,9 +75,6 @@ class Comprobante(models.Model):
         Calcula y actualiza los importes del comprobante electrónico: subtotal, igv y total.
         Realiza el cálculo de impuestos de forma individual para cada línea de detalle,
         y luego los acumula a nivel de cabecera.
-        
-        Asegura que todos los cálculos se realicen utilizando tipos decimal.Decimal
-        para prevenir errores de precisión y el error de tipos al multiplicar por float.
         """
         from decimal import Decimal
         detalles = self.detalles.all()
@@ -87,10 +83,8 @@ class Comprobante(models.Model):
         tasa_igv = Decimal(str(settings.IGV_TASA))
         
         for detalle in detalles:
-            # Multiplicación exacta usando Decimal en el detalle
             base = detalle.precio_unitario * detalle.cantidad
             if detalle.afecto_igv:
-                # Multiplicación de Decimal por la tasa también en Decimal
                 igv_linea = round(base * tasa_igv, 2)
             else:
                 igv_linea = Decimal('0.00')
@@ -118,7 +112,7 @@ class Comprobante(models.Model):
         return f"{self.empresa.ruc}-{tipo}-{self.serie.serie}-{self.numero:08d}.zip"
 
 
-class DetalleComprobante(models.Model):
+class DetalleComprobante(ModeloBase):
     comprobante = models.ForeignKey(Comprobante, on_delete=models.CASCADE, related_name='detalles')
     producto = models.ForeignKey('productos.Producto', on_delete=models.PROTECT)
     cantidad = models.DecimalField(max_digits=12, decimal_places=4)
@@ -137,7 +131,7 @@ class DetalleComprobante(models.Model):
         return f"{self.comprobante} - {self.producto.codigo}"
 
 
-class LogEnvioSUNAT(models.Model):
+class LogEnvioSUNAT(ModeloBase):
     comprobante = models.ForeignKey(Comprobante, on_delete=models.CASCADE, related_name='logs')
     fecha_envio = models.DateTimeField(auto_now_add=True)
     estado_respuesta = models.CharField(max_length=20)
@@ -155,13 +149,14 @@ class LogEnvioSUNAT(models.Model):
         return f"{self.comprobante} - {self.codigo_respuesta}"
 
 
-class ImportacionComprobante(models.Model):
+class ImportacionComprobante(ModeloBase):
     archivo_csv = models.FileField(upload_to='importaciones/')
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
-        blank=True
+        blank=True,
+        related_name='importaciones'
     )
     fecha_importacion = models.DateTimeField(auto_now_add=True)
     total_registros = models.PositiveIntegerField(default=0)

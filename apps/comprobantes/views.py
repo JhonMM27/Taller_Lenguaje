@@ -1,15 +1,29 @@
+"""
+Views web del módulo de Comprobantes.
+
+Views delgadas: solo reciben request, llaman al service y devuelven response.
+"""
+
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.contrib import messages
-from apps.comprobantes.models import Comprobante, SerieComprobante, ImportacionComprobante, DetalleComprobante
-from apps.empresas.models import Empresa
-from apps.clientes.models import Cliente
-from apps.productos.models import Producto, CategoriaProducto
 from datetime import datetime
 import csv
 import io
+
+from apps.comprobantes.models import (
+    Comprobante, SerieComprobante, ImportacionComprobante, DetalleComprobante
+)
+from apps.comprobantes.services import ComprobanteService
+from apps.empresas.models import Empresa
+from apps.clientes.models import Cliente
+from apps.productos.models import Producto, CategoriaProducto
+from apps.core.exceptions import (
+    AppError, EstadoInvalido, ComprobanteNoEncontrado,
+    TipoDocumentoInvalido, EmpresaNoEncontrada, ClienteNoEncontrado,
+)
 
 
 @login_required
@@ -33,9 +47,15 @@ def lista_comprobantes(request):
     if cliente_id:
         comprobantes = comprobantes.filter(cliente_id=cliente_id)
 
+    from django.core.paginator import Paginator
+
+    comprobantes = comprobantes.order_by('-fecha', '-creado_en')
+    paginator = Paginator(comprobantes, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
     context = {
-        'comprobantes': comprobantes.order_by('-fecha', '-created_at')[:50],
+        'comprobantes': page_obj,
         'tipos': SerieComprobante.TIPO_CHOICES,
         'estados': Comprobante.ESTADO_CHOICES,
         'empresas': Empresa.objects.all(),
@@ -49,23 +69,14 @@ def lista_comprobantes(request):
 
 @login_required
 def crear_comprobante(request):
-    from apps.empresas.models import Empresa
-    from apps.clientes.models import Cliente
-    from apps.productos.models import Producto
-    
+    """View delgada: delega al ComprobanteService.crear()."""
     if request.method == 'POST':
-        empresa_id = request.POST.get('empresa_id')
-        cliente_id = request.POST.get('cliente_id')
-        fecha = request.POST.get('fecha')
-        tipo = request.POST.get('tipo')
-
         detalles_data = []
         producto_ids = request.POST.getlist('producto_id')
         cantidades = request.POST.getlist('cantidad')
         precios = request.POST.getlist('precio_unitario')
 
         for i, producto_id in enumerate(producto_ids):
-            # Ignorar filas con producto_id vacío (campos no rellenados en el formulario)
             if not producto_id or not producto_id.strip():
                 continue
             detalles_data.append({
@@ -74,54 +85,41 @@ def crear_comprobante(request):
                 'precio_unitario': precios[i] if i < len(precios) else 0,
             })
 
-        # Validación temprana: al menos un producto debe ser seleccionado
         if not detalles_data:
-            empresas = Empresa.objects.all()
-            clientes = Cliente.objects.all()
-            productos = Producto.objects.all()
             return render(request, 'comprobantes/crear.html', {
                 'errors': {'detalles': ['Debe seleccionar al menos un producto']},
-                'empresas': empresas,
-                'clientes': clientes,
-                'productos': productos,
-                'today': datetime.now().strftime('%Y-%m-%d')
+                'empresas': Empresa.objects.all(),
+                'clientes': Cliente.objects.all(),
+                'productos': Producto.objects.all(),
+                'today': datetime.now().strftime('%Y-%m-%d'),
             })
 
-        from apps.comprobantes.serializers import ComprobanteCreateSerializer
-        serializer = ComprobanteCreateSerializer(data={
-            'empresa_id': empresa_id,
-            'cliente_id': cliente_id,
-            'fecha': fecha,
-            'tipo': tipo,
-            'detalles': detalles_data,
-        })
-        if serializer.is_valid():
-            serializer.save()
+        try:
+            comprobante = ComprobanteService.crear(
+                data={
+                    'empresa_id': int(request.POST.get('empresa_id')),
+                    'cliente_id': int(request.POST.get('cliente_id')),
+                    'fecha': request.POST.get('fecha'),
+                    'tipo': request.POST.get('tipo'),
+                    'detalles': detalles_data,
+                },
+                usuario=request.user,
+            )
+            messages.success(request, f'Comprobante {comprobante} creado exitosamente')
             return redirect('comprobantes:lista')
-        
-        empresas = Empresa.objects.all()
-        clientes = Cliente.objects.all()
-        productos = Producto.objects.all()
-        # Preseleccionar automáticamente si solo existe una empresa
-        empresa_default = empresas.first() if empresas.count() == 1 else None
-        return render(request, 'comprobantes/crear.html', {
-            'errors': serializer.errors,
-            'empresas': empresas,
-            'clientes': clientes,
-            'productos': productos,
-            'today': datetime.now().strftime('%Y-%m-%d'),
-            'empresa_default': empresa_default,
-        })
+        except TipoDocumentoInvalido as e:
+            messages.error(request, str(e))
+        except (EmpresaNoEncontrada, ClienteNoEncontrado) as e:
+            messages.error(request, str(e))
+        except AppError as e:
+            messages.error(request, str(e))
 
     empresas = Empresa.objects.all()
-    clientes = Cliente.objects.all()
-    productos = Producto.objects.all()
-    # Preseleccionar automáticamente si solo existe una empresa
     empresa_default = empresas.first() if empresas.count() == 1 else None
     return render(request, 'comprobantes/crear.html', {
         'empresas': empresas,
-        'clientes': clientes,
-        'productos': productos,
+        'clientes': Cliente.objects.all(),
+        'productos': Producto.objects.all(),
         'today': datetime.now().strftime('%Y-%m-%d'),
         'empresa_default': empresa_default,
     })
@@ -129,7 +127,9 @@ def crear_comprobante(request):
 
 @login_required
 def detalle_comprobante(request, pk):
-    comprobante = get_object_or_404(Comprobante.objects.select_related('cliente', 'empresa', 'serie'), pk=pk)
+    comprobante = get_object_or_404(
+        Comprobante.objects.select_related('cliente', 'empresa', 'serie'), pk=pk
+    )
     return render(request, 'comprobantes/detalle.html', {'comprobante': comprobante})
 
 
@@ -160,13 +160,10 @@ def descargar_xml(request, pk):
 
     import xml.dom.minidom
     try:
-        # Intentar formatear el XML para que se vea "profesional"
         dom = xml.dom.minidom.parseString(comprobante.xml_firmado)
         pretty_xml = dom.toprettyxml(indent="  ")
-        # Eliminar líneas vacías generadas por toprettyxml en algunos casos
         pretty_xml = "\n".join([line for line in pretty_xml.splitlines() if line.strip()])
     except Exception:
-        # Si falla el parseo (ej: ya es muy complejo), devolver el original
         pretty_xml = comprobante.xml_firmado
 
     response = HttpResponse(pretty_xml.encode('utf-8'), content_type='application/xml')
@@ -179,7 +176,6 @@ def descargar_cdr(request, pk):
     """Permite al usuario descargar el CDR (ZIP) del comprobante desde la base de datos."""
     comprobante = get_object_or_404(Comprobante, pk=pk)
     
-    # Obtener el último log de envío que contenga el CDR
     log_cdr = comprobante.logs.filter(cdr_xml__isnull=False).exclude(cdr_xml='').first()
     
     if not log_cdr or not log_cdr.cdr_xml:
@@ -187,7 +183,6 @@ def descargar_cdr(request, pk):
         
     try:
         import base64
-        # Decodificar el zip almacenado en base64
         cdr_bytes = base64.b64decode(log_cdr.cdr_xml)
         nombre_cdr_zip = f"R-{comprobante.nombre_zip}"
         
@@ -198,18 +193,16 @@ def descargar_cdr(request, pk):
         return HttpResponse(f"Error al procesar el archivo del CDR: {str(e)}", status=500)
 
 
-
-
 @login_required
 def descargar_excel_comprobante(request, pk):
-    comprobante = get_object_or_404(Comprobante.objects.select_related('cliente', 'empresa', 'serie'), pk=pk)
+    comprobante = get_object_or_404(
+        Comprobante.objects.select_related('cliente', 'empresa', 'serie'), pk=pk
+    )
     import pandas as pd
     from io import BytesIO
 
-    # Crear el buffer
     output = BytesIO()
     
-    # Crear los datos para el reporte profesional
     detalles = []
     for d in comprobante.detalles.all():
         detalles.append({
@@ -224,21 +217,21 @@ def descargar_excel_comprobante(request, pk):
     
     df_detalles = pd.DataFrame(detalles)
     
-    # Usar ExcelWriter para un diseño profesional
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df_detalles.to_excel(writer, sheet_name='Comprobante', startrow=10, index=False)
         
-        workbook  = writer.book
+        workbook = writer.book
         worksheet = writer.sheets['Comprobante']
         
-        # Formatos
-        header_fmt = workbook.add_format({'bold': True, 'bg_color': '#4F46E5', 'font_color': 'white', 'border': 1, 'align': 'center'})
+        header_fmt = workbook.add_format({
+            'bold': True, 'bg_color': '#4F46E5', 'font_color': 'white',
+            'border': 1, 'align': 'center'
+        })
         title_fmt = workbook.add_format({'bold': True, 'font_size': 18, 'font_color': '#1E293B'})
         subtitle_fmt = workbook.add_format({'bold': True, 'font_size': 12, 'font_color': '#4F46E5'})
         data_fmt = workbook.add_format({'font_size': 10})
         num_fmt = workbook.add_format({'num_format': 'S/ #,##0.00', 'font_size': 10})
         
-        # Título y Datos del Emisor
         worksheet.write('A1', f'{comprobante.get_tipo_display().upper()} ELECTRÓNICA', title_fmt)
         worksheet.write('A2', f'{comprobante.serie.serie}-{comprobante.numero:08d}', subtitle_fmt)
         
@@ -247,7 +240,6 @@ def descargar_excel_comprobante(request, pk):
         worksheet.write('A5', 'RUC:', data_fmt)
         worksheet.write('B5', comprobante.empresa.ruc, data_fmt)
         
-        # Datos del Cliente
         worksheet.write('E4', 'CLIENTE:', data_fmt)
         worksheet.write('F4', comprobante.cliente.razon_social, data_fmt)
         worksheet.write('E5', 'DOC:', data_fmt)
@@ -255,71 +247,60 @@ def descargar_excel_comprobante(request, pk):
         worksheet.write('E6', 'FECHA:', data_fmt)
         worksheet.write('F6', str(comprobante.fecha), data_fmt)
 
-        # Aplicar formato de cabecera a la tabla
         for col_num, value in enumerate(df_detalles.columns.values):
             worksheet.write(10, col_num, value, header_fmt)
             
-        # Ajustar anchos
         worksheet.set_column('A:A', 15)
         worksheet.set_column('B:B', 40)
         worksheet.set_column('C:G', 12)
         
-        # Totales
         row_total = 10 + len(df_detalles) + 2
         worksheet.write(row_total, 5, 'SUBTOTAL:', data_fmt)
         worksheet.write(row_total, 6, float(comprobante.subtotal), num_fmt)
-        worksheet.write(row_total+1, 5, 'IGV (18%):', data_fmt)
-        worksheet.write(row_total+1, 6, float(comprobante.igv), num_fmt)
-        worksheet.write(row_total+2, 5, 'TOTAL:', subtitle_fmt)
-        worksheet.write(row_total+2, 6, float(comprobante.total), num_fmt)
+        worksheet.write(row_total + 1, 5, 'IGV (18%):', data_fmt)
+        worksheet.write(row_total + 1, 6, float(comprobante.igv), num_fmt)
+        worksheet.write(row_total + 2, 5, 'TOTAL:', subtitle_fmt)
+        worksheet.write(row_total + 2, 6, float(comprobante.total), num_fmt)
 
     output.seek(0)
     response = HttpResponse(
         output.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = f'attachment; filename="Comprobante_{comprobante.serie.serie}_{comprobante.numero}.xlsx"'
+    response['Content-Disposition'] = (
+        f'attachment; filename="Comprobante_{comprobante.serie.serie}_{comprobante.numero}.xlsx"'
+    )
     return response
 
 
 @login_required
 def reenviar_comprobante(request, pk):
-    comprobante = get_object_or_404(Comprobante, pk=pk)
-
-    if comprobante.estado != 'RECHAZADO':
-        return HttpResponse("Solo se pueden reenviar comprobantes rechazados", status=400)
-
-    from apps.sunat_ose.xml_generator import generar_xml_ubl, firmar_xml
-
+    """View delgada: delega al ComprobanteService.reenviar()."""
     try:
-        xml_content = generar_xml_ubl(comprobante)
-        xml_firmado = firmar_xml(xml_content)
-        comprobante.xml_firmado = xml_firmado.decode('utf-8') if isinstance(xml_firmado, bytes) else xml_firmado
-        comprobante.estado = 'ENVIADO'
-        comprobante.save(update_fields=['xml_firmado', 'estado'])
+        comprobante = ComprobanteService.reenviar(pk)
+        messages.success(request, f'Comprobante {comprobante} reenviado exitosamente')
         return redirect('comprobantes:detalle', pk=pk)
-    except Exception as e:
-        return HttpResponse(f"Error: {str(e)}", status=500)
+    except EstadoInvalido as e:
+        return HttpResponse(str(e), status=400)
+    except ComprobanteNoEncontrado as e:
+        return HttpResponse(str(e), status=404)
+    except AppError as e:
+        return HttpResponse(str(e), status=500)
 
 
 @login_required
 def emitir_comprobante(request, pk):
-    comprobante = get_object_or_404(Comprobante, pk=pk)
-
-    if comprobante.estado != 'BORRADOR':
-        return HttpResponse("Solo se pueden emitir comprobantes en estado BORRADOR", status=400)
-
-    from apps.sunat_ose.xml_generator import generar_xml_ubl, firmar_xml
-
+    """View delgada: delega al ComprobanteService.emitir()."""
     try:
-        xml_content = generar_xml_ubl(comprobante)
-        xml_firmado = firmar_xml(xml_content)
-        comprobante.xml_firmado = xml_firmado.decode('utf-8') if isinstance(xml_firmado, bytes) else xml_firmado
-        comprobante.estado = 'EMITIDO'
-        comprobante.save(update_fields=['xml_firmado', 'estado'])
+        comprobante = ComprobanteService.emitir(pk)
+        messages.success(request, f'Comprobante {comprobante} emitido exitosamente')
         return redirect('comprobantes:detalle', pk=pk)
-    except Exception as e:
-        return HttpResponse(f"Error: {str(e)}", status=500)
+    except EstadoInvalido as e:
+        return HttpResponse(str(e), status=400)
+    except ComprobanteNoEncontrado as e:
+        return HttpResponse(str(e), status=404)
+    except AppError as e:
+        return HttpResponse(str(e), status=500)
 
 
 # ==============================================================================
@@ -330,14 +311,12 @@ def clean_val(val, default=''):
     """Limpia valores de CSV/Excel: maneja None, NaN de pandas y fechas datetime."""
     if val is None:
         return default
-    # Manejo de NaN de pandas
     try:
         import math
         if isinstance(val, float) and math.isnan(val):
             return default
     except Exception:
         pass
-    # Si es un objeto fecha/datetime de pandas/Python, formatearlo
     if hasattr(val, 'strftime'):
         return val.strftime('%Y-%m-%d')
     return str(val).strip()
@@ -351,18 +330,15 @@ def parse_date(date_str):
             return datetime.strptime(date_str.strip(), fmt).date()
         except ValueError:
             continue
-    raise ValueError(f"Formato de fecha no válido: {date_str}")
+    from apps.core.exceptions import ReglaNegocioViolada
+    raise ReglaNegocioViolada(f"Formato de fecha no válido: {date_str}")
 
 
 def _procesar_fila_comprobante(row, row_num, errores, exitosos):
-    """
-    Procesa una fila de datos (desde CSV o Excel) para crear un comprobante.
-    Retorna la cantidad de exitosos incrementada o no.
-    """
+    """Procesa una fila de datos (desde CSV o Excel) para crear un comprobante."""
     from decimal import Decimal
 
     tipo_raw = clean_val(row.get('tipo'), '01')
-    # Normalizar tipo: puede venir como '1', '3', '7', '8' (desde Excel) o '01', '03', etc.
     TIPO_MAP = {
         '1': '01', '01': '01',
         '3': '03', '03': '03',
@@ -373,7 +349,6 @@ def _procesar_fila_comprobante(row, row_num, errores, exitosos):
     serie = clean_val(row.get('serie'), '')
 
     numero_str = clean_val(row.get('numero'), '0')
-    # Excel puede leer números como float: '1.0', '2.0', etc.
     try:
         numero = int(float(numero_str)) if numero_str else 0
     except (ValueError, TypeError):
@@ -399,7 +374,9 @@ def _procesar_fila_comprobante(row, row_num, errores, exitosos):
     categoria_nombre = clean_val(row.get('categoria'), '')
 
     if not serie or not cliente_num_doc or not producto_codigo:
-        errores.append(f"Fila {row_num}: Falta información obligatoria (serie, cliente_num_doc o producto_codigo)")
+        errores.append(
+            f"Fila {row_num}: Falta información obligatoria (serie, cliente_num_doc o producto_codigo)"
+        )
         return exitosos
 
     cliente, _ = Cliente.objects.get_or_create(
@@ -433,20 +410,14 @@ def _procesar_fila_comprobante(row, row_num, errores, exitosos):
         return exitosos
 
     serie_obj = SerieComprobante.objects.filter(
-        empresa=empresa,
-        serie=serie,
-        tipo=tipo,
-        activa=True
+        empresa=empresa, serie=serie, tipo=tipo, activo=True
     ).first()
 
     if not serie_obj:
         errores.append(f"Fila {row_num}: La serie '{serie}' del tipo '{tipo}' no existe o no está activa.")
         return exitosos
 
-    existe = Comprobante.objects.filter(
-        serie=serie_obj,
-        numero=numero
-    ).exists()
+    existe = Comprobante.objects.filter(serie=serie_obj, numero=numero).exists()
     if existe:
         errores.append(f"Fila {row_num}: Comprobante {serie}-{numero:08d} ya existe en el sistema.")
         return exitosos
@@ -493,7 +464,6 @@ def importar_csv(request):
                 estado='PROCESANDO'
             )
         except (PermissionError, OSError):
-            # OSError errno 30 = Read-only file system (común en Docker con volúmenes no montados)
             importacion = ImportacionComprobante(
                 usuario=request.user,
                 estado='PROCESANDO'
@@ -502,10 +472,11 @@ def importar_csv(request):
                 ext = nombre_archivo.rsplit('.', 1)[-1]
             else:
                 ext = 'csv'
-            importacion.archivo_csv.name = f"importaciones/fallo_permiso_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+            importacion.archivo_csv.name = (
+                f"importaciones/fallo_permiso_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+            )
             importacion.save()
 
-        # Resetear puntero del archivo porque Django lo consumió al guardarlo en el modelo
         try:
             archivo.seek(0)
         except Exception:
@@ -519,7 +490,6 @@ def importar_csv(request):
             nombre = nombre_archivo.lower() if nombre_archivo else ''
 
             if nombre.endswith('.xlsx') or nombre.endswith('.xls'):
-                # ─── LECTURA DESDE EXCEL ──────────────────────────────────
                 import pandas as pd
 
                 df = pd.read_excel(archivo, engine='openpyxl')
@@ -534,7 +504,6 @@ def importar_csv(request):
                         errores.append(f"Fila {row_num}: Error inesperado: {str(e)}")
 
             else:
-                # ─── LECTURA DESDE CSV ─────────────────────────────────────
                 archivo.seek(0)
                 decoded_file = archivo.read().decode('utf-8-sig')
                 primeras_lineas = decoded_file.split('\n')
@@ -548,7 +517,9 @@ def importar_csv(request):
                 csv_reader = csv.DictReader(csv_file, delimiter=delimiter)
 
                 if csv_reader.fieldnames:
-                    csv_reader.fieldnames = [clean_val(name).lower() for name in csv_reader.fieldnames if name]
+                    csv_reader.fieldnames = [
+                        clean_val(name).lower() for name in csv_reader.fieldnames if name
+                    ]
 
                 for row_num, row in enumerate(csv_reader, start=2):
                     total += 1
@@ -566,9 +537,16 @@ def importar_csv(request):
 
             if errores:
                 primer_error = errores[0][:200]
-                messages.warning(request, f'Importación completada: {exitosos} exitosos, {len(errores)} errores. Primer error: {primer_error}')
+                messages.warning(
+                    request,
+                    f'Importación completada: {exitosos} exitosos, '
+                    f'{len(errores)} errores. Primer error: {primer_error}'
+                )
             else:
-                messages.success(request, f'Importación completada: {exitosos} exitosos, {len(errores)} errores')
+                messages.success(
+                    request,
+                    f'Importación completada: {exitosos} exitosos, {len(errores)} errores'
+                )
         except Exception as e:
             importacion.estado = 'ERROR'
             importacion.log_errores = f"Error crítico al leer el archivo: {str(e)}"
@@ -579,50 +557,45 @@ def importar_csv(request):
 
     return render(request, 'comprobantes/importar.html')
 
+
 @login_required
 def buscar_empresas_ajax(request):
     q = request.GET.get('q', '')
     from django.db.models import Q
-    empresas = Empresa.objects.filter(Q(razon_social__icontains=q) | Q(ruc__icontains=q) | Q(codigo__icontains=q))
-    data = []
-    for emp in empresas[:20]:
-        data.append({
-            'id': emp.id,
-            'codigo': emp.codigo,
-            'ruc': emp.ruc,
-            'razon_social': emp.razon_social
-        })
-    from django.http import JsonResponse
+    empresas = Empresa.objects.filter(
+        Q(razon_social__icontains=q) | Q(ruc__icontains=q) | Q(codigo__icontains=q)
+    )
+    data = [
+        {'id': emp.id, 'codigo': emp.codigo, 'ruc': emp.ruc, 'razon_social': emp.razon_social}
+        for emp in empresas[:20]
+    ]
     return JsonResponse({'results': data})
+
 
 @login_required
 def buscar_clientes_ajax(request):
     q = request.GET.get('q', '')
     from django.db.models import Q
-    clientes = Cliente.objects.filter(Q(razon_social__icontains=q) | Q(num_doc__icontains=q) | Q(codigo__icontains=q))
-    data = []
-    for cli in clientes[:20]:
-        data.append({
-            'id': cli.id,
-            'codigo': cli.codigo,
-            'num_doc': cli.num_doc,
-            'razon_social': cli.razon_social
-        })
-    from django.http import JsonResponse
+    clientes = Cliente.objects.filter(
+        Q(razon_social__icontains=q) | Q(num_doc__icontains=q) | Q(codigo__icontains=q)
+    )
+    data = [
+        {'id': cli.id, 'codigo': cli.codigo, 'num_doc': cli.num_doc, 'razon_social': cli.razon_social}
+        for cli in clientes[:20]
+    ]
     return JsonResponse({'results': data})
+
 
 @login_required
 def buscar_productos_ajax(request):
     q = request.GET.get('q', '')
     from django.db.models import Q
-    productos = Producto.objects.filter(Q(descripcion__icontains=q) | Q(codigo__icontains=q))
-    data = []
-    for prod in productos[:20]:
-        data.append({
-            'id': prod.id,
-            'codigo': prod.codigo,
-            'descripcion': prod.descripcion,
-            'precio': str(prod.precio_unitario)
-        })
-    from django.http import JsonResponse
+    productos = Producto.objects.filter(
+        Q(descripcion__icontains=q) | Q(codigo__icontains=q)
+    )
+    data = [
+        {'id': prod.id, 'codigo': prod.codigo, 'descripcion': prod.descripcion,
+         'precio': str(prod.precio_unitario)}
+        for prod in productos[:20]
+    ]
     return JsonResponse({'results': data})

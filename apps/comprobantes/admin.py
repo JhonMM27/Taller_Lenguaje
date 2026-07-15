@@ -9,8 +9,8 @@ class DetalleInline(admin.TabularInline):
 
 @admin.register(SerieComprobante)
 class SerieComprobanteAdmin(admin.ModelAdmin):
-    list_display = ['empresa', 'tipo', 'serie', 'correlativo_actual', 'activa']
-    list_filter = ['empresa', 'tipo', 'activa']
+    list_display = ['empresa', 'tipo', 'serie', 'correlativo_actual', 'activo']
+    list_filter = ['empresa', 'tipo', 'activo']
     search_fields = ['serie']
 
 

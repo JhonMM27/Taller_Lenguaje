@@ -27,7 +27,7 @@ class ComprobanteSerializer(serializers.ModelSerializer):
         fields = ['id', 'empresa', 'empresa_ruc', 'cliente', 'cliente_nombre',
                   'serie', 'numero', 'fecha', 'tipo', 'estado',
                   'subtotal', 'igv', 'total', 'xml_firmado', 'detalles',
-                  'created_at', 'updated_at']
+                  'creado_en', 'actualizado_en']
 
 
 class ComprobanteCreateSerializer(serializers.Serializer):

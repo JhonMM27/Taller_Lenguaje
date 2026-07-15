@@ -8,8 +8,20 @@ from apps.comprobantes.serializers import DetalleComprobanteSerializer
 
 
 class NotaCreditoViewSet(viewsets.ModelViewSet):
-    queryset = NotaCredito.objects.select_related('comprobante_referencia').all()
+    serializer_class = NotaCreditoSerializer
     filterset_fields = ['estado', 'tipo_nota', 'tipo_nc']
+
+    def get_queryset(self):
+        queryset = NotaCredito.activos.select_related('comprobante_referencia', 'comprobante_referencia__cliente').all()
+        user = self.request.user
+        if user and user.is_authenticated:
+            try:
+                perfil = user.perfil
+                if perfil.rol != 'ADMIN' and perfil.empresa:
+                    queryset = queryset.filter(comprobante_referencia__empresa=perfil.empresa)
+            except AttributeError:
+                pass
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -17,13 +29,21 @@ class NotaCreditoViewSet(viewsets.ModelViewSet):
         return NotaCreditoSerializer
 
     def create(self, request, *args, **kwargs):
+        from apps.core.exceptions import AppError, ReglaNegocioViolada, RecursoNoEncontrado
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        nota = serializer.save()
-        return Response(
-            NotaCreditoSerializer(nota).data,
-            status=status.HTTP_201_CREATED
-        )
+        try:
+            nota = serializer.save()
+            return Response(
+                NotaCreditoSerializer(nota).data,
+                status=status.HTTP_201_CREATED
+            )
+        except RecursoNoEncontrado as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except ReglaNegocioViolada as e:
+            return Response({'error': str(e)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        except AppError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
     def buscar_comprobante(self, request):
@@ -124,3 +144,12 @@ class NotaCreditoViewSet(viewsets.ModelViewSet):
         serie = request.query_params.get('serie', 'FC01')
         count = NotaCredito.objects.filter(serie=serie).count()
         return Response({'serie': serie, 'numero': count + 1})
+
+    def destroy(self, request, *args, **kwargs):
+        from apps.notas_credito.services import NotaCreditoService
+        from apps.core.exceptions import RecursoNoEncontrado
+        try:
+            NotaCreditoService.eliminar(self.get_object().id, usuario=request.user)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except RecursoNoEncontrado as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)

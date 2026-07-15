@@ -10,7 +10,7 @@ from apps.empresas.forms import EmpresaForm
 def lista_empresas(request):
     empresas = Empresa.objects.all()
     return render(request, 'empresas/lista.html', {
-        'empresas': empresas.order_by('-created_at')[:100]
+        'empresas': empresas.order_by('-creado_en')[:100]
     })
 
 
@@ -55,7 +55,7 @@ def editar_empresa(request, pk):
 def eliminar_empresa(request, pk):
     empresa = get_object_or_404(Empresa, pk=pk)
     if request.method == 'POST':
-        empresa.delete()
+        empresa.eliminar(usuario=request.user)
         messages.success(request, 'Empresa eliminada exitosamente')
         return redirect('empresas:lista')
     return render(request, 'empresas/eliminar.html', {'empresa': empresa})

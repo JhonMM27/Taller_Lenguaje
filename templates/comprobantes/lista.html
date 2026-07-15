@@ -170,6 +170,25 @@
                 {% endfor %}
             </tbody>
         </table>
+        
+        {% if comprobantes.has_other_pages %}
+        <div class="pagination-container" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background-color:#fff;border-top:1px solid #e2e8f0;flex-wrap:wrap;gap:12px;">
+            <span style="font-size:13px;color:var(--gray-500);font-weight:500;">
+                Página {{ comprobantes.number }} de {{ comprobantes.paginator.num_pages }} (Mostrando {{ comprobantes.object_list|length }} de {{ comprobantes.paginator.count }} registros)
+            </span>
+            <div style="display:flex;gap:6px;">
+                {% if comprobantes.has_previous %}
+                    <a href="?page=1{% if request.GET.tipo %}&tipo={{ request.GET.tipo }}{% endif %}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_id %}&cliente_id={{ request.GET.cliente_id }}{% endif %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 13px; border-radius: 6px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:4px;"><i class="bi bi-chevron-double-left"></i> Primero</a>
+                    <a href="?page={{ comprobantes.previous_page_number }}{% if request.GET.tipo %}&tipo={{ request.GET.tipo }}{% endif %}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_id %}&cliente_id={{ request.GET.cliente_id }}{% endif %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 13px; border-radius: 6px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:4px;"><i class="bi bi-chevron-left"></i> Anterior</a>
+                {% endif %}
+
+                {% if comprobantes.has_next %}
+                    <a href="?page={{ comprobantes.next_page_number }}{% if request.GET.tipo %}&tipo={{ request.GET.tipo }}{% endif %}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_id %}&cliente_id={{ request.GET.cliente_id }}{% endif %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 13px; border-radius: 6px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:4px;">Siguiente <i class="bi bi-chevron-right"></i></a>
+                    <a href="?page={{ comprobantes.paginator.num_pages }}{% if request.GET.tipo %}&tipo={{ request.GET.tipo }}{% endif %}{% if request.GET.estado %}&estado={{ request.GET.estado }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.cliente_id %}&cliente_id={{ request.GET.cliente_id }}{% endif %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 13px; border-radius: 6px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:4px;">Último <i class="bi bi-chevron-double-right"></i></a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

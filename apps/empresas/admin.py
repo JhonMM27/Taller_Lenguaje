@@ -14,5 +14,5 @@ class CertificadoAdmin(admin.ModelAdmin):
     list_display = ['nombre', 'empresa', 'numero_serie', 'fecha_desde', 'fecha_hasta', 'is_active']
     search_fields = ['nombre', 'empresa__ruc', 'empresa__razon_social', 'numero_serie']
     list_filter = ['is_active', 'empresa']
-    readonly_fields = ['empresa', 'nombre', 'numero_serie', 'fecha_desde', 'fecha_hasta', 'huella_digital', 'created_at', 'updated_at', 'contrasena']
+    readonly_fields = ['empresa', 'nombre', 'numero_serie', 'fecha_desde', 'fecha_hasta', 'huella_digital', 'creado_en', 'actualizado_en', 'contrasena']
     fields = ['empresa', 'nombre', 'numero_serie', 'fecha_desde', 'fecha_hasta', 'huella_digital', 'is_active', 'contrasena']

@@ -15,7 +15,7 @@ def lista_clientes(request):
     else:
         clientes = Cliente.objects.all()
     return render(request, 'clientes/lista.html', {
-        'clientes': clientes.order_by('-created_at')[:100],
+        'clientes': clientes.order_by('-creado_en')[:100],
         'query': query
     })
 
@@ -49,7 +49,7 @@ def editar_cliente(request, pk):
 def eliminar_cliente(request, pk):
     cliente = get_object_or_404(Cliente, pk=pk)
     if request.method == 'POST':
-        cliente.delete()
+        cliente.eliminar(usuario=request.user)
         messages.success(request, 'Cliente eliminado exitosamente')
         return redirect('clientes:lista')
     return render(request, 'clientes/eliminar.html', {'cliente': cliente})

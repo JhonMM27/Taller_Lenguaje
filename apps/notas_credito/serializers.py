@@ -48,80 +48,17 @@ class NotaCreditoCreateSerializer(serializers.Serializer):
         return value
 
     def create(self, validated_data):
-        from decimal import Decimal
-        from django.conf import settings
+        request = self.context.get('request')
+        usuario = request.user if request else None
+        
+        # Calculate/set monto_afectado for validation if needed, or pass validated_data
+        # We can calculate the total affected amount from details if not specified.
+        if 'monto_afectado' not in validated_data:
+            from decimal import Decimal
+            monto_afectado = Decimal('0.00')
+            for det in validated_data.get('detalles', []):
+                monto_afectado += Decimal(str(det['cantidad'])) * Decimal(str(det['precio_unitario']))
+            validated_data['monto_afectado'] = monto_afectado
 
-        comprobante = Comprobante.objects.get(id=validated_data['comprobante_id'])
-        serie_comprobante = comprobante.serie
-
-        serie = 'FC01'
-        if serie_comprobante:
-            serie = serie_comprobante.serie
-            if serie_comprobante.tipo == '01':
-                serie = 'FC' + serie_comprobante.serie[2:] if len(serie_comprobante.serie) >= 2 else 'FC01'
-            elif serie_comprobante.tipo == '03':
-                serie = 'FB' + serie_comprobante.serie[2:] if len(serie_comprobante.serie) >= 2 else 'FB01'
-
-        notas_existentes = NotaCredito.objects.filter(serie=serie).count()
-        numero = notas_existentes + 1
-
-        tasa_igv = Decimal(str(settings.IGV_TASA))
-        op_gravada = Decimal('0.00')
-        igv_total = Decimal('0.00')
-        importe_total = Decimal('0.00')
-
-        nota = NotaCredito.objects.create(
-            comprobante_referencia=comprobante,
-            serie=serie,
-            numero=numero,
-            tipo_nc=validated_data['tipo_nc'],
-            tipo_nota=validated_data['tipo_nota'],
-            estado='BORRADOR'
-        )
-
-        for det_data in validated_data['detalles']:
-            producto_id = det_data['producto_id']
-            cantidad = Decimal(str(det_data['cantidad']))
-            precio_unitario = Decimal(str(det_data['precio_unitario']))
-            descuento = Decimal(str(det_data.get('descuento', 0)))
-            afecto_igv = det_data.get('afecto_igv', True)
-            cod_tipo_afectacion = det_data.get('cod_tipo_afectacion', '10')
-
-            producto = None
-            if producto_id:
-                from apps.productos.models import Producto
-                try:
-                    producto = Producto.objects.get(id=producto_id)
-                except Producto.DoesNotExist:
-                    pass
-
-            bruto = cantidad * precio_unitario
-            base = bruto - descuento
-            if afecto_igv:
-                igv_linea = round(base * tasa_igv, 2)
-            else:
-                igv_linea = Decimal('0.00')
-            subtotal_linea = base + igv_linea
-
-            DetalleNotaCredito.objects.create(
-                nota_credito=nota,
-                producto=producto,
-                cantidad=cantidad,
-                precio_unitario=precio_unitario,
-                descuento=descuento,
-                afecto_igv=afecto_igv,
-                cod_tipo_afectacion=cod_tipo_afectacion,
-                igv_linea=igv_linea,
-                subtotal=subtotal_linea
-            )
-
-            op_gravada += base
-            igv_total += igv_linea
-            importe_total += subtotal_linea
-
-        nota.op_gravada = op_gravada
-        nota.igv = igv_total
-        nota.importe = importe_total
-        nota.save(update_fields=['op_gravada', 'igv', 'importe'])
-
-        return nota
+        from apps.notas_credito.services import NotaCreditoService
+        return NotaCreditoService.emitir(validated_data, usuario=usuario)
