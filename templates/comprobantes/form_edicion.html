@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if modo == 'corregir' %}Corregir rechazo{% else %}Editar borrador{% endif %}{% endblock %}
+{% block page_title %}{% if modo == 'corregir' %}Corregir comprobante rechazado{% else %}Editar comprobante{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+    <div>
+        <h1 class="page-title">
+            {% if modo == 'corregir' %}Corregir comprobante rechazado{% else %}Editar borrador{% endif %}
+        </h1>
+        <p class="page-subtitle">{{ comprobante }} · {{ comprobante.cliente.razon_social }}</p>
+    </div>
+</div>
+
+<div class="card correction-card">
+    <div class="card-body" style="padding:24px;">
+        {% if modo == 'corregir' %}
+        <div class="correction-alert">
+            <i class="bi bi-shield-exclamation"></i>
+            <div>
+                <strong>El comprobante {{ comprobante }} no sera modificado.</strong>
+                <span>Se creara otro documento con nueva numeracion. Una linea 40 genera factura de exportacion; RUC genera factura nacional.</span>
+            </div>
+        </div>
+        {% else %}
+        <div class="correction-alert correction-alert-info">
+            <i class="bi bi-info-circle"></i>
+            <div><strong>Editando {{ comprobante }}</strong><span>Empresa, tipo, serie y numero permanecen sin cambios.</span></div>
+        </div>
+        {% endif %}
+
+        <form method="post"
+              action="{% if modo == 'corregir' %}{% url 'comprobantes:corregir' comprobante.id %}{% else %}{% url 'comprobantes:editar' comprobante.id %}{% endif %}"
+              id="form-comprobante" data-modo="{{ modo }}">
+            {% csrf_token %}
+
+            <div class="correction-summary-grid">
+                <div class="form-group">
+                    <label class="form-label">Empresa</label>
+                    <div class="readonly-field"><i class="bi bi-building"></i>{{ comprobante.empresa.razon_social }}</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tipo resultante</label>
+                    <div class="readonly-field" id="tipo-resultante"><i class="bi bi-receipt"></i>{{ comprobante.get_tipo_display }}</div>
+                </div>
+                <div class="form-group">
+                    <label for="fecha" class="form-label">Fecha <span class="required">*</span></label>
+                    <input type="date" class="form-control" name="fecha" id="fecha"
+                           value="{{ comprobante.fecha|date:'Y-m-d' }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="moneda" class="form-label">Moneda</label>
+                    <select class="form-select" name="moneda" id="moneda" required>
+                        {% for codigo, nombre in monedas %}
+                        <option value="{{ codigo }}" {% if comprobante.moneda == codigo %}selected{% endif %}>{{ nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:20px;">
+                <label for="cliente_id" class="form-label">Cliente <span class="required">*</span></label>
+                <select class="form-select" name="cliente_id" id="cliente_id" required>
+                    {% for cliente in clientes %}
+                    <option value="{{ cliente.id }}" data-tipo-doc="{{ cliente.tipo_doc }}" data-pais="{{ cliente.pais_codigo }}"
+                            {% if cliente.id == comprobante.cliente_id %}selected{% endif %}>
+                        {{ cliente.razon_social }} — {{ cliente.num_doc }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="correction-section-title">
+                <div><i class="bi bi-list-ul"></i><strong>Productos y servicios</strong></div>
+                <button type="button" class="btn btn-secondary btn-sm" id="add-detalle">
+                    <i class="bi bi-plus-lg"></i> Agregar linea
+                </button>
+            </div>
+
+            <div class="detail-head" aria-hidden="true">
+                <span>Producto</span><span>Cantidad</span><span>Precio unit.</span><span>Descuento</span><span></span>
+            </div>
+            <div id="detalles-container">
+                {% for detalle in detalles_iniciales %}
+                <div class="detalle-item">
+                    <div class="detail-field detail-product">
+                        <label>Producto</label>
+                        <select class="form-select producto-select" name="producto_id" required>
+                            {% for producto in productos %}
+                            <option value="{{ producto.id }}"
+                                    data-precio="{{ producto.precio_unitario }}"
+                                    data-afectacion="{{ producto.cod_tipo_afectacion }}"
+                                    {% if producto.id == detalle.producto_id %}selected{% endif %}>
+                                {{ producto.codigo }} - {{ producto.descripcion|truncatechars:50 }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="cod_tipo_afectacion" value="{{ detalle.cod_tipo_afectacion }}">
+                    </div>
+                    <div class="detail-field">
+                        <label>Cantidad</label>
+                        <input type="number" class="form-control" name="cantidad" step="0.0001" min="0.0001" value="{{ detalle.cantidad }}" required>
+                    </div>
+                    <div class="detail-field">
+                        <label>Precio unit.</label>
+                        <input type="number" class="form-control" name="precio_unitario" step="0.0001" min="0" value="{{ detalle.precio_unitario }}" required>
+                    </div>
+                    <div class="detail-field">
+                        <label>Descuento</label>
+                        <input type="number" class="form-control" name="descuento" step="0.01" min="0" value="{{ detalle.descuento|default:'0' }}" required>
+                    </div>
+                    <button type="button" class="btn-remove" title="Eliminar linea" aria-label="Eliminar linea"><i class="bi bi-trash"></i></button>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="correction-footer">
+                <a href="{% url 'comprobantes:detalle' comprobante.id %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-file-earmark-check"></i>
+                    {% if modo == 'corregir' %}Crear comprobante corregido{% else %}Guardar cambios{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style data-modal-form-styles>
+.correction-card{max-width:1180px;margin:0 auto}.correction-alert{display:flex;gap:12px;padding:14px 16px;margin-bottom:20px;border:1px solid #fed7aa;border-radius:10px;background:#fff7ed;color:#9a3412}.correction-alert>i{font-size:20px;margin-top:1px}.correction-alert div{display:flex;flex-direction:column;gap:3px}.correction-alert span{font-size:13px;color:#b45309}.correction-alert-info{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}.correction-alert-info span{color:#3b82f6}.correction-summary-grid{display:grid;grid-template-columns:1.25fr .75fr .65fr .7fr;gap:14px}.readonly-field{height:44px;display:flex;align-items:center;gap:9px;padding:0 13px;border:1px solid var(--gray-200);border-radius:var(--radius);background:var(--gray-50);color:var(--gray-700);font-weight:500}.readonly-field i{color:var(--primary-500)}.required{color:var(--danger)}.correction-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 12px;padding-top:18px;border-top:1px solid var(--gray-100)}.correction-section-title>div{display:flex;align-items:center;gap:8px;color:var(--gray-800)}.detail-head,.detalle-item{display:grid;grid-template-columns:minmax(260px,2fr) 110px 135px 125px 42px;gap:10px;align-items:center}.detail-head{padding:0 8px 7px;color:var(--gray-500);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.detalle-item{padding:10px;margin-bottom:9px;border:1px solid var(--gray-200);border-radius:10px;background:var(--gray-50)}.detail-field label{display:none;font-size:11px;font-weight:600;color:var(--gray-500);margin-bottom:4px}.detalle-item .form-control,.detalle-item .form-select{background:white}.btn-remove{width:38px;height:38px;border:0;border-radius:8px;background:var(--danger-50);color:var(--danger);cursor:pointer;transition:.2s}.btn-remove:hover{background:var(--danger);color:white}.correction-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid var(--gray-100)}
+@media(max-width:850px){.correction-summary-grid{grid-template-columns:1fr}.detail-head{display:none}.detalle-item{grid-template-columns:1fr 1fr}.detail-product{grid-column:1/-1}.detail-field label{display:block}.btn-remove{justify-self:end}.correction-footer{position:sticky;bottom:0;background:white;padding-bottom:4px}}
+@media(max-width:520px){.detalle-item{grid-template-columns:1fr}.detail-product{grid-column:auto}.btn-remove{justify-self:stretch;width:100%}.correction-footer{flex-direction:column-reverse}.correction-footer .btn{width:100%;justify-content:center}}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>document.addEventListener('DOMContentLoaded',function(){if(window.initComprobanteCorrectionForm){window.initComprobanteCorrectionForm(document);}});</script>
+{% endblock %}

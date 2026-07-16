@@ -3,6 +3,7 @@ Tests de los endpoints de la API.
 
 Usa APIClient de DRF para hacer requests HTTP simulados.
 """
+# pyrefly: ignore [missing-import]
 import pytest
 from rest_framework.test import APIClient
 from decimal import Decimal
@@ -122,8 +123,8 @@ class TestComprobanteAPI:
         data = response.json()
         assert data["tipo"] == "01"
 
-    def test_crear_factura_con_dni_ahora_acepta(self, admin_user, empresa, cliente_dni, producto):
-        """La validacion flexible permite DNI para factura (solo valida longitud)."""
+    def test_crear_factura_con_dni_es_rechazada(self, admin_user, empresa, cliente_dni, producto):
+        """La API evita el rechazo SUNAT 2800 antes de crear la factura."""
         client = APIClient()
         client.force_authenticate(user=admin_user)
         response = client.post("/api/comprobantes/", {
@@ -135,10 +136,8 @@ class TestComprobanteAPI:
                 {"producto_id": producto.id, "cantidad": "1"}
             ],
         }, format="json")
-        assert response.status_code == 201
-        data = response.json()
-        assert data["tipo"] == "01"
-        assert data["cliente"] == cliente_dni.id
+        assert response.status_code == 400
+        assert "RUC" in str(response.json())
 
     def test_listar_comprobantes(self, admin_user, empresa, cliente_ruc, producto):
         # Primero crear

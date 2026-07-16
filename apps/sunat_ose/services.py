@@ -7,7 +7,9 @@ Toda la lógica de negocio de envío, firma, empaquetado y consulta de tickets.
 from dominio.excepciones import RecursoNoEncontrado
 import base64
 import logging
+import re
 import zipfile
+import xml.etree.ElementTree as ET
 from io import BytesIO
 from datetime import date
 
@@ -21,10 +23,45 @@ from apps.core.exceptions import (
     EstadoInvalido,
     FirmaDigitalInvalida,
     EnvioSunatFallido,
+    ComprobanteRechazado,
+    ErrorTecnicoEnvio,
     TicketNoEncontrado,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _codigo_sunat(respuesta):
+    """Extrae el codigo SUNAT aunque venga dentro de un SOAP Fault."""
+    texto = ' '.join(str(respuesta.get(k) or '') for k in (
+        'faultcode', 'faultstring', 'status'
+    ))
+    codigos = re.findall(r'(?<!\d)(\d{4})(?!\d)', texto)
+    return codigos[0] if codigos else str(respuesta.get('status', '-1'))
+
+
+def _es_rechazo_sunat(codigo):
+    try:
+        return 2000 <= int(codigo) <= 3999
+    except (TypeError, ValueError):
+        return False
+
+
+def _leer_resultado_cdr(cdr_b64):
+    """Devuelve (codigo, descripcion) desde el ZIP CDR, o (None, '')."""
+    if not cdr_b64:
+        return None, ''
+    try:
+        contenido = base64.b64decode(cdr_b64) if isinstance(cdr_b64, str) else cdr_b64
+        with zipfile.ZipFile(BytesIO(contenido)) as archivo:
+            nombre_xml = next(n for n in archivo.namelist() if n.lower().endswith('.xml'))
+            raiz = ET.fromstring(archivo.read(nombre_xml))
+        codigo = raiz.findtext('.//{*}ResponseCode')
+        descripcion = raiz.findtext('.//{*}Description') or ''
+        return (codigo.strip() if codigo else None), descripcion.strip()
+    except (ValueError, KeyError, StopIteration, zipfile.BadZipFile, ET.ParseError):
+        logger.warning('No se pudo interpretar el CDR recibido', exc_info=True)
+        return None, ''
 
 
 def _validar_xml_firmado(xml_content) -> None:
@@ -66,7 +103,7 @@ class SunatEnvioService:
 
         comprobante = comprobante_repo.obtener_por_id(comprobante_id)
 
-        if comprobante.estado not in ['EMITIDO', 'RECHAZADO', 'BORRADOR']:
+        if comprobante.estado not in ['EMITIDO', 'ERROR_ENVIO', 'BORRADOR']:
             raise EstadoInvalido(
                 f"No se puede enviar comprobante en estado {comprobante.estado}"
             )
@@ -106,6 +143,17 @@ class SunatEnvioService:
         logger.info(f"[PASO 5] Enviando a {'MOCK' if es_mock else 'SUNAT/OSE REAL'}: {file_name}")
         respuesta = ose_client.send_bill(zip_base64, file_name)
 
+        # sendBill puede responder correctamente a nivel SOAP y adjuntar un CDR
+        # rechazado. El ResponseCode del CDR es la fuente de verdad tributaria.
+        if respuesta.get('status') == 0 and respuesta.get('applicationResponse'):
+            codigo_cdr, descripcion_cdr = _leer_resultado_cdr(
+                respuesta.get('applicationResponse')
+            )
+            if codigo_cdr and codigo_cdr != '0':
+                respuesta['status'] = 99
+                respuesta['faultcode'] = codigo_cdr
+                respuesta['faultstring'] = descripcion_cdr or 'Comprobante rechazado segun CDR'
+
         # 6. Guardar XML firmado
         comprobante.xml_firmado = (
             xml_firmado.decode('utf-8') if isinstance(xml_firmado, bytes) else xml_firmado
@@ -139,16 +187,27 @@ class SunatEnvioService:
                 'es_mock': es_mock,
             }
         else:
+            codigo = _codigo_sunat(respuesta)
+            es_rechazo = _es_rechazo_sunat(codigo)
+            estado = 'RECHAZADO' if es_rechazo else 'ERROR_ENVIO'
+            descripcion = respuesta.get('faultstring') or 'Error al enviar al OSE/SUNAT'
             log_repo.registrar_envio(
                 comprobante=comprobante,
-                estado_respuesta='RECHAZADO',
-                codigo_respuesta=str(respuesta.get('status', '-1')),
-                descripcion=respuesta.get('faultstring') or 'Rechazado por OSE/SUNAT',
+                estado_respuesta=estado,
+                codigo_respuesta=codigo,
+                descripcion=descripcion,
                 uuid='',
+                cdr_xml=respuesta.get('applicationResponse', '') or '',
             )
 
-            comprobante.estado = 'RECHAZADO'
+            comprobante.estado = estado
             comprobante_repo.guardar(comprobante)
+
+            if es_rechazo:
+                logger.warning(f"COMPROBANTE {comprobante} RECHAZADO: {descripcion}")
+                raise ComprobanteRechazado(descripcion)
+            logger.error(f"ERROR TECNICO ENVIANDO {comprobante}: {descripcion}")
+            raise ErrorTecnicoEnvio(descripcion)
 
             logger.warning(f"COMPROBANTE {comprobante} RECHAZADO: {respuesta.get('faultstring')}")
 
@@ -238,7 +297,7 @@ class SunatEnvioService:
         """
         comprobantes = Comprobante.objects.filter(
             id__in=comprobante_ids,
-            estado__in=['EMITIDO', 'BORRADOR', 'RECHAZADO']
+            estado__in=['EMITIDO', 'BORRADOR', 'ERROR_ENVIO']
         ).select_related('empresa')
 
         if not comprobantes.exists():

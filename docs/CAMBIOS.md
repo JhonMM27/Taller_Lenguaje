@@ -1,5 +1,21 @@
 # Historial de Cambios del Proyecto
 
+## Corrección SUNAT 3272 y exportación de bienes
+
+- Las operaciones gratuitas informan el valor referencial en `LineExtensionAmount` y `TaxableAmount`, conservando el total pagable en cero.
+- El IGV referencial de los códigos 11-16 se declara en el subtotal 9996 sin sumarlo al impuesto cobrado.
+- Facturas, boletas y notas de crédito comparten la misma regla tributaria y agregan la leyenda 1002 cuando corresponde.
+- Se soporta exportación de bienes 0200, moneda PEN/USD/EUR y receptor no domiciliado con país ISO-3166.
+- El comando `crear_productos_sunat_ejemplo` crea o actualiza los 19 ejemplos del Catálogo 07.
+
+## Correccion segura de comprobantes rechazados
+
+- Las facturas nacionales exigen receptor con RUC; un receptor con DNI genera boleta.
+- Los borradores permiten editar receptor, fecha y lineas sin alterar su numeracion.
+- Un rechazo SUNAT 2000-3999 queda inmutable y se reemplaza por un comprobante nuevo relacionado mediante `reemplaza_a`.
+- Los fallos tecnicos usan `ERROR_ENVIO` y son los unicos que permiten reintentar la misma numeracion.
+- La respuesta se clasifica desde el SOAP Fault y desde `ResponseCode` dentro del ZIP CDR.
+
 Este documento detalla todos los cambios aplicados al proyecto durante las fases de implementación, refactorización arquitectónica y cierre de brechas.
 
 ## Tabla de Contenidos
@@ -258,11 +274,11 @@ urlpatterns = [
 
 **Resultado:** `GET /api/reportes/ventas-por-periodo/` → 200 ✅
 
-### Cambio 2 · Test obsoleto de DNI para factura
+### Cambio 2 · Validación final del receptor de factura
 
-**Problema:** El test `test_crear_factura_con_dni_retorna_400` esperaba que la API rechazara DNI para factura, pero ahora el sistema ACEPTA cualquier tipo de documento (decisión del usuario).
+**Problema:** Durante una iteración anterior se flexibilizó incorrectamente la factura nacional para aceptar DNI, lo que producía el rechazo SUNAT `2800`.
 
-**Solución:** Renombrar el test a `test_crear_factura_con_dni_ahora_acepta` y cambiar el assert a `201 Created`.
+**Solución vigente:** La factura nacional exige RUC (`schemeID="6"`). Un cliente con DNI genera boleta. La única excepción implementada es la factura de exportación `0200`, cuyo receptor debe ser no domiciliado, tener documento extranjero y país distinto de `PE`.
 
 ### Cambio 3 · Limpiar modelo `ReporteVentas` vacío
 
@@ -290,16 +306,18 @@ urlpatterns = [
 - `templates/productos/categorias/lista.html` — `{{ categoria.activa }}` → `{{ categoria.activo }}`
 - `apps/productos/serializers.py` — Agregado método `to_internal_value()` que normaliza el checkbox `activo` (acepta `on`, `true`, `1`, `True`, `False`)
 
-### Fix 2 · Comprobante: validación flexible de tipo_doc
+### Fix 2 · Comprobante: validación SUNAT de tipo de documento
 
-**Problema:** El sistema rechazaba factura con DNI y boleta con RUC, lo cual es muy restrictivo.
+**Problema:** Aceptar cualquier combinación entre comprobante y documento del receptor permitía construir facturas nacionales con DNI.
 
-**Solución:** `dominio/servicios/comprobante_service.py:_validar_tipo_documento()` ahora solo valida **longitud estructural** (DNI=8, RUC=11, etc.) usando `LONGITUDES_DOC` de `dominio/entidades/cliente.py`. Acepta cualquier combinación de tipo_doc × tipo comprobante.
+**Solución vigente:**
 
-**Tests actualizados:**
-- `test_factura_con_dni_lanza_excepcion` → `test_factura_con_dni_ahora_acepta` (assert 201)
-- `test_factura_con_dni_lanza_tipo_doc_invalido` → `test_factura_con_dni_acepta`
-- Nuevos: `test_validacion_longitud_dni_invalido`, `test_validacion_longitud_documento_invalido`
+- Factura nacional `0101`: receptor con RUC.
+- Boleta: DNI, carné de extranjería, pasaporte u otro documento permitido.
+- Factura de exportación `0200`: receptor no domiciliado con tipo `0`, `4`, `7` o `A` y país distinto de `PE`.
+- Las validaciones se ejecutan en interfaz, dominio y generador XML.
+
+**Tests vigentes:** bloqueo de factura con DNI, exportación con receptor extranjero, rechazo de receptor domiciliado y rechazo de líneas nacionales mezcladas con afectación `40`.
 
 ### Fix 3 · Cliente: defensa en serializer
 
@@ -388,4 +406,5 @@ apps/                     # Shell Django (compatibilidad legacy)
 
 Para más información sobre la implementación, ver:
 - [`docs/ARQUITECTURA.md`](ARQUITECTURA.md) — Detalle arquitectónico
+- [`docs/EXPORTACION_SUNAT_40.md`](EXPORTACION_SUNAT_40.md) — Guía de exportación de bienes
 - [`README.md`](../README.md) — Guía de uso e instalación

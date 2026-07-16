@@ -19,7 +19,7 @@
                             <i class="bi bi-building"></i> Empresa <span style="color:var(--danger);">*</span>
                         </label>
                         <div class="input-group-professional">
-                            <input type="hidden" name="empresa_id" id="empresa_id" required onchange="checkRequirements()">
+                            <input type="hidden" name="empresa_id" id="empresa_id" required onchange="checkRequirements(this)">
                             <input type="text" id="empresa_codigo" class="code-input" placeholder="Código" 
                                    onblur="searchByCode('empresa', 'empresa_id', 'empresa_name')"
                                    onkeydown="if(event.key === 'Enter') { event.preventDefault(); openSelector('empresa', 'empresa_id', 'empresa_name', null, this.value); }">
@@ -35,7 +35,7 @@
                             <i class="bi bi-person"></i> Cliente <span style="color:var(--danger);">*</span>
                         </label>
                         <div class="input-group-professional">
-                            <input type="hidden" name="cliente_id" id="cliente_id" required onchange="checkRequirements()">
+                            <input type="hidden" name="cliente_id" id="cliente_id" required onchange="checkRequirements(this)">
                             <input type="text" id="cliente_codigo" class="code-input" placeholder="Código" 
                                    onblur="searchByCode('cliente', 'cliente_id', 'cliente_name')"
                                    onkeydown="if(event.key === 'Enter') { event.preventDefault(); openSelector('cliente', 'cliente_id', 'cliente_name', null, this.value); }">
@@ -62,7 +62,17 @@
                         </label>
                         <input type="date" class="form-control" name="fecha" id="fecha" value="{{ today }}" required>
                     </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="moneda" class="form-label" style="color:var(--primary-700);font-weight:600;">Moneda</label>
+                        <select class="form-select" name="moneda" id="moneda" required>
+                            <option value="PEN">PEN - Sol peruano</option>
+                            <option value="USD">USD - Dolar estadounidense</option>
+                            <option value="EUR">EUR - Euro</option>
+                        </select>
+                    </div>
                 </div>
+
+                <div id="modal-operation-help" class="alert alert-info" style="display:none;margin-bottom:16px;"></div>
 
                 <div id="restriction-overlay" style="position:relative;">
                     <div id="restriction-message" style="position:absolute;top:0;left:0;right:0;bottom:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.7);backdrop-filter:blur(2px);border-radius:var(--radius-md);border:2px dashed var(--gray-300);">
@@ -81,6 +91,8 @@
                             <label class="form-label">Producto <span style="color:var(--danger);">*</span></label>
                             <div style="position:relative;">
                                 <input type="hidden" name="producto_id" required>
+                                <input type="hidden" name="cod_tipo_afectacion" value="10">
+                                <input type="hidden" name="descuento" value="0">
                                 <input type="text" class="form-control producto-display" 
                                        placeholder="Escribe nombre de producto y presiona Enter..." 
                                        onkeydown="if(event.key === 'Enter') { event.preventDefault(); openSelector('producto', null, null, this.closest('.detalle-item'), this.value); }"
@@ -142,8 +154,9 @@
                     <div class="form-group" style="margin-bottom:0;">
                         <label for="tipo_doc" class="form-label">Tipo Doc. <span style="color:var(--danger);">*</span></label>
                         <select name="tipo_doc" id="tipo_doc" required class="form-select" onchange="updateDocValidation(this)">
+                            <option value="0">Doc. extranjero (1-15 caracteres)</option>
                             <option value="1">DNI</option>
-                            <option value="6" selected>RUC</option>
+                            <option value="6" selected>RUC peruano (11 dígitos)</option>
                             <option value="4">C. Extranjería</option>
                             <option value="7">Pasaporte</option>
                         </select>
@@ -154,10 +167,17 @@
                                maxlength="11" minlength="11" pattern="[0-9]{11}"
                                title="El RUC debe tener 11 dígitos"
                                class="form-control">
+                        <small class="text-muted" data-document-help>RUC peruano: exactamente 11 dígitos. No use este tipo para un comprador extranjero sin RUC peruano.</small>
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
                         <label for="ubigeo" class="form-label">Ubigeo</label>
                         <input type="text" name="ubigeo" id="ubigeo" maxlength="6" class="form-control">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="pais_codigo" class="form-label">País ISO</label>
+                        <input type="text" name="pais_codigo" id="pais_codigo" maxlength="2" minlength="2"
+                               value="PE" pattern="[A-Za-z]{2}" class="form-control">
+                        <small class="text-muted">Para SUNAT-40 use un país distinto de PE.</small>
                     </div>
                 </div>
 
@@ -227,16 +247,6 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label for="tipo_operacion" class="form-label">Tipo de Operación</label>
-                        <select name="tipo_operacion" id="tipo_operacion" class="form-select">
-                            <option value="GRAVADA">Gravada</option>
-                            <option value="EXONERADA">Exonerada</option>
-                            <option value="INAFECTA">Inafecta</option>
-                            <option value="GRATUITA">Operación Gratuita</option>
-                            <option value="EXPORTACION">Exportación</option>
-                        </select>
-                    </div>
                 </div>
 
                 <div class="form-group">
@@ -260,16 +270,11 @@
                     <div class="form-group" style="margin-bottom:0;">
                         <label for="cod_tipo_afectacion" class="form-label">Afectación IGV</label>
                         <select name="cod_tipo_afectacion" id="cod_tipo_afectacion" class="form-select">
-                            <option value="10">10 - Gravado</option>
-                            <option value="20">20 - Exonerado</option>
-                            <option value="30">30 - Inafecto</option>
+                            {% include "productos/_afectacion_igv_options.html" %}
                         </select>
                     </div>
                     <div style="padding-bottom:2px;">
-                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                            <input type="checkbox" name="afecto_igv" checked style="width:16px;height:16px;">
-                            <span class="form-label" style="margin-bottom:0;">Afecto IGV</span>
-                        </label>
+                        <small class="text-muted">En códigos gratuitos, el precio ingresado es referencial y no se cobra.</small>
                     </div>
                 </div>
 
@@ -317,22 +322,68 @@ document.addEventListener('DOMContentLoaded', function() {
 /**
  * Verifica si se han seleccionado empresa y cliente para habilitar los detalles
  */
-function checkRequirements() {
-    const empresaId = document.getElementById('empresa_id').value;
-    const clienteId = document.getElementById('cliente_id').value;
-    const overlay = document.getElementById('restriction-message');
-    const container = document.getElementById('detalles-container');
-    const addBtn = document.getElementById('add-detalle');
+function checkRequirements(source = null) {
+    const form = source?.closest('form')
+        || document.querySelector('#nuevoComprobanteModal form');
+    if (!form) return;
+
+    const empresa = form.querySelector('input[name="empresa_id"]');
+    const cliente = form.querySelector('input[name="cliente_id"]');
+    const empresaId = empresa?.value || '';
+    const clienteId = cliente?.value || '';
+    const overlay = form.querySelector('#restriction-message');
+    const container = form.querySelector('#detalles-container');
+    const addBtn = form.querySelector('#add-detalle');
+    const tipo = form.querySelector('select[name="tipo"]');
+    const ayuda = form.querySelector('#modal-operation-help');
+    const tiposExtranjeros = ['0', '4', '7', 'A'];
+    const esExtranjero = Boolean(clienteId)
+        && tiposExtranjeros.includes(cliente?.dataset.tipoDoc || '')
+        && (cliente?.dataset.pais || 'PE').toUpperCase() !== 'PE';
+
+    const opcionBoleta = tipo?.querySelector('option[value="03"]');
+    if (opcionBoleta) opcionBoleta.disabled = esExtranjero;
+    if (esExtranjero && tipo) tipo.value = '01';
+
+    if (ayuda) {
+        if (clienteId) {
+            ayuda.style.display = 'block';
+            ayuda.innerHTML = esExtranjero
+                ? '<strong>Exportación 0200:</strong> el selector mostrará exclusivamente productos SUNAT con afectación 40.'
+                : '<strong>Operación nacional:</strong> el selector ocultará productos con afectación 40.';
+        } else {
+            ayuda.style.display = 'none';
+        }
+    }
+
+    form.querySelectorAll('#detalles-container .detalle-item').forEach(row => {
+        const afectacion = row.querySelector('input[name="cod_tipo_afectacion"]')?.value || '10';
+        const incompatible = esExtranjero ? afectacion !== '40' : afectacion === '40';
+        const productoId = row.querySelector('input[name="producto_id"]');
+        if (clienteId && productoId?.value && incompatible) {
+            productoId.value = '';
+            const display = row.querySelector('.producto-display');
+            const precio = row.querySelector('input[name="precio_unitario"]');
+            const codigo = row.querySelector('input[name="cod_tipo_afectacion"]');
+            if (display) display.value = '';
+            if (precio) precio.value = '';
+            if (codigo) codigo.value = '10';
+        }
+    });
 
     if (empresaId && clienteId) {
-        overlay.style.display = 'none';
-        container.style.opacity = '1';
-        container.style.pointerEvents = 'auto';
+        if (overlay) overlay.style.display = 'none';
+        if (container) {
+            container.style.opacity = '1';
+            container.style.pointerEvents = 'auto';
+        }
         if (addBtn) addBtn.disabled = false;
     } else {
-        overlay.style.display = 'flex';
-        container.style.opacity = '0.5';
-        container.style.pointerEvents = 'none';
+        if (overlay) overlay.style.display = 'flex';
+        if (container) {
+            container.style.opacity = '0.5';
+            container.style.pointerEvents = 'none';
+        }
         if (addBtn) addBtn.disabled = true;
     }
 }
@@ -340,9 +391,72 @@ function checkRequirements() {
 /**
  * Carga el formulario de edición en un modal vía AJAX
  */
+window.initComprobanteCorrectionForm = function(root) {
+    const form = root.querySelector ? root.querySelector('#form-comprobante') : null;
+    if (!form || form.dataset.initialized === 'true') return;
+    form.dataset.initialized = 'true';
+
+    const container = form.querySelector('#detalles-container');
+    const cliente = form.querySelector('#cliente_id');
+    const tipo = form.querySelector('#tipo-resultante');
+    const addButton = form.querySelector('#add-detalle');
+
+    function actualizarTipo() {
+        if (form.dataset.modo !== 'corregir' || !cliente || !tipo) return;
+        const option = cliente.options[cliente.selectedIndex];
+        const codigos = Array.from(
+            form.querySelectorAll('[name="cod_tipo_afectacion"]')
+        ).map(input => input.value);
+        const esExportacion = codigos.length > 0 && codigos.every(codigo => codigo === '40');
+        const texto = esExportacion
+            ? 'Factura de exportacion'
+            : (option && option.dataset.tipoDoc === '6' ? 'Factura' : 'Boleta');
+        tipo.innerHTML = `<i class="bi bi-receipt"></i>${texto}`;
+    }
+
+    cliente?.addEventListener('change', actualizarTipo);
+    actualizarTipo();
+
+    addButton?.addEventListener('click', function() {
+        const original = container?.querySelector('.detalle-item');
+        if (!original) return;
+        const row = original.cloneNode(true);
+        const select = row.querySelector('.producto-select');
+        select.selectedIndex = 0;
+        const option = select.options[0];
+        row.querySelector('[name="cantidad"]').value = '1';
+        row.querySelector('[name="precio_unitario"]').value = option?.dataset.precio || '0';
+        row.querySelector('[name="descuento"]').value = '0';
+        row.querySelector('[name="cod_tipo_afectacion"]').value = option?.dataset.afectacion || '10';
+        container.appendChild(row);
+        actualizarTipo();
+    });
+
+    form.addEventListener('change', function(event) {
+        if (!event.target.matches('.producto-select')) return;
+        const row = event.target.closest('.detalle-item');
+        const option = event.target.options[event.target.selectedIndex];
+        row.querySelector('[name="precio_unitario"]').value = option?.dataset.precio || '0';
+        row.querySelector('[name="cod_tipo_afectacion"]').value = option?.dataset.afectacion || '10';
+        actualizarTipo();
+    });
+
+    form.addEventListener('click', function(event) {
+        const button = event.target.closest('.btn-remove');
+        if (!button) return;
+        if (container.querySelectorAll('.detalle-item').length > 1) {
+            button.closest('.detalle-item').remove();
+            actualizarTipo();
+        } else {
+            showErrorMessage('El comprobante debe conservar al menos una linea.');
+        }
+    });
+};
+
 function openEditModal(url) {
     const modal = document.getElementById('editModal');
     const content = document.getElementById('editModalContent');
+    content.style.maxWidth = '800px';
 
     content.innerHTML = `
         <div style="padding:60px; text-align:center;">
@@ -378,6 +492,8 @@ function openEditModal(url) {
                     </div>
                     <div class="modal-body" id="editFormContainer"></div>
                 `;
+                const modalStyles = doc.querySelector('style[data-modal-form-styles]');
+                if (modalStyles) content.appendChild(modalStyles.cloneNode(true));
 
                 // Insert content
                 if (mainContent.tagName === 'FORM') {
@@ -396,6 +512,10 @@ function openEditModal(url) {
                         e.preventDefault();
                         submitEditForm(form);
                     });
+                    if (form.id === 'form-comprobante') {
+                        content.style.maxWidth = '1100px';
+                        window.initComprobanteCorrectionForm(content);
+                    }
                 }
 
                 // Re-bind scripts if necessary (like doc validation)
@@ -474,6 +594,9 @@ function submitEditForm(form) {
                                 e.preventDefault();
                                 submitEditForm(newForm);
                             });
+                            if (newForm.id === 'form-comprobante') {
+                                window.initComprobanteCorrectionForm(container);
+                            }
                         }
                     }
                     submitBtn.disabled = false;

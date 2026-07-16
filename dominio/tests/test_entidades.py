@@ -154,6 +154,7 @@ class TestDetalleComprobanteEntidad:
             cantidad=Decimal("1"),
             precio_unitario=Decimal("100"),
             afecto_igv=False,
+            cod_tipo_afectacion="20",
         )
         d.calcular_subtotal(Decimal("0.18"))
         assert d.subtotal == Decimal("100.00")
@@ -197,6 +198,7 @@ class TestComprobanteTotales:
                     cantidad=Decimal("1"),
                     precio_unitario=Decimal("50"),
                     afecto_igv=False,
+                    cod_tipo_afectacion="20",
                 ),
             ],
         )

@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Optional
 
 from ..excepciones import ReglaNegocioViolada
+from ..tributos import datos_afectacion_igv, tipo_operacion_para
 
 
 @dataclass
@@ -40,6 +41,12 @@ class Producto:
             raise ReglaNegocioViolada(
                 "El precio unitario no puede ser negativo"
             )
+        try:
+            datos = datos_afectacion_igv(self.cod_tipo_afectacion)
+        except ValueError as exc:
+            raise ReglaNegocioViolada(str(exc)) from exc
+        self.afecto_igv = bool(datos["tasa"] and not datos["gratuito"])
+        self.tipo_operacion = tipo_operacion_para(self.cod_tipo_afectacion)
 
     @property
     def precio_con_igv(self) -> Decimal:

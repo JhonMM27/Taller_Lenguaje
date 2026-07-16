@@ -32,7 +32,7 @@
                         <option value="">-- Seleccionar empresa --</option>
                         {% for empresa in empresas %}
                         {# Preseleccionar si solo hay una empresa en el sistema (empresa_default) #}
-                        <option value="{{ empresa.id }}" {% if empresa_default and empresa.id == empresa_default.id %}selected{% endif %}>
+                        <option value="{{ empresa.id }}" {% if form_data.empresa_id == empresa.id|stringformat:'s' or not form_data.empresa_id and empresa_default and empresa.id == empresa_default.id %}selected{% endif %}>
                             {{ empresa.razon_social }} ({{ empresa.ruc }})
                         </option>
                         {% empty %}
@@ -41,15 +41,23 @@
                     </select>
                 </div>
                 <div class="col-md-4">
+                    <label for="moneda" class="form-label">Moneda *</label>
+                    <select class="form-select" name="moneda" id="moneda" required>
+                        <option value="PEN" {% if not form_data.moneda or form_data.moneda == 'PEN' %}selected{% endif %}>PEN - Sol peruano</option>
+                        <option value="USD" {% if form_data.moneda == 'USD' %}selected{% endif %}>USD - Dolar estadounidense</option>
+                        <option value="EUR" {% if form_data.moneda == 'EUR' %}selected{% endif %}>EUR - Euro</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
                     <label for="tipo" class="form-label">Tipo *</label>
                     <select class="form-select" name="tipo" id="tipo" required>
-                        <option value="01">Factura</option>
-                        <option value="03">Boleta</option>
+                        <option value="01" {% if not form_data.tipo or form_data.tipo == '01' %}selected{% endif %}>Factura</option>
+                        <option value="03" {% if form_data.tipo == '03' %}selected{% endif %}>Boleta</option>
                     </select>
                 </div>
                 <div class="col-md-4">
                     <label for="fecha" class="form-label">Fecha *</label>
-                    <input type="date" class="form-control" name="fecha" id="fecha" value="{{ today }}" required>
+                    <input type="date" class="form-control" name="fecha" id="fecha" value="{{ form_data.fecha|default:today }}" required>
                 </div>
             </div>
 
@@ -59,7 +67,12 @@
                     <select class="form-select" name="cliente_id" id="cliente_id" required>
                         <option value="">-- Seleccionar cliente --</option>
                         {% for cliente in clientes %}
-                        <option value="{{ cliente.id }}">{{ cliente.razon_social }} ({{ cliente.num_doc }})</option>
+                        <option value="{{ cliente.id }}"
+                                data-tipo-doc="{{ cliente.tipo_doc }}"
+                                data-pais="{{ cliente.pais_codigo|default:'PE' }}"
+                                {% if form_data.cliente_id == cliente.id|stringformat:'s' %}selected{% endif %}>
+                            {{ cliente.razon_social }} ({{ cliente.num_doc }})
+                        </option>
                         {% empty %}
                         <option value="">No hay clientes. <a href="{% url 'clientes:crear' %}">Crear cliente</a></option>
                         {% endfor %}
@@ -67,17 +80,20 @@
                 </div>
             </div>
 
+            <div id="ayuda-operacion" class="alert alert-info" style="display:none;margin-bottom:16px;"></div>
+
             <hr>
 
             <h5>Detalles</h5>
             <div id="detalles-container">
+                {% for detalle in detalles_form %}
                 <div class="row detalle-item mb-2">
                     <div class="col-md-4">
                         <label class="form-label">Producto *</label>
                         <select class="form-select producto-select" name="producto_id" required>
                             <option value="">-- Seleccionar producto --</option>
                             {% for producto in productos %}
-                            <option value="{{ producto.id }}" data-precio="{{ producto.precio_unitario }}">{{ producto.codigo }} - {{ producto.descripcion|truncatechars:40 }}</option>
+                            <option value="{{ producto.id }}" data-precio="{{ producto.precio_unitario }}" data-afectacion="{{ producto.cod_tipo_afectacion }}" {% if detalle.producto_id == producto.id|stringformat:'s' %}selected{% endif %}>{{ producto.codigo }} - {{ producto.descripcion|truncatechars:40 }} (Afectación {{ producto.cod_tipo_afectacion }})</option>
                             {% empty %}
                             <option value="">No hay productos. <a href="{% url 'productos:crear' %}">Crear producto</a></option>
                             {% endfor %}
@@ -85,11 +101,13 @@
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Cantidad</label>
-                        <input type="number" class="form-control" name="cantidad" step="0.01" value="1" required>
+                        <input type="number" class="form-control" name="cantidad" step="0.01" value="{{ detalle.cantidad|default:'1' }}" required>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Precio Unit.</label>
-                        <input type="number" class="form-control" name="precio_unitario" step="0.01" required>
+                        <input type="number" class="form-control" name="precio_unitario" step="0.01" value="{{ detalle.precio_unitario|default:'' }}" required>
+                        <input type="hidden" name="cod_tipo_afectacion" value="{{ detalle.cod_tipo_afectacion|default:'10' }}">
+                        <input type="hidden" name="descuento" value="{{ detalle.descuento|default:'0' }}">
                     </div>
                     <div class="col-md-1 d-flex align-items-end">
                         <button type="button" class="btn btn-danger btn-remove-detalle">
@@ -97,6 +115,7 @@
                         </button>
                     </div>
                 </div>
+                {% endfor %}
             </div>
 
             <button type="button" class="btn btn-secondary mb-3" id="add-detalle">
@@ -148,6 +167,7 @@ document.getElementById('add-detalle').addEventListener('click', function() {
     // Clear price
     newRow.querySelector('input[name="precio_unitario"]').value = '';
     container.appendChild(newRow);
+    actualizarDisponibilidadProductos();
     recalcularTotales();
 });
 
@@ -167,8 +187,10 @@ document.addEventListener('change', function(e) {
         const select = e.target;
         const selectedOption = select.options[select.selectedIndex];
         const precio = selectedOption.getAttribute('data-precio');
+        const afectacion = selectedOption.getAttribute('data-afectacion') || '10';
+        const row = select.closest('.detalle-item');
+        row.querySelector('input[name="cod_tipo_afectacion"]').value = afectacion;
         if (precio) {
-            const row = select.closest('.detalle-item');
             row.querySelector('input[name="precio_unitario"]').value = precio;
             recalcularTotales();
         }
@@ -183,13 +205,18 @@ document.addEventListener('input', function(e) {
 
 function recalcularTotales() {
     let subtotal = 0;
+    let igv = 0;
     document.querySelectorAll('.detalle-item').forEach(row => {
         const cantidad = parseFloat(row.querySelector('input[name="cantidad"]').value) || 0;
         const precio = parseFloat(row.querySelector('input[name="precio_unitario"]').value) || 0;
-        subtotal += cantidad * precio;
+        const codigo = row.querySelector('input[name="cod_tipo_afectacion"]')?.value || '10';
+        const gratuitos = ['11','12','13','14','15','16','21','31','32','33','34','35','36','37'];
+        if (!gratuitos.includes(codigo)) {
+            const base = cantidad * precio;
+            subtotal += base;
+            igv += base * (codigo === '10' ? 0.18 : codigo === '17' ? 0.04 : 0);
+        }
     });
-    
-    const igv = subtotal * 0.18;
     const total = subtotal + igv;
     
     document.getElementById('total_op_gravada').textContent = 'S/ ' + subtotal.toFixed(2);
@@ -197,7 +224,57 @@ function recalcularTotales() {
     document.getElementById('total_importe').textContent = 'S/ ' + total.toFixed(2);
 }
 
+function actualizarDisponibilidadProductos() {
+    const clienteSelect = document.getElementById('cliente_id');
+    const tipoSelect = document.getElementById('tipo');
+    const ayuda = document.getElementById('ayuda-operacion');
+    const cliente = clienteSelect.options[clienteSelect.selectedIndex];
+    const tipoDoc = cliente?.dataset.tipoDoc || '';
+    const pais = (cliente?.dataset.pais || 'PE').toUpperCase();
+    const tiposExtranjeros = ['0', '4', '7', 'A'];
+    const esExtranjero = Boolean(clienteSelect.value) && tiposExtranjeros.includes(tipoDoc) && pais !== 'PE';
+
+    const opcionBoleta = tipoSelect.querySelector('option[value="03"]');
+    opcionBoleta.disabled = esExtranjero;
+    if (esExtranjero) tipoSelect.value = '01';
+
+    document.querySelectorAll('.producto-select').forEach(select => {
+        let seleccionOculta = false;
+        Array.from(select.options).forEach(option => {
+            if (!option.value) return;
+            const esExportacion = option.dataset.afectacion === '40';
+            option.hidden = clienteSelect.value
+                ? (esExtranjero ? !esExportacion : esExportacion)
+                : false;
+            option.disabled = option.hidden;
+            if (option.selected && option.hidden) seleccionOculta = true;
+        });
+        if (seleccionOculta) {
+            select.value = '';
+            const row = select.closest('.detalle-item');
+            row.querySelector('input[name="precio_unitario"]').value = '';
+            row.querySelector('input[name="cod_tipo_afectacion"]').value = '10';
+        }
+    });
+
+    if (!clienteSelect.value) {
+        ayuda.style.display = 'none';
+    } else if (esExtranjero) {
+        ayuda.style.display = 'block';
+        ayuda.innerHTML = '<strong>Exportación 0200:</strong> se muestran únicamente productos con afectación 40. El documento extranjero puede tener de 1 a 15 caracteres.';
+    } else {
+        ayuda.style.display = 'block';
+        ayuda.innerHTML = '<strong>Operación nacional:</strong> los productos de exportación SUNAT-40 están ocultos para este cliente.';
+    }
+    recalcularTotales();
+}
+
+document.getElementById('cliente_id').addEventListener('change', actualizarDisponibilidadProductos);
+
 // Initial calculation
-document.addEventListener("DOMContentLoaded", recalcularTotales);
+document.addEventListener("DOMContentLoaded", function() {
+    actualizarDisponibilidadProductos();
+    recalcularTotales();
+});
 </script>
 {% endblock %}

@@ -29,12 +29,22 @@ class SerieComprobante(ModeloBase):
 
 
 class Comprobante(ModeloBase):
+    TIPO_OPERACION_CHOICES = [
+        ('0101', 'Venta interna'),
+        ('0200', 'Exportación de bienes'),
+    ]
+    MONEDA_CHOICES = [
+        ('PEN', 'Sol peruano'),
+        ('USD', 'Dólar estadounidense'),
+        ('EUR', 'Euro'),
+    ]
     ESTADO_CHOICES = [
         ('BORRADOR', 'Borrador'),
         ('EMITIDO', 'Emitido'),
         ('ENVIADO', 'Enviado'),
         ('ACEPTADO', 'Aceptado'),
         ('RECHAZADO', 'Rechazado'),
+        ('ERROR_ENVIO', 'Error de envio'),
         ('ANULADO_PARCIAL', 'Anulado Parcial'),
         ('ANULADO_TOTAL', 'Anulado Total'),
     ]
@@ -43,7 +53,7 @@ class Comprobante(ModeloBase):
         'BORRADOR': ['EMITIDO'],
         'EMITIDO': ['ENVIADO', 'BORRADOR'],
         'ENVIADO': ['ACEPTADO', 'RECHAZADO'],
-        'RECHAZADO': ['ENVIADO'],
+        'ERROR_ENVIO': ['ENVIADO'],
         'ACEPTADO': ['ANULADO_PARCIAL', 'ANULADO_TOTAL'],
     }
 
@@ -53,6 +63,10 @@ class Comprobante(ModeloBase):
     numero = models.PositiveIntegerField()
     fecha = models.DateField()
     tipo = models.CharField(max_length=2, choices=SerieComprobante.TIPO_CHOICES)
+    tipo_operacion = models.CharField(
+        max_length=4, choices=TIPO_OPERACION_CHOICES, default='0101'
+    )
+    moneda = models.CharField(max_length=3, choices=MONEDA_CHOICES, default='PEN')
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='BORRADOR')
     subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     igv = models.DecimalField(max_digits=14, decimal_places=2, default=0)
@@ -60,6 +74,11 @@ class Comprobante(ModeloBase):
     xml_firmado = models.TextField(blank=True, null=True)
     zip_path = models.CharField(max_length=500, blank=True, null=True)
     sunat_ticket = models.CharField(max_length=100, blank=True, null=True)
+    reemplaza_a = models.OneToOneField(
+        'self', null=True, blank=True, on_delete=models.PROTECT,
+        related_name='reemplazado_por',
+        help_text='Comprobante rechazado que fue sustituido por este documento.',
+    )
 
     class Meta:
         verbose_name = "Comprobante"
@@ -110,6 +129,10 @@ class Comprobante(ModeloBase):
     def nombre_zip(self):
         tipo = self.tipo or (self.serie.tipo if self.serie else '')
         return f"{self.empresa.ruc}-{tipo}-{self.serie.serie}-{self.numero:08d}.zip"
+
+    @property
+    def tiene_reemplazo(self):
+        return hasattr(self, 'reemplazado_por')
 
 
 class DetalleComprobante(ModeloBase):

@@ -119,14 +119,14 @@ class NotaCreditoService:
         # Validar primero contra comprobante (debe estar ACEPTADO)
         nota.validar_contra_comprobante(comprobante)
 
-        # Si hay monto_afectado explicito, usarlo; si no, calcular de detalles
+        # Siempre calcular line items primero (subtotal, igv_linea)
+        nota.calcular_totales(self._tasa_igv)
+
+        # Si hay monto_afectado explicito, sobreescribir totales desde el monto
         if monto_afectado is not None:
             nota.importe = Decimal(str(monto_afectado))
-            # Aproximacion: IGV incluido
-            nota.igv = (nota.importe / Decimal("1.18")).quantize(Decimal("0.01"))
-            nota.op_gravada = nota.importe - nota.igv
-        else:
-            nota.calcular_totales(self._tasa_igv)
+            nota.op_gravada = (nota.importe / (Decimal("1") + self._tasa_igv)).quantize(Decimal("0.01"))
+            nota.igv = nota.importe - nota.op_gravada
 
         # Validar que el monto no exceda al comprobante
         nota.validar_monto(comprobante)

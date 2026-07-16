@@ -11,6 +11,7 @@ guardar, porque el hexagonal borra los detalles. Usamos Django ORM directo
 para preservar los detalles existentes.
 """
 import logging
+from decimal import Decimal, ROUND_HALF_UP
 
 from interfaces.container import (
     get_comprobante_service,
@@ -19,6 +20,141 @@ from interfaces.container import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _validar_tipo_cliente(tipo, cliente, tipo_operacion='0101'):
+    from dominio.entidades.cliente import LONGITUDES_DOC, TIPOS_DOC_VALIDOS
+    from dominio.excepciones import TipoDocumentoInvalido
+
+    if cliente.tipo_doc not in TIPOS_DOC_VALIDOS:
+        raise TipoDocumentoInvalido(
+            f"Tipo de documento del receptor no permitido: {cliente.tipo_doc}."
+        )
+    if tipo_operacion == '0200':
+        if tipo != '01':
+            raise TipoDocumentoInvalido(
+                "La exportacion de bienes 0200 debe emitirse como factura."
+            )
+        if cliente.tipo_doc not in ('0', '4', '7', 'A'):
+            raise TipoDocumentoInvalido(
+                "La exportacion requiere un receptor no domiciliado con documento extranjero."
+            )
+        if str(getattr(cliente, 'pais_codigo', 'PE') or 'PE').upper() == 'PE':
+            raise TipoDocumentoInvalido(
+                "El receptor de una exportacion debe residir fuera de Peru."
+            )
+    elif tipo == '01' and cliente.tipo_doc != '6':
+        if (
+            cliente.tipo_doc in ('0', '4', '7', 'A')
+            and str(getattr(cliente, 'pais_codigo', 'PE') or 'PE').upper() != 'PE'
+        ):
+            raise TipoDocumentoInvalido(
+                "El receptor es extranjero. Para emitirle una factura de exportacion "
+                "seleccione exclusivamente productos con afectacion IGV 40; el sistema "
+                "generara automaticamente la operacion 0200."
+            )
+        raise TipoDocumentoInvalido(
+            "SUNAT exige RUC (tipo 6) para una factura nacional. "
+            "Seleccione un cliente con RUC o genere una boleta."
+        )
+    esperado = LONGITUDES_DOC.get(cliente.tipo_doc)
+    numero = str(cliente.num_doc or '').strip()
+    if esperado and (not numero.isdigit() or len(numero) != esperado):
+        raise TipoDocumentoInvalido(
+            f"El documento tipo {cliente.tipo_doc} debe contener {esperado} digitos."
+        )
+
+
+def _tipo_operacion_desde_detalles(detalles_data):
+    from apps.productos.models import Producto
+    from dominio.tributos import tipo_operacion_comprobante
+
+    codigos = []
+    for data in detalles_data:
+        codigo = data.get('cod_tipo_afectacion')
+        if not codigo:
+            codigo = Producto.objects.only('cod_tipo_afectacion').get(
+                pk=int(data['producto_id'])
+            ).cod_tipo_afectacion
+        codigos.append(str(codigo))
+    return tipo_operacion_comprobante(codigos)
+
+
+def _reemplazar_detalles(modelo, detalles_data, moneda=None):
+    """Reemplaza lineas y recalcula importes usando la afectacion SUNAT de cada item."""
+    from apps.productos.models import Producto
+    from apps.comprobantes.models import DetalleComprobante
+    from dominio.tributos import (
+        datos_afectacion_igv,
+        tipo_operacion_comprobante,
+        validar_moneda,
+    )
+    from dominio.excepciones import ReglaNegocioViolada, ProductoNoEncontrado
+
+    if not detalles_data:
+        raise ReglaNegocioViolada("Debe incluir al menos un producto.")
+
+    lineas = []
+    subtotal_total = Decimal('0.00')
+    igv_total = Decimal('0.00')
+    for data in detalles_data:
+        try:
+            producto = Producto.objects.get(pk=int(data['producto_id']), activo=True)
+        except (Producto.DoesNotExist, TypeError, ValueError, KeyError) as exc:
+            raise ProductoNoEncontrado("Uno de los productos seleccionados no existe.") from exc
+
+        cantidad = Decimal(str(data.get('cantidad', '1')))
+        precio = Decimal(str(data.get('precio_unitario', producto.precio_unitario)))
+        descuento = Decimal(str(data.get('descuento', '0') or '0'))
+        if cantidad <= 0 or precio < 0 or descuento < 0 or descuento > precio:
+            raise ReglaNegocioViolada(
+                "Cantidad, precio o descuento invalido en una linea del comprobante."
+            )
+
+        codigo = str(data.get('cod_tipo_afectacion') or producto.cod_tipo_afectacion)
+        tributo = datos_afectacion_igv(codigo)
+        base = ((precio - descuento) * cantidad).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+        if tributo['gratuito']:
+            subtotal = Decimal('0.00')
+            igv_linea = Decimal('0.00')
+        else:
+            subtotal = base
+            igv_linea = (base * tributo['tasa'] / Decimal('100')).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP
+            )
+        lineas.append(DetalleComprobante(
+            comprobante=modelo,
+            producto=producto,
+            cantidad=cantidad,
+            precio_unitario=precio,
+            descuento=descuento,
+            afecto_igv=codigo in ('10', '17'),
+            cod_tipo_afectacion=codigo,
+            subtotal=subtotal,
+            igv_linea=igv_linea,
+        ))
+        subtotal_total += subtotal
+        igv_total += igv_linea
+
+    modelo.detalles.all().delete()
+    DetalleComprobante.objects.bulk_create(lineas)
+    modelo.subtotal = subtotal_total
+    modelo.igv = igv_total
+    modelo.total = subtotal_total + igv_total
+    modelo.tipo_operacion = tipo_operacion_comprobante(
+        linea.cod_tipo_afectacion for linea in lineas
+    )
+    modelo.moneda = validar_moneda(moneda or modelo.moneda)
+    _validar_tipo_cliente(modelo.tipo, modelo.cliente, modelo.tipo_operacion)
+    modelo.xml_firmado = None
+    modelo.zip_path = None
+    modelo.sunat_ticket = None
+    modelo.save(update_fields=[
+        'subtotal', 'igv', 'total', 'tipo_operacion', 'moneda',
+        'xml_firmado', 'zip_path', 'sunat_ticket'
+    ])
 
 
 def _modelo_desde_entidad(ent):
@@ -71,6 +207,7 @@ class ComprobanteService:
             tipo=data['tipo'],
             detalles_data=detalles,
             creado_por_id=creado_por_id,
+            moneda=data.get('moneda', 'PEN'),
         )
         return _modelo_desde_entidad(ent)
 
@@ -108,10 +245,9 @@ class ComprobanteService:
         return modelo
 
     @staticmethod
-    def reenviar(comprobante_id):
+    def reintentar_envio(comprobante_id):
         """
-        Regenera XML de un comprobante RECHAZADO y cambia estado a ENVIADO.
-        IMPORTANTE: usa Django ORM directo para preservar los detalles.
+        Reintenta un fallo tecnico. Un rechazo SUNAT nunca reutiliza numeracion.
         """
         from apps.comprobantes.models import Comprobante as CompModel
         modelo = (
@@ -120,24 +256,97 @@ class ComprobanteService:
             .get(pk=comprobante_id, activo=True)
         )
 
-        if modelo.estado != 'RECHAZADO':
+        if modelo.estado != 'ERROR_ENVIO':
             from dominio.excepciones import EstadoInvalido
             raise EstadoInvalido(
-                f"Solo se pueden reenviar comprobantes RECHAZADOS. "
+                f"Solo se pueden reintentar comprobantes con ERROR_ENVIO. "
                 f"Estado actual: {modelo.estado}"
             )
 
-        # Regenerar XML firmado
-        xml_firmado = _generar_y_firmar_xml(modelo)
-
-        update_fields = ['estado']
-        modelo.estado = 'ENVIADO'
-        if xml_firmado:
-            modelo.xml_firmado = xml_firmado
-            update_fields.append('xml_firmado')
-        modelo.save(update_fields=update_fields)
+        from apps.sunat_ose.services import SunatEnvioService
+        SunatEnvioService.enviar(comprobante_id)
+        modelo.refresh_from_db()
 
         return modelo
+
+    # Alias compatible: conserva llamadas antiguas pero aplica la regla segura.
+    reenviar = reintentar_envio
+
+    @staticmethod
+    def actualizar_borrador(comprobante_id, data, usuario=None):
+        """Edita receptor, fecha y lineas sin alterar empresa/tipo/numeracion."""
+        from django.db import transaction
+        from apps.comprobantes.models import Comprobante as CompModel
+        from apps.clientes.models import Cliente
+        from dominio.excepciones import EstadoInvalido, ClienteNoEncontrado
+
+        with transaction.atomic():
+            modelo = CompModel.objects.select_for_update().get(
+                pk=comprobante_id, activo=True
+            )
+            if modelo.estado != 'BORRADOR':
+                raise EstadoInvalido(
+                    "Solo se pueden editar directamente comprobantes en BORRADOR."
+                )
+            try:
+                cliente = Cliente.objects.get(pk=data['cliente_id'], activo=True)
+            except Cliente.DoesNotExist as exc:
+                raise ClienteNoEncontrado("El cliente seleccionado no existe.") from exc
+            modelo.cliente = cliente
+            modelo.fecha = data['fecha']
+            modelo.save(update_fields=['cliente', 'fecha'])
+            _reemplazar_detalles(modelo, data['detalles'], data.get('moneda'))
+        return modelo
+
+    @staticmethod
+    def corregir_rechazado(comprobante_id, data, usuario=None):
+        """Genera un documento nuevo y conserva inmutable el rechazo original."""
+        from django.db import transaction, IntegrityError
+        from apps.comprobantes.models import Comprobante as CompModel
+        from apps.clientes.models import Cliente
+        from dominio.excepciones import EstadoInvalido, ClienteNoEncontrado
+
+        try:
+            with transaction.atomic():
+                original = CompModel.objects.select_for_update().get(
+                    pk=comprobante_id, activo=True
+                )
+                if original.estado != 'RECHAZADO':
+                    raise EstadoInvalido(
+                        "Solo se pueden reemplazar comprobantes rechazados por SUNAT/OSE."
+                    )
+                if CompModel.objects.filter(reemplaza_a=original).exists():
+                    raise EstadoInvalido(
+                        "Este comprobante ya tiene un documento de reemplazo."
+                    )
+                try:
+                    cliente = Cliente.objects.get(pk=data['cliente_id'], activo=True)
+                except Cliente.DoesNotExist as exc:
+                    raise ClienteNoEncontrado("El cliente seleccionado no existe.") from exc
+
+                tipo_operacion = _tipo_operacion_desde_detalles(data['detalles'])
+                tipo_nuevo = '01' if (
+                    tipo_operacion == '0200' or cliente.tipo_doc == '6'
+                ) else '03'
+                _validar_tipo_cliente(tipo_nuevo, cliente, tipo_operacion)
+                nuevo = ComprobanteService.crear(
+                    data={
+                        'empresa_id': original.empresa_id,
+                        'cliente_id': cliente.id,
+                        'fecha': data['fecha'],
+                        'tipo': tipo_nuevo,
+                        'moneda': data.get('moneda', original.moneda),
+                        'detalles': data['detalles'],
+                    },
+                    usuario=usuario,
+                )
+                nuevo.reemplaza_a = original
+                nuevo.save(update_fields=['reemplaza_a'])
+                return nuevo
+        except IntegrityError as exc:
+            raise EstadoInvalido(
+                "Este comprobante ya fue reemplazado por otro documento."
+            ) from exc
 
     @staticmethod
     def eliminar(comprobante_id, usuario=None):

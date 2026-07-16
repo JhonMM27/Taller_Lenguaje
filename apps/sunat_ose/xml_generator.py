@@ -1,9 +1,18 @@
 import logging
-from lxml import etree
+from collections import defaultdict
 from decimal import Decimal
+from lxml import etree
 from django.conf import settings
+from dominio.excepciones import TipoDocumentoInvalido
+from dominio.tributos import datos_afectacion_igv
+from dominio.tributos import tipo_operacion_comprobante, validar_moneda
 
 logger = logging.getLogger(__name__)
+
+
+def _money(value):
+    """Formatea importes UBL con los dos decimales exigidos por SUNAT."""
+    return f"{Decimal(str(value or 0)).quantize(Decimal('0.01')):.2f}"
 
 NAMESPACES = {
     'cac': 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2',
@@ -16,11 +25,12 @@ NAMESPACES = {
 }
 
 TIPO_DOC_MAP = {
+    '0': '0',
     '1': '1',
     '6': '6',
     '4': '4',
     '7': '7',
-    'A': '1',
+    'A': 'A',
 }
 
 TIPO_AFECTACION_MAP = {
@@ -78,62 +88,124 @@ UNIDADES_MEDIDA = {
 
 
 def obtener_datos_igv(cod_afectacion):
-    """
-    Retorna un diccionario con los datos del impuesto correspondientes al codigo de afectacion de la SUNAT:
-    tasa, tax_category_id, tributo_id, tributo_nombre, tributo_tipo, porcentaje_multiplicador
-    """
-    cod = str(cod_afectacion)
-    
-    # Gravado (Operación Onerosa)
-    if cod.startswith('1') and cod not in ['17']:
+    """Traduce los catalogos SUNAT 07 y 05 a valores XML UBL."""
+    datos = datos_afectacion_igv(str(cod_afectacion))
+    tasa = datos['tasa']
+    return {
+        'tasa': f'{tasa:.2f}',
+        'categoria': datos['categoria'],
+        'tributo_id': datos['tributo_id'],
+        'tributo_nombre': datos['nombre'],
+        'tributo_tipo': datos['tipo'],
+        'porcentaje_multiplicador': Decimal('1') + tasa / Decimal('100'),
+        'gratuito': datos['gratuito'],
+    }
+
+
+def _validar_receptor(comprobante):
+    """Evita enviar combinaciones que SUNAT rechazara con el codigo 2800."""
+    tipo = comprobante.tipo or (comprobante.serie.tipo if comprobante.serie else '')
+    cliente = comprobante.cliente
+    try:
+        tipo_derivado = tipo_operacion_comprobante(
+            (det.cod_tipo_afectacion or det.producto.cod_tipo_afectacion)
+            for det in comprobante.detalles.all()
+        )
+    except ValueError as exc:
+        raise TipoDocumentoInvalido(str(exc)) from exc
+    tipo_operacion = getattr(comprobante, 'tipo_operacion', None) or tipo_derivado
+    if tipo_operacion != tipo_derivado:
+        raise TipoDocumentoInvalido(
+            "El tipo de operacion del comprobante no coincide con la afectacion de sus lineas."
+        )
+    if tipo_operacion == '0200':
+        if tipo != '01' or cliente.tipo_doc not in ('0', '4', '7', 'A'):
+            raise TipoDocumentoInvalido(
+                "La exportacion 0200 requiere factura y receptor no domiciliado."
+            )
+        if str(getattr(cliente, 'pais_codigo', 'PE') or 'PE').upper() == 'PE':
+            raise TipoDocumentoInvalido(
+                "El receptor de una exportacion debe residir fuera de Peru."
+            )
+    elif tipo == '01' and cliente.tipo_doc != '6':
+        raise TipoDocumentoInvalido(
+            "SUNAT exige que el receptor de una factura tenga RUC (tipo 6). "
+            "Para un cliente con DNI emita una boleta (tipo 03)."
+        )
+    from dominio.entidades.cliente import LONGITUDES_DOC, TIPOS_DOC_VALIDOS
+    if cliente.tipo_doc not in TIPOS_DOC_VALIDOS:
+        raise TipoDocumentoInvalido(
+            f"Tipo de documento del receptor no permitido: {cliente.tipo_doc}."
+        )
+    esperado = LONGITUDES_DOC.get(cliente.tipo_doc)
+    numero = str(cliente.num_doc or '').strip()
+    if esperado and (not numero.isdigit() or len(numero) != esperado):
+        raise TipoDocumentoInvalido(
+            f"Documento del receptor invalido: el tipo {cliente.tipo_doc} "
+            f"requiere {esperado} digitos."
+        )
+    if cliente.tipo_doc in ('0', '4', '7', 'A') and (
+        not numero or len(numero) > 15 or any(c.isspace() for c in numero)
+    ):
+        raise TipoDocumentoInvalido(
+            "El documento extranjero debe tener hasta 15 caracteres sin espacios."
+        )
+    return tipo_operacion
+
+
+def _importes_tributarios_linea(detalle, es_nota_credito=False):
+    """Calcula importes XML, incluyendo el tratamiento de operaciones gratuitas."""
+    cod = getattr(detalle, 'cod_tipo_afectacion', None)
+    if not cod and getattr(detalle, 'producto', None) is not None:
+        cod = detalle.producto.cod_tipo_afectacion
+    cod = cod or '10'
+    datos = obtener_datos_igv(cod)
+    cantidad = Decimal(str(detalle.cantidad))
+    precio = Decimal(str(detalle.precio_unitario))
+    descuento = Decimal(str(getattr(detalle, 'descuento', 0) or 0))
+    base_referencial = ((precio - descuento) * cantidad).quantize(Decimal('0.01'))
+
+    if datos['gratuito']:
+        impuesto = (
+            base_referencial * Decimal(datos['tasa']) / Decimal('100')
+        ).quantize(Decimal('0.01'))
         return {
-            'tasa': '18.00',
-            'categoria': 'S',
-            'tributo_id': '1000',
-            'tributo_nombre': 'IGV',
-            'tributo_tipo': 'VAT',
-            'porcentaje_multiplicador': 1.18
+            'codigo': cod,
+            'datos': datos,
+            # SUNAT 3271/3272: en lineas gratuitas el valor de venta XML es
+            # referencial, aunque el importe comercial y pagable sea cero.
+            'valor_venta': base_referencial,
+            'base_tributaria': base_referencial,
+            'impuesto_informado': impuesto,
+            'impuesto_total': Decimal('0.00'),
+            'precio_alternativo': precio,
+            'tipo_precio': '02',
+            'valor_unitario': Decimal('0.00'),
         }
-    # Exonerado
-    elif cod.startswith('2'):
-        return {
-            'tasa': '0.00',
-            'categoria': 'E',
-            'tributo_id': '9997',
-            'tributo_nombre': 'EXO',
-            'tributo_tipo': 'VAT',
-            'porcentaje_multiplicador': 1.00
-        }
-    # Inafecto
-    elif cod.startswith('3') or cod == '17':
-        return {
-            'tasa': '0.00',
-            'categoria': 'O',
-            'tributo_id': '9998',
-            'tributo_nombre': 'INA',
-            'tributo_tipo': 'FRE',
-            'porcentaje_multiplicador': 1.00
-        }
-    # Exportación
-    elif cod.startswith('4'):
-        return {
-            'tasa': '0.00',
-            'categoria': 'G',
-            'tributo_id': '9995',
-            'tributo_nombre': 'EXP',
-            'tributo_tipo': 'FRE',
-            'porcentaje_multiplicador': 1.00
-        }
-    # Otros
-    else:
-        return {
-            'tasa': '0.00',
-            'categoria': 'O',
-            'tributo_id': '9999',
-            'tributo_nombre': 'OTROS',
-            'tributo_tipo': 'OTH',
-            'porcentaje_multiplicador': 1.00
-        }
+
+    valor_venta = Decimal(str(detalle.subtotal or 0))
+    impuesto = Decimal(str(detalle.igv_linea or 0))
+    valor_unitario = precio
+    precio_alternativo = (
+        precio * datos['porcentaje_multiplicador']
+    ).quantize(Decimal('0.01'))
+    if es_nota_credito:
+        valor_unitario = (valor_venta / cantidad).quantize(Decimal('0.0000000001'))
+        precio_alternativo = (
+            (valor_venta + impuesto) / cantidad
+        ).quantize(Decimal('0.0000000001'))
+
+    return {
+        'codigo': cod,
+        'datos': datos,
+        'valor_venta': valor_venta,
+        'base_tributaria': valor_venta,
+        'impuesto_informado': impuesto,
+        'impuesto_total': impuesto,
+        'precio_alternativo': precio_alternativo,
+        'tipo_precio': '01',
+        'valor_unitario': valor_unitario,
+    }
 
 
 def _fix_namespace_prefix(xml_bytes):
@@ -175,6 +247,9 @@ def generar_xml_ubl(comprobante):
     15. cac:LegalMonetaryTotal
     16. cac:InvoiceLine (1..N)
     """
+    tipo_operacion = _validar_receptor(comprobante)
+    moneda = validar_moneda(getattr(comprobante, 'moneda', 'PEN'))
+
     CAC = NAMESPACES['cac']
     CBC = NAMESPACES['cbc']
     EXT = NAMESPACES['ext']
@@ -205,12 +280,25 @@ def generar_xml_ubl(comprobante):
     ext_UBLExtension_add = etree.SubElement(ext_UBLExtensions, f'{{{EXT}}}UBLExtension')
     ext_ExtensionContent_add = etree.SubElement(ext_UBLExtension_add, f'{{{EXT}}}ExtensionContent')
     sac_AdditionalInfo = etree.SubElement(ext_ExtensionContent_add, f'{{{SAC}}}AdditionalInformation')
-    sac_AdditionalMonetaryTotal = etree.SubElement(sac_AdditionalInfo, f'{{{SAC}}}AdditionalMonetaryTotal')
-    amt_id = etree.SubElement(sac_AdditionalMonetaryTotal, f'{{{CBC}}}ID')
-    amt_id.text = '1001'
-    amt_payable = etree.SubElement(sac_AdditionalMonetaryTotal, f'{{{CBC}}}PayableAmount')
-    amt_payable.set('currencyID', 'PEN')
-    amt_payable.text = str(comprobante.subtotal)
+    totales_operacion = defaultdict(lambda: Decimal('0'))
+    for detalle in comprobante.detalles.all():
+        importes = _importes_tributarios_linea(detalle)
+        cod = importes['codigo']
+        if importes['datos']['gratuito']:
+            total_id = '1004'
+        else:
+            total_id = {'20': '1003', '30': '1002', '40': '1005'}.get(cod, '1001')
+        totales_operacion[total_id] += importes['base_tributaria']
+
+    for total_id, total_operacion in sorted(totales_operacion.items()):
+        additional_total = etree.SubElement(
+            sac_AdditionalInfo, f'{{{SAC}}}AdditionalMonetaryTotal'
+        )
+        amt_id = etree.SubElement(additional_total, f'{{{CBC}}}ID')
+        amt_id.text = total_id
+        amt_payable = etree.SubElement(additional_total, f'{{{CBC}}}PayableAmount')
+        amt_payable.set('currencyID', moneda)
+        amt_payable.text = _money(total_operacion)
 
     # 2. UBLVersionID
     ubl_version = etree.SubElement(root, f'{{{CBC}}}UBLVersionID')
@@ -224,7 +312,7 @@ def generar_xml_ubl(comprobante):
     profile_id.set('schemeName', 'SUNAT:Identificador de Tipo de Operación')
     profile_id.set('schemeAgencyName', 'PE:SUNAT')
     profile_id.set('schemeURI', 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo17')
-    profile_id.text = '0101'
+    profile_id.text = tipo_operacion
 
     num_doc = etree.SubElement(root, f'{{{CBC}}}ID')
     num_doc.text = f"{comprobante.serie.serie}-{comprobante.numero:08d}"
@@ -236,14 +324,23 @@ def generar_xml_ubl(comprobante):
     tipo_doc.set('listAgencyName', 'PE:SUNAT')
     tipo_doc.set('listURI', 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo01')
     tipo_doc.set('listName', 'Tipo de Documento')
-    tipo_doc.set('listID', '0101')
+    tipo_doc.set('listID', tipo_operacion)
     tipo_doc.text = comprobante.tipo or (comprobante.serie.tipo if comprobante.serie else '01')
 
     currency_code = etree.SubElement(root, f'{{{CBC}}}DocumentCurrencyCode')
     currency_code.set('listID', 'ISO 4217 Alpha')
     currency_code.set('listName', 'Currency')
     currency_code.set('listAgencyName', 'United Nations Economic Commission for Europe')
-    currency_code.text = 'PEN'
+    if any(
+        _importes_tributarios_linea(det)['datos']['gratuito']
+        for det in comprobante.detalles.all()
+    ):
+        note = etree.Element(f'{{{CBC}}}Note')
+        note.set('languageLocaleID', '1002')
+        note.text = 'TRANSFERENCIA GRATUITA DE UN BIEN Y/O SERVICIO PRESTADO GRATUITAMENTE'
+        tipo_doc.addnext(note)
+
+    currency_code.text = moneda
 
     line_count = etree.SubElement(root, f'{{{CBC}}}LineCountNumeric')
     line_count.text = str(comprobante.detalles.count())
@@ -284,11 +381,22 @@ def generar_xml_ubl(comprobante):
     customer_id = etree.SubElement(customer_party_name, f'{{{CAC}}}PartyIdentification')
     customer_id_val = etree.SubElement(customer_id, f'{{{CBC}}}ID')
     customer_id_val.set('schemeID', TIPO_DOC_MAP.get(comprobante.cliente.tipo_doc, '6'))
+    customer_id_val.set('schemeName', 'Documento de Identidad')
+    customer_id_val.set('schemeAgencyName', 'PE:SUNAT')
+    customer_id_val.set('schemeURI', 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo06')
     customer_id_val.text = comprobante.cliente.num_doc
     
     customer_legal = etree.SubElement(customer_party_name, f'{{{CAC}}}PartyLegalEntity')
     customer_reg_name = etree.SubElement(customer_legal, f'{{{CBC}}}RegistrationName')
     customer_reg_name.text = comprobante.cliente.razon_social
+
+    if tipo_operacion == '0200':
+        customer_address = etree.SubElement(customer_legal, f'{{{CAC}}}RegistrationAddress')
+        customer_country = etree.SubElement(customer_address, f'{{{CAC}}}Country')
+        customer_country_code = etree.SubElement(
+            customer_country, f'{{{CBC}}}IdentificationCode'
+        )
+        customer_country_code.text = comprobante.cliente.pais_codigo.upper()
 
     # SUNAT requiere indicar la forma de pago (Contado o Crédito). Por defecto: Contado.
     payment_terms = etree.SubElement(root, f'{{{CAC}}}PaymentTerms')
@@ -297,63 +405,60 @@ def generar_xml_ubl(comprobante):
     payment_means = etree.SubElement(payment_terms, f'{{{CBC}}}PaymentMeansID')
     payment_means.text = 'Contado'
 
-    # Obtener afectacion predominante para la cabecera
-    primer_detalle = comprobante.detalles.first()
-    cod_afectacion_cabecera = '10'
-    if primer_detalle:
-        cod_afectacion_cabecera = getattr(primer_detalle.producto, 'cod_tipo_afectacion', '10') or '10'
-    
-    datos_impuesto_cabecera = obtener_datos_igv(cod_afectacion_cabecera)
-
     tax_total = etree.SubElement(root, f'{{{CAC}}}TaxTotal')
     tax_amount = etree.SubElement(tax_total, f'{{{CBC}}}TaxAmount')
-    tax_amount.set('currencyID', 'PEN')
-    tax_amount.text = str(comprobante.igv)
+    tax_amount.set('currencyID', moneda)
+    tax_amount.text = _money(comprobante.igv)
 
-    tax_subtotal = etree.SubElement(tax_total, f'{{{CAC}}}TaxSubtotal')
-    tax_subtotal_base = etree.SubElement(tax_subtotal, f'{{{CBC}}}TaxableAmount')
-    tax_subtotal_base.set('currencyID', 'PEN')
-    tax_subtotal_base.text = str(comprobante.subtotal)
-    tax_subtotal_amount = etree.SubElement(tax_subtotal, f'{{{CBC}}}TaxAmount')
-    tax_subtotal_amount.set('currencyID', 'PEN')
-    tax_subtotal_amount.text = str(comprobante.igv)
-    
-    tax_subtotal_item = etree.SubElement(tax_subtotal, f'{{{CAC}}}TaxCategory')
-    tax_subtotal_item_id = etree.SubElement(tax_subtotal_item, f'{{{CBC}}}ID')
-    tax_subtotal_item_id.set('schemeID', 'UN/ECE 5305')
-    tax_subtotal_item_id.set('schemeName', 'Tax Category Identifier')
-    tax_subtotal_item_id.set('schemeAgencyName', 'United Nations Economic Commission for Europe')
-    tax_subtotal_item_id.text = datos_impuesto_cabecera['categoria']
-    
-    tax_subtotal_percent = etree.SubElement(tax_subtotal_item, f'{{{CBC}}}Percent')
-    tax_subtotal_percent.text = datos_impuesto_cabecera['tasa']
-    
-    tax_subtotal_name = etree.SubElement(tax_subtotal_item, f'{{{CAC}}}TaxScheme')
-    tax_subtotal_name_id = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}ID')
-    tax_subtotal_name_id.set('schemeID', 'UN/ECE 5153')
-    tax_subtotal_name_id.set('schemeAgencyID', '6')
-    tax_subtotal_name_id.text = datos_impuesto_cabecera['tributo_id']
-    
-    tax_subtotal_name_name = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}Name')
-    tax_subtotal_name_name.text = datos_impuesto_cabecera['tributo_nombre']
-    
-    tax_subtotal_name_type = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}TaxTypeCode')
-    tax_subtotal_name_type.text = datos_impuesto_cabecera['tributo_tipo']
+    grupos = defaultdict(lambda: {'base': Decimal('0'), 'igv': Decimal('0')})
+    for det in comprobante.detalles.all():
+        importes = _importes_tributarios_linea(det)
+        cod = importes['codigo']
+        grupos[cod]['base'] += importes['base_tributaria']
+        grupos[cod]['igv'] += importes['impuesto_informado']
+
+    for cod, grupo in grupos.items():
+        datos = obtener_datos_igv(cod)
+        ts = etree.SubElement(tax_total, f'{{{CAC}}}TaxSubtotal')
+        ts_base = etree.SubElement(ts, f'{{{CBC}}}TaxableAmount')
+        ts_base.set('currencyID', moneda)
+        ts_base.text = _money(grupo['base'])
+        ts_amount = etree.SubElement(ts, f'{{{CBC}}}TaxAmount')
+        ts_amount.set('currencyID', moneda)
+        ts_amount.text = _money(grupo['igv'])
+        ts_item = etree.SubElement(ts, f'{{{CAC}}}TaxCategory')
+        ts_item_id = etree.SubElement(ts_item, f'{{{CBC}}}ID')
+        ts_item_id.set('schemeID', 'UN/ECE 5305')
+        ts_item_id.set('schemeName', 'Tax Category Identifier')
+        ts_item_id.set('schemeAgencyName', 'United Nations Economic Commission for Europe')
+        ts_item_id.text = datos['categoria']
+        ts_item_pct = etree.SubElement(ts_item, f'{{{CBC}}}Percent')
+        ts_item_pct.text = datos['tasa']
+        ts_scheme = etree.SubElement(ts_item, f'{{{CAC}}}TaxScheme')
+        ts_scheme_id = etree.SubElement(ts_scheme, f'{{{CBC}}}ID')
+        ts_scheme_id.set('schemeID', 'UN/ECE 5153')
+        ts_scheme_id.set('schemeAgencyID', '6')
+        ts_scheme_id.text = datos['tributo_id']
+        ts_scheme_name = etree.SubElement(ts_scheme, f'{{{CBC}}}Name')
+        ts_scheme_name.text = datos['tributo_nombre']
+        ts_scheme_type = etree.SubElement(ts_scheme, f'{{{CBC}}}TaxTypeCode')
+        ts_scheme_type.text = datos['tributo_tipo']
 
     legal_total = etree.SubElement(root, f'{{{CAC}}}LegalMonetaryTotal')
     line_extension = etree.SubElement(legal_total, f'{{{CBC}}}LineExtensionAmount')
-    line_extension.set('currencyID', 'PEN')
-    line_extension.text = str(comprobante.subtotal)
+    line_extension.set('currencyID', moneda)
+    line_extension.text = _money(comprobante.subtotal)
 
     tax_inclusive = etree.SubElement(legal_total, f'{{{CBC}}}TaxInclusiveAmount')
-    tax_inclusive.set('currencyID', 'PEN')
-    tax_inclusive.text = str(comprobante.total)
+    tax_inclusive.set('currencyID', moneda)
+    tax_inclusive.text = _money(comprobante.total)
 
     payable_amount = etree.SubElement(legal_total, f'{{{CBC}}}PayableAmount')
-    payable_amount.set('currencyID', 'PEN')
-    payable_amount.text = str(comprobante.total)
+    payable_amount.set('currencyID', moneda)
+    payable_amount.text = _money(comprobante.total)
 
     for idx, detalle in enumerate(comprobante.detalles.all(), 1):
+        importes = _importes_tributarios_linea(detalle)
         invoice_line = etree.SubElement(root, f'{{{CAC}}}InvoiceLine')
         line_id = etree.SubElement(invoice_line, f'{{{CBC}}}ID')
         line_id.text = str(idx)
@@ -363,35 +468,39 @@ def generar_xml_ubl(comprobante):
         invoiced_quantity.text = str(detalle.cantidad)
 
         line_extension_amount = etree.SubElement(invoice_line, f'{{{CBC}}}LineExtensionAmount')
-        line_extension_amount.set('currencyID', 'PEN')
-        line_extension_amount.text = str(detalle.subtotal)
+        line_extension_amount.set('currencyID', moneda)
+        line_extension_amount.text = _money(importes['valor_venta'])
 
         # Afectacion de la linea de factura
-        cod_afectacion_linea = getattr(detalle.producto, 'cod_tipo_afectacion', '10') or '10'
-        datos_impuesto_linea = obtener_datos_igv(cod_afectacion_linea)
+        cod_afectacion_linea = importes['codigo']
+        datos_impuesto_linea = importes['datos']
 
         pricing_ref = etree.SubElement(invoice_line, f'{{{CAC}}}PricingReference')
         alt_price = etree.SubElement(pricing_ref, f'{{{CAC}}}AlternativeConditionPrice')
         alt_price_amount = etree.SubElement(alt_price, f'{{{CBC}}}PriceAmount')
-        alt_price_amount.set('currencyID', 'PEN')
-        alt_price_amount.text = str(round(float(detalle.precio_unitario) * datos_impuesto_linea['porcentaje_multiplicador'], 2))
+        alt_price_amount.set('currencyID', moneda)
+        alt_price_amount.text = (
+            _money(importes['precio_alternativo'])
+            if importes['tipo_precio'] == '02'
+            else str(importes['precio_alternativo'])
+        )
         alt_price_type = etree.SubElement(alt_price, f'{{{CBC}}}PriceTypeCode')
         alt_price_type.set('listName', 'Tipo de Precio')
         alt_price_type.set('listAgencyName', 'PE:SUNAT')
         alt_price_type.set('listURI', 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo16')
-        alt_price_type.text = '01'
+        alt_price_type.text = importes['tipo_precio']
 
         line_tax = etree.SubElement(invoice_line, f'{{{CAC}}}TaxTotal')
         line_tax_amount = etree.SubElement(line_tax, f'{{{CBC}}}TaxAmount')
-        line_tax_amount.set('currencyID', 'PEN')
-        line_tax_amount.text = str(detalle.igv_linea or '0.00')
+        line_tax_amount.set('currencyID', moneda)
+        line_tax_amount.text = _money(importes['impuesto_total'])
         line_tax_subtotal = etree.SubElement(line_tax, f'{{{CAC}}}TaxSubtotal')
         line_tax_subtotal_base = etree.SubElement(line_tax_subtotal, f'{{{CBC}}}TaxableAmount')
-        line_tax_subtotal_base.set('currencyID', 'PEN')
-        line_tax_subtotal_base.text = str(detalle.subtotal)
+        line_tax_subtotal_base.set('currencyID', moneda)
+        line_tax_subtotal_base.text = _money(importes['base_tributaria'])
         line_tax_subtotal_amount = etree.SubElement(line_tax_subtotal, f'{{{CBC}}}TaxAmount')
-        line_tax_subtotal_amount.set('currencyID', 'PEN')
-        line_tax_subtotal_amount.text = str(detalle.igv_linea or '0.00')
+        line_tax_subtotal_amount.set('currencyID', moneda)
+        line_tax_subtotal_amount.text = _money(importes['impuesto_informado'])
         
         line_tax_item = etree.SubElement(line_tax_subtotal, f'{{{CAC}}}TaxCategory')
         line_tax_item_id = etree.SubElement(line_tax_item, f'{{{CBC}}}ID')
@@ -430,8 +539,8 @@ def generar_xml_ubl(comprobante):
 
         price = etree.SubElement(invoice_line, f'{{{CAC}}}Price')
         price_amount = etree.SubElement(price, f'{{{CBC}}}PriceAmount')
-        price_amount.set('currencyID', 'PEN')
-        price_amount.text = str(detalle.precio_unitario)
+        price_amount.set('currencyID', moneda)
+        price_amount.text = str(importes['valor_unitario'])
 
     xml_bytes = etree.tostring(root, pretty_print=True, xml_declaration=True, encoding='UTF-8')
     
@@ -495,6 +604,9 @@ def generar_xml_nota_credito(nota):
     """
     Genera XML UBL 2.1 para Nota de Crédito electrónica.
     """
+    referencia = nota.comprobante_referencia
+    moneda = validar_moneda(getattr(referencia, 'moneda', 'PEN'))
+    tipo_operacion = getattr(referencia, 'tipo_operacion', '0101') or '0101'
     CAC = NAMESPACES['cac']
     CBC = NAMESPACES['cbc']
     EXT = NAMESPACES['ext']
@@ -525,12 +637,24 @@ def generar_xml_nota_credito(nota):
     ext_UBLExtension_add = etree.SubElement(ext_UBLExtensions, f'{{{EXT}}}UBLExtension')
     ext_ExtensionContent_add = etree.SubElement(ext_UBLExtension_add, f'{{{EXT}}}ExtensionContent')
     sac_AdditionalInfo = etree.SubElement(ext_ExtensionContent_add, f'{{{SAC}}}AdditionalInformation')
-    sac_AdditionalMonetaryTotal = etree.SubElement(sac_AdditionalInfo, f'{{{SAC}}}AdditionalMonetaryTotal')
-    amt_id = etree.SubElement(sac_AdditionalMonetaryTotal, f'{{{CBC}}}ID')
-    amt_id.text = '1001'
-    amt_payable = etree.SubElement(sac_AdditionalMonetaryTotal, f'{{{CBC}}}PayableAmount')
-    amt_payable.set('currencyID', 'PEN')
-    amt_payable.text = str(nota.op_gravada)
+    totales_operacion = defaultdict(lambda: Decimal('0'))
+    for detalle in nota.detalles.all():
+        importes = _importes_tributarios_linea(detalle, es_nota_credito=True)
+        cod = importes['codigo']
+        if importes['datos']['gratuito']:
+            total_id = '1004'
+        else:
+            total_id = {'20': '1003', '30': '1002', '40': '1005'}.get(cod, '1001')
+        totales_operacion[total_id] += importes['base_tributaria']
+    for total_id, total_operacion in sorted(totales_operacion.items()):
+        additional_total = etree.SubElement(
+            sac_AdditionalInfo, f'{{{SAC}}}AdditionalMonetaryTotal'
+        )
+        amt_id = etree.SubElement(additional_total, f'{{{CBC}}}ID')
+        amt_id.text = total_id
+        amt_payable = etree.SubElement(additional_total, f'{{{CBC}}}PayableAmount')
+        amt_payable.set('currencyID', moneda)
+        amt_payable.text = _money(total_operacion)
 
     # 2. UBLVersionID
     ubl_version = etree.SubElement(root, f'{{{CBC}}}UBLVersionID')
@@ -542,7 +666,7 @@ def generar_xml_nota_credito(nota):
 
     # ProfileID
     profile_id = etree.SubElement(root, f'{{{CBC}}}ProfileID')
-    profile_id.text = '0101'
+    profile_id.text = tipo_operacion
 
     # ID
     num_doc = etree.SubElement(root, f'{{{CBC}}}ID')
@@ -554,7 +678,16 @@ def generar_xml_nota_credito(nota):
 
     # DocumentCurrencyCode
     currency_code = etree.SubElement(root, f'{{{CBC}}}DocumentCurrencyCode')
-    currency_code.text = 'PEN'
+    currency_code.text = moneda
+
+    if any(
+        _importes_tributarios_linea(det, es_nota_credito=True)['datos']['gratuito']
+        for det in nota.detalles.all()
+    ):
+        note = etree.Element(f'{{{CBC}}}Note')
+        note.set('languageLocaleID', '1002')
+        note.text = 'TRANSFERENCIA GRATUITA DE UN BIEN Y/O SERVICIO PRESTADO GRATUITAMENTE'
+        currency_code.addprevious(note)
 
     # DiscrepancyResponse (Motivo de la Nota)
     discrepancy = etree.SubElement(root, f'{{{CAC}}}DiscrepancyResponse')
@@ -615,51 +748,73 @@ def generar_xml_nota_credito(nota):
     customer_legal = etree.SubElement(customer_party_name, f'{{{CAC}}}PartyLegalEntity')
     customer_reg_name = etree.SubElement(customer_legal, f'{{{CBC}}}RegistrationName')
     customer_reg_name.text = nota.comprobante_referencia.cliente.razon_social
+    if tipo_operacion == '0200':
+        customer_address = etree.SubElement(customer_legal, f'{{{CAC}}}RegistrationAddress')
+        customer_country = etree.SubElement(customer_address, f'{{{CAC}}}Country')
+        customer_country_code = etree.SubElement(
+            customer_country, f'{{{CBC}}}IdentificationCode'
+        )
+        customer_country_code.text = referencia.cliente.pais_codigo.upper()
 
     # TaxTotal
     tax_total = etree.SubElement(root, f'{{{CAC}}}TaxTotal')
     tax_amount = etree.SubElement(tax_total, f'{{{CBC}}}TaxAmount')
-    tax_amount.set('currencyID', 'PEN')
-    tax_amount.text = str(nota.igv)
+    tax_amount.set('currencyID', moneda)
+    tax_amount.text = _money(nota.igv)
 
-    tax_subtotal = etree.SubElement(tax_total, f'{{{CAC}}}TaxSubtotal')
-    tax_subtotal_base = etree.SubElement(tax_subtotal, f'{{{CBC}}}TaxableAmount')
-    tax_subtotal_base.set('currencyID', 'PEN')
-    tax_subtotal_base.text = str(nota.op_gravada)
-    tax_subtotal_amount = etree.SubElement(tax_subtotal, f'{{{CBC}}}TaxAmount')
-    tax_subtotal_amount.set('currencyID', 'PEN')
-    tax_subtotal_amount.text = str(nota.igv)
-    
-    tax_subtotal_item = etree.SubElement(tax_subtotal, f'{{{CAC}}}TaxCategory')
-    tax_subtotal_item_id = etree.SubElement(tax_subtotal_item, f'{{{CBC}}}ID')
-    tax_subtotal_item_id.text = 'S'
-    tax_subtotal_percent = etree.SubElement(tax_subtotal_item, f'{{{CBC}}}Percent')
-    tax_subtotal_percent.text = '18.00'
-    
-    tax_subtotal_name = etree.SubElement(tax_subtotal_item, f'{{{CAC}}}TaxScheme')
-    tax_subtotal_name_id = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}ID')
-    tax_subtotal_name_id.text = '1000'
-    tax_subtotal_name_name = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}Name')
-    tax_subtotal_name_name.text = 'IGV'
-    tax_subtotal_name_type = etree.SubElement(tax_subtotal_name, f'{{{CBC}}}TaxTypeCode')
-    tax_subtotal_name_type.text = 'VAT'
+    grupos = defaultdict(lambda: {'base': Decimal('0'), 'igv': Decimal('0')})
+    for det in nota.detalles.all():
+        importes = _importes_tributarios_linea(det, es_nota_credito=True)
+        cod = importes['codigo']
+        grupos[cod]['base'] += importes['base_tributaria']
+        grupos[cod]['igv'] += importes['impuesto_informado']
+
+    for cod, grupo in grupos.items():
+        datos = obtener_datos_igv(cod)
+        ts = etree.SubElement(tax_total, f'{{{CAC}}}TaxSubtotal')
+        ts_base = etree.SubElement(ts, f'{{{CBC}}}TaxableAmount')
+        ts_base.set('currencyID', moneda)
+        ts_base.text = _money(grupo['base'])
+        ts_amount = etree.SubElement(ts, f'{{{CBC}}}TaxAmount')
+        ts_amount.set('currencyID', moneda)
+        ts_amount.text = _money(grupo['igv'])
+        ts_item = etree.SubElement(ts, f'{{{CAC}}}TaxCategory')
+        ts_item_id = etree.SubElement(ts_item, f'{{{CBC}}}ID')
+        ts_item_id.text = datos['categoria']
+        ts_item_pct = etree.SubElement(ts_item, f'{{{CBC}}}Percent')
+        ts_item_pct.text = datos['tasa']
+        ts_scheme = etree.SubElement(ts_item, f'{{{CAC}}}TaxScheme')
+        ts_scheme_id = etree.SubElement(ts_scheme, f'{{{CBC}}}ID')
+        ts_scheme_id.text = datos['tributo_id']
+        ts_scheme_name = etree.SubElement(ts_scheme, f'{{{CBC}}}Name')
+        ts_scheme_name.text = datos['tributo_nombre']
+        ts_scheme_type = etree.SubElement(ts_scheme, f'{{{CBC}}}TaxTypeCode')
+        ts_scheme_type.text = datos['tributo_tipo']
 
     # LegalMonetaryTotal
     legal_total = etree.SubElement(root, f'{{{CAC}}}LegalMonetaryTotal')
     line_extension = etree.SubElement(legal_total, f'{{{CBC}}}LineExtensionAmount')
-    line_extension.set('currencyID', 'PEN')
-    line_extension.text = str(nota.op_gravada)
+    line_extension.set('currencyID', moneda)
+    line_extension.text = _money(nota.op_gravada)
 
     tax_inclusive = etree.SubElement(legal_total, f'{{{CBC}}}TaxInclusiveAmount')
-    tax_inclusive.set('currencyID', 'PEN')
-    tax_inclusive.text = str(nota.importe)
+    tax_inclusive.set('currencyID', moneda)
+    tax_inclusive.text = _money(nota.importe)
 
     payable_amount = etree.SubElement(legal_total, f'{{{CBC}}}PayableAmount')
-    payable_amount.set('currencyID', 'PEN')
-    payable_amount.text = str(nota.importe)
+    payable_amount.set('currencyID', moneda)
+    payable_amount.text = _money(nota.importe)
 
     # CreditNoteLines
     for idx, detalle in enumerate(nota.detalles.all(), 1):
+        cantidad = Decimal(str(detalle.cantidad))
+        if cantidad <= 0:
+            raise ValueError(
+                f"La cantidad de la linea {idx} de la nota de credito debe ser mayor a cero"
+            )
+
+        importes = _importes_tributarios_linea(detalle, es_nota_credito=True)
+
         credit_line = etree.SubElement(root, f'{{{CAC}}}CreditNoteLine')
         line_id = etree.SubElement(credit_line, f'{{{CBC}}}ID')
         line_id.text = str(idx)
@@ -668,49 +823,56 @@ def generar_xml_nota_credito(nota):
         cred_quantity.set('unitCode', UNIDADES_MEDIDA.get(detalle.producto.unidad_medida, 'NIU'))
         cred_quantity.text = str(detalle.cantidad)
 
+        cod_afectacion = importes['codigo']
+        datos_igv = importes['datos']
+
         line_extension_amount = etree.SubElement(credit_line, f'{{{CBC}}}LineExtensionAmount')
-        line_extension_amount.set('currencyID', 'PEN')
-        line_extension_amount.text = str(detalle.subtotal)
+        line_extension_amount.set('currencyID', moneda)
+        line_extension_amount.text = _money(importes['valor_venta'])
 
         pricing_ref = etree.SubElement(credit_line, f'{{{CAC}}}PricingReference')
         alt_price = etree.SubElement(pricing_ref, f'{{{CAC}}}AlternativeConditionPrice')
         alt_price_amount = etree.SubElement(alt_price, f'{{{CBC}}}PriceAmount')
-        alt_price_amount.set('currencyID', 'PEN')
-        alt_price_amount.text = str(float(detalle.precio_unitario) * 1.18)
+        alt_price_amount.set('currencyID', moneda)
+        alt_price_amount.text = (
+            _money(importes['precio_alternativo'])
+            if importes['tipo_precio'] == '02'
+            else str(importes['precio_alternativo'])
+        )
         alt_price_type = etree.SubElement(alt_price, f'{{{CBC}}}PriceTypeCode')
         alt_price_type.set('listName', 'Tipo de Precio')
         alt_price_type.set('listAgencyName', 'PE:SUNAT')
         alt_price_type.set('listURI', 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo16')
-        alt_price_type.text = '01'
+        alt_price_type.text = importes['tipo_precio']
 
         line_tax = etree.SubElement(credit_line, f'{{{CAC}}}TaxTotal')
         line_tax_amount = etree.SubElement(line_tax, f'{{{CBC}}}TaxAmount')
-        line_tax_amount.set('currencyID', 'PEN')
-        line_tax_amount.text = str(detalle.igv_linea or '0.00')
+        line_tax_amount.set('currencyID', moneda)
+        line_tax_amount.text = _money(importes['impuesto_total'])
         line_tax_subtotal = etree.SubElement(line_tax, f'{{{CAC}}}TaxSubtotal')
         line_tax_subtotal_base = etree.SubElement(line_tax_subtotal, f'{{{CBC}}}TaxableAmount')
-        line_tax_subtotal_base.set('currencyID', 'PEN')
-        line_tax_subtotal_base.text = str(detalle.subtotal)
+        line_tax_subtotal_base.set('currencyID', moneda)
+        line_tax_subtotal_base.text = _money(importes['base_tributaria'])
         line_tax_subtotal_amount = etree.SubElement(line_tax_subtotal, f'{{{CBC}}}TaxAmount')
-        line_tax_subtotal_amount.set('currencyID', 'PEN')
-        line_tax_subtotal_amount.text = str(detalle.igv_linea or '0.00')
+        line_tax_subtotal_amount.set('currencyID', moneda)
+        line_tax_subtotal_amount.text = _money(importes['impuesto_informado'])
         line_tax_item = etree.SubElement(line_tax_subtotal, f'{{{CAC}}}TaxCategory')
         line_tax_item_id = etree.SubElement(line_tax_item, f'{{{CBC}}}ID')
-        line_tax_item_id.text = 'S'
+        line_tax_item_id.text = datos_igv['categoria']
         line_tax_item_percent = etree.SubElement(line_tax_item, f'{{{CBC}}}Percent')
-        line_tax_item_percent.text = '18.00'
+        line_tax_item_percent.text = datos_igv['tasa']
         line_tax_exemption = etree.SubElement(line_tax_item, f'{{{CBC}}}TaxExemptionReasonCode')
         line_tax_exemption.set('listAgencyName', 'PE:SUNAT')
         line_tax_exemption.set('listName', 'Afectacion del IGV')
         line_tax_exemption.set('listURI', 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo07')
-        line_tax_exemption.text = '10'
+        line_tax_exemption.text = str(cod_afectacion)
         line_tax_scheme = etree.SubElement(line_tax_item, f'{{{CAC}}}TaxScheme')
         line_tax_scheme_id = etree.SubElement(line_tax_scheme, f'{{{CBC}}}ID')
-        line_tax_scheme_id.text = '1000'
+        line_tax_scheme_id.text = datos_igv['tributo_id']
         line_tax_scheme_name = etree.SubElement(line_tax_scheme, f'{{{CBC}}}Name')
-        line_tax_scheme_name.text = 'IGV'
+        line_tax_scheme_name.text = datos_igv['tributo_nombre']
         line_tax_scheme_type = etree.SubElement(line_tax_scheme, f'{{{CBC}}}TaxTypeCode')
-        line_tax_scheme_type.text = 'VAT'
+        line_tax_scheme_type.text = datos_igv['tributo_tipo']
 
         line_item = etree.SubElement(credit_line, f'{{{CAC}}}Item')
         line_description = etree.SubElement(line_item, f'{{{CBC}}}Description')
@@ -721,8 +883,8 @@ def generar_xml_nota_credito(nota):
 
         price = etree.SubElement(credit_line, f'{{{CAC}}}Price')
         price_amount = etree.SubElement(price, f'{{{CBC}}}PriceAmount')
-        price_amount.set('currencyID', 'PEN')
-        price_amount.text = str(detalle.precio_unitario)
+        price_amount.set('currencyID', moneda)
+        price_amount.text = str(importes['valor_unitario'])
 
     xml_bytes = etree.tostring(root, pretty_print=True, xml_declaration=True, encoding='UTF-8')
 

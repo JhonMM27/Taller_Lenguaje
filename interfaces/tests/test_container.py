@@ -4,6 +4,7 @@ Tests de la capa de interfaces: container (inyeccion de dependencias).
 Verifica que el container de DI funciona correctamente y que
 los servicios se pueden obtener de forma thread-safe.
 """
+# pyrefly: ignore [missing-import]
 import pytest
 from unittest.mock import patch
 

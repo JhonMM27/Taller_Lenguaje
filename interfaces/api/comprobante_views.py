@@ -33,6 +33,7 @@ from interfaces.api.serializers import (
     ComprobanteCreateSerializer,
     ComprobanteReenviarSerializer,
     ComprobanteSerializer,
+    ComprobanteEdicionSerializer,
     LogEnvioSUNATSerializer,
 )
 
@@ -84,7 +85,25 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return ComprobanteCreateSerializer
+        if self.action in ('update', 'partial_update', 'corregir'):
+            return ComprobanteEdicionSerializer
         return ComprobanteSerializer
+
+    def update(self, request, *args, **kwargs):
+        """Solo permite modificar directamente comprobantes BORRADOR."""
+        input_ser = self.get_serializer(data=request.data)
+        input_ser.is_valid(raise_exception=True)
+        from apps.comprobantes.services import ComprobanteService as WebService
+        modelo = WebService.actualizar_borrador(
+            int(kwargs['pk']),
+            dict(input_ser.validated_data),
+            usuario=request.user if request.user.is_authenticated else None,
+        )
+        return Response(ComprobanteSerializer(modelo).data)
+
+    def partial_update(self, request, *args, **kwargs):
+        # La edicion tributaria debe ser completa para no perder lineas.
+        return self.update(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         """Delega al servicio de dominio."""
@@ -103,6 +122,7 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
                 tipo=data['tipo'],
                 detalles_data=list(data['detalles']),
                 creado_por_id=creado_por_id,
+                moneda=data.get('moneda', 'PEN'),
             )
         except DomainError:
             raise  # el handler de DRF lo traduce a HTTP
@@ -127,12 +147,23 @@ class ComprobanteViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reenviar(self, request, pk=None):
-        """Reenvia un comprobante RECHAZADO."""
-        service = get_comprobante_service()
-        comprobante = service.reenviar(comprobante_id=int(pk))
-        return Response(ComprobanteSerializer(
-            _cargar_modelo(comprobante.id)
-        ).data)
+        """Compatibilidad: reintenta exclusivamente un ERROR_ENVIO."""
+        from apps.comprobantes.services import ComprobanteService as WebService
+        modelo = WebService.reintentar_envio(int(pk))
+        return Response(ComprobanteSerializer(modelo).data)
+
+    @action(detail=True, methods=['post'])
+    def corregir(self, request, pk=None):
+        """Crea un documento nuevo desde un rechazo y consume otro correlativo."""
+        input_ser = self.get_serializer(data=request.data)
+        input_ser.is_valid(raise_exception=True)
+        from apps.comprobantes.services import ComprobanteService as WebService
+        modelo = WebService.corregir_rechazado(
+            int(pk),
+            dict(input_ser.validated_data),
+            usuario=request.user if request.user.is_authenticated else None,
+        )
+        return Response(ComprobanteSerializer(modelo).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['delete'])
     def eliminar_soft(self, request, pk=None):

@@ -9,7 +9,10 @@ from decimal import Decimal
 from datetime import date
 from unittest.mock import patch, MagicMock
 
-from apps.sunat_ose.services import SunatEnvioService, _validar_xml_firmado
+from apps.sunat_ose.services import (
+    SunatEnvioService, _validar_xml_firmado, _codigo_sunat, _es_rechazo_sunat,
+    _leer_resultado_cdr,
+)
 from apps.core.exceptions import (
     EstadoInvalido,
     TicketNoEncontrado,
@@ -80,6 +83,42 @@ class TestValidarXmlFirmado:
     def test_con_string(self):
         xml_str = "<xml><ds:Signature><ds:X509Certificate>cert</ds:X509Certificate></ds:Signature></xml>"
         _validar_xml_firmado(xml_str)
+
+
+class TestClasificacionRespuesta:
+    def test_codigo_2800_es_rechazo_tributario(self):
+        respuesta = {
+            'status': 99,
+            'faultcode': 'soap-env:Client.2800',
+            'faultstring': 'El tipo de documento no esta permitido',
+        }
+        codigo = _codigo_sunat(respuesta)
+        assert codigo == '2800'
+        assert _es_rechazo_sunat(codigo)
+
+    def test_timeout_es_error_tecnico(self):
+        respuesta = {
+            'status': -1, 'faultcode': 'ERROR', 'faultstring': 'Read timed out'
+        }
+        codigo = _codigo_sunat(respuesta)
+        assert not _es_rechazo_sunat(codigo)
+
+    def test_lee_rechazo_dentro_del_zip_cdr(self):
+        import base64
+        import io
+        import zipfile
+        xml = b'''<ApplicationResponse xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+            <cbc:ResponseCode>2800</cbc:ResponseCode>
+            <cbc:Description>Documento del receptor no permitido</cbc:Description>
+        </ApplicationResponse>'''
+        memoria = io.BytesIO()
+        with zipfile.ZipFile(memoria, 'w') as archivo:
+            archivo.writestr('R-factura.xml', xml)
+        codigo, descripcion = _leer_resultado_cdr(
+            base64.b64encode(memoria.getvalue()).decode('ascii')
+        )
+        assert codigo == '2800'
+        assert 'receptor' in descripcion
 
 
 @pytest.mark.django_db

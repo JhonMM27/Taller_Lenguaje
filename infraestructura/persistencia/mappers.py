@@ -77,6 +77,7 @@ def cliente_a_modelo(ent: Cliente, modelo=None):
     obj.telefono = ent.telefono
     obj.email = ent.email
     obj.ubigeo = ent.ubigeo
+    obj.pais_codigo = ent.pais_codigo
     if ent.id is not None:
         obj.pk = ent.id
     if ent.activo is not None:
@@ -95,6 +96,7 @@ def modelo_a_cliente(modelo) -> Cliente:
         telefono=modelo.telefono,
         email=modelo.email,
         ubigeo=modelo.ubigeo,
+        pais_codigo=modelo.pais_codigo or "PE",
         activo=modelo.activo,
     )
 
@@ -222,6 +224,9 @@ def comprobante_a_modelo(ent: Comprobante, modelo=None):
     obj.xml_firmado = ent.xml_firmado
     obj.sunat_ticket = ent.sunat_ticket
     obj.zip_path = ent.zip_path
+    obj.reemplaza_a_id = ent.reemplaza_a_id
+    obj.tipo_operacion = ent.tipo_operacion
+    obj.moneda = ent.moneda
     if ent.id is not None:
         obj.pk = ent.id
     if ent.activo is not None:
@@ -245,6 +250,9 @@ def modelo_a_comprobante(modelo) -> Comprobante:
         xml_firmado=modelo.xml_firmado,
         zip_path=modelo.zip_path,
         sunat_ticket=modelo.sunat_ticket,
+        reemplaza_a_id=modelo.reemplaza_a_id,
+        tipo_operacion=modelo.tipo_operacion or "0101",
+        moneda=modelo.moneda or "PEN",
         activo=modelo.activo,
     )
 

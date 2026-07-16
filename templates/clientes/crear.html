@@ -32,8 +32,9 @@
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="tipo_doc" class="form-label">Tipo de Documento <span style="color:var(--danger);">*</span></label>
                     <select name="tipo_doc" id="tipo_doc" required class="form-select" onchange="updateDocValidation(this)">
+                        <option value="0">Doc. tributario extranjero (1-15 caracteres)</option>
                         <option value="1">DNI</option>
-                        <option value="6" selected>RUC</option>
+                        <option value="6" selected>RUC peruano (11 dígitos)</option>
                         <option value="4">Carnet de Extranjería</option>
                         <option value="7">Pasaporte</option>
                         <option value="A">Cédula de Identidad</option>
@@ -46,12 +47,19 @@
                            title="El RUC debe tener 11 dígitos"
                            placeholder="20123456789"
                            class="form-control">
+                    <small class="text-muted" data-document-help>RUC peruano: exactamente 11 dígitos. No use este tipo para un comprador extranjero sin RUC peruano.</small>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="ubigeo" class="form-label">Ubigeo</label>
                     <input type="text" name="ubigeo" id="ubigeo" maxlength="6"
                            placeholder="150101"
                            class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="pais_codigo" class="form-label">País ISO</label>
+                    <input type="text" name="pais_codigo" id="pais_codigo" maxlength="2" minlength="2"
+                           value="PE" pattern="[A-Za-z]{2}" class="form-control" title="Código ISO-3166 de dos letras">
+                    <small class="text-muted">Para una exportación SUNAT-40 debe indicar un país distinto de PE.</small>
                 </div>
             </div>
 

@@ -7,6 +7,10 @@ Orquesta: XmlSigner, OSE, repositorios.
 from __future__ import annotations
 
 import base64
+import re
+import zipfile
+import xml.etree.ElementTree as ET
+from io import BytesIO
 from typing import Optional, Protocol
 
 from ..entidades.comprobante import (
@@ -15,11 +19,14 @@ from ..entidades.comprobante import (
     ESTADO_EMITIDO,
     ESTADO_ENVIADO,
     ESTADO_RECHAZADO,
+    ESTADO_ERROR_ENVIO,
     Comprobante,
 )
 from ..entidades.nota_credito import NotaCredito
 from ..excepciones import (
     EnvioSunatFallido,
+    ComprobanteRechazado,
+    ErrorTecnicoEnvio,
     EstadoInvalido,
     FirmaDigitalInvalida,
     TicketNoEncontrado,
@@ -43,6 +50,21 @@ def _validar_firma(xml_bytes: bytes) -> None:
         raise FirmaDigitalInvalida("El XML NO contiene firma digital (ds:Signature)")
     if b"<ds:X509Certificate>" not in xml_bytes and b"<X509Certificate>" not in xml_bytes:
         raise FirmaDigitalInvalida("El XML NO contiene certificado X509 en la firma")
+
+
+def _resultado_cdr(cdr_b64):
+    if not cdr_b64:
+        return None, ""
+    try:
+        contenido = base64.b64decode(cdr_b64) if isinstance(cdr_b64, str) else cdr_b64
+        with zipfile.ZipFile(BytesIO(contenido)) as archivo:
+            nombre = next(n for n in archivo.namelist() if n.lower().endswith(".xml"))
+            raiz = ET.fromstring(archivo.read(nombre))
+        codigo = raiz.findtext(".//{*}ResponseCode")
+        descripcion = raiz.findtext(".//{*}Description") or ""
+        return (codigo.strip() if codigo else None), descripcion.strip()
+    except (ValueError, KeyError, StopIteration, zipfile.BadZipFile, ET.ParseError):
+        return None, ""
 
 
 class SunatEnvioService:
@@ -69,7 +91,7 @@ class SunatEnvioService:
         comprobante = self._uow.comprobantes.obtener_por_id(comprobante_id)
 
         if comprobante.estado not in (
-            ESTADO_EMITIDO, ESTADO_RECHAZADO, ESTADO_BORRADOR,
+            ESTADO_EMITIDO, ESTADO_ERROR_ENVIO, ESTADO_BORRADOR,
         ):
             raise EstadoInvalido(
                 f"No se puede enviar comprobante en estado {comprobante.estado}"
@@ -88,6 +110,17 @@ class SunatEnvioService:
         zip_b64 = base64.b64encode(zip_bytes).decode("utf-8")
         # 5) Enviar
         respuesta = self._ose.send_bill(zip_b64, nombre_zip + ".zip")
+
+        if respuesta.get("status") == 0 and respuesta.get("applicationResponse"):
+            codigo_cdr, descripcion_cdr = _resultado_cdr(
+                respuesta.get("applicationResponse")
+            )
+            if codigo_cdr and codigo_cdr != "0":
+                respuesta["status"] = 99
+                respuesta["faultcode"] = codigo_cdr
+                respuesta["faultstring"] = (
+                    descripcion_cdr or "Comprobante rechazado segun CDR"
+                )
 
         comprobante.xml_firmado = (
             firmado.decode("utf-8") if isinstance(firmado, bytes) else firmado
@@ -115,18 +148,30 @@ class SunatEnvioService:
                 "cdr": bool(cdr_b64),
             }
         else:
-            motivo = respuesta.get("faultstring") or "Rechazado por OSE/SUNAT"
-            comprobante.estado = ESTADO_RECHAZADO
+            motivo = respuesta.get("faultstring") or "Error al enviar al OSE/SUNAT"
+            texto_codigo = ' '.join(str(respuesta.get(k) or '') for k in (
+                'faultcode', 'faultstring', 'status'
+            ))
+            encontrados = re.findall(r'(?<!\d)(\d{4})(?!\d)', texto_codigo)
+            codigo = encontrados[0] if encontrados else str(respuesta.get("status", "-1"))
+            try:
+                es_rechazo = 2000 <= int(codigo) <= 3999
+            except (TypeError, ValueError):
+                es_rechazo = False
+            comprobante.estado = ESTADO_RECHAZADO if es_rechazo else ESTADO_ERROR_ENVIO
             with self._uow:
                 self._uow.comprobantes.guardar(comprobante)
                 self._uow.logs_sunat.registrar(
                     comprobante,
-                    estado_respuesta="RECHAZADO",
-                    codigo_respuesta=str(respuesta.get("status", "-1")),
+                    estado_respuesta=comprobante.estado,
+                    codigo_respuesta=codigo,
                     descripcion=motivo,
+                    cdr_xml=respuesta.get("applicationResponse", "") or "",
                 )
                 self._uow.commit()
-            raise EnvioSunatFallido(motivo)
+            if es_rechazo:
+                raise ComprobanteRechazado(motivo)
+            raise ErrorTecnicoEnvio(motivo)
 
     def enviar_nota_credito(self, nota_id: int) -> dict:
         """Envia una NC al OSE."""

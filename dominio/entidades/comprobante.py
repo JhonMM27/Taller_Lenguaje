@@ -10,6 +10,12 @@ from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
+from ..tributos import (
+    TIPO_OPERACION_VENTA_INTERNA,
+    datos_afectacion_igv,
+    validar_moneda,
+)
+
 from ..excepciones import EstadoInvalido, ReglaNegocioViolada
 
 
@@ -28,12 +34,13 @@ ESTADO_EMITIDO = "EMITIDO"
 ESTADO_ENVIADO = "ENVIADO"
 ESTADO_ACEPTADO = "ACEPTADO"
 ESTADO_RECHAZADO = "RECHAZADO"
+ESTADO_ERROR_ENVIO = "ERROR_ENVIO"
 ESTADO_ANULADO_PARCIAL = "ANULADO_PARCIAL"
 ESTADO_ANULADO_TOTAL = "ANULADO_TOTAL"
 
 ESTADOS_VALIDOS = (
     ESTADO_BORRADOR, ESTADO_EMITIDO, ESTADO_ENVIADO,
-    ESTADO_ACEPTADO, ESTADO_RECHAZADO,
+    ESTADO_ACEPTADO, ESTADO_RECHAZADO, ESTADO_ERROR_ENVIO,
     ESTADO_ANULADO_PARCIAL, ESTADO_ANULADO_TOTAL,
 )
 
@@ -92,9 +99,16 @@ class DetalleComprobante:
     def calcular_subtotal(self, tasa_igv: Decimal) -> Decimal:
         """Calcula subtotal e IGV del detalle."""
         base = (self.precio_unitario - self.descuento) * self.cantidad
+        datos_tributo = datos_afectacion_igv(self.cod_tipo_afectacion)
+        if datos_tributo["gratuito"]:
+            self.subtotal = Decimal("0.00")
+            self.igv_linea = Decimal("0.00")
+            return self.subtotal
+
         self.subtotal = base.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        if self.afecto_igv:
-            self.igv_linea = (base * tasa_igv).quantize(
+        tasa = datos_tributo["tasa"] / Decimal("100")
+        if tasa:
+            self.igv_linea = (base * tasa).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
         else:
@@ -111,7 +125,7 @@ TRANSICIONES_VALIDAS = {
     ESTADO_BORRADOR: [ESTADO_EMITIDO],
     ESTADO_EMITIDO: [ESTADO_ENVIADO, ESTADO_BORRADOR],
     ESTADO_ENVIADO: [ESTADO_ACEPTADO, ESTADO_RECHAZADO],
-    ESTADO_RECHAZADO: [ESTADO_ENVIADO],
+    ESTADO_ERROR_ENVIO: [ESTADO_ENVIADO],
     ESTADO_ACEPTADO: [ESTADO_ANULADO_PARCIAL, ESTADO_ANULADO_TOTAL],
 }
 
@@ -132,6 +146,9 @@ class Comprobante:
     xml_firmado: Optional[str] = None
     zip_path: Optional[str] = None
     sunat_ticket: Optional[str] = None
+    reemplaza_a_id: Optional[int] = None
+    tipo_operacion: str = TIPO_OPERACION_VENTA_INTERNA
+    moneda: str = "PEN"
     detalles: list = field(default_factory=list)
     activo: bool = True
 
@@ -148,6 +165,7 @@ class Comprobante:
             raise ReglaNegocioViolada(
                 "El numero de comprobante debe ser positivo"
             )
+        self.moneda = validar_moneda(self.moneda)
 
     # ------------------------------------------------------------
     # Logica de negocio: transiciones de estado

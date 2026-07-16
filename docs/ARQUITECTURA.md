@@ -60,7 +60,7 @@ dominio/
 ├── entidades/
 │   ├── comprobante.py       # @dataclass Comprobante + lógica de transiciones
 │   ├── nota_credito.py      # @dataclass NotaCredito + validación
-│   ├── cliente.py           # @dataclass Cliente + validación RUC/DNI
+│   ├── cliente.py           # @dataclass Cliente + documentos nacionales/extranjeros y país
 │   ├── producto.py          # @dataclass Producto + validación
 │   └── empresa.py           # @dataclass Empresa
 ├── servicios/
@@ -119,27 +119,51 @@ class ComprobanteService:
         self._events = event_bus
         self._tasa_igv = tasa_igv
     
-    def crear(self, empresa_id, cliente_id, fecha, tipo, detalles_data, creado_por_id=None):
+    def crear(self, empresa_id, cliente_id, fecha, tipo, detalles_data,
+              creado_por_id=None, moneda="PEN"):
         # 1. Validar empresa
         empresa = self._uow.empresas.obtener_por_id(empresa_id)
         # 2. Validar cliente
         cliente = self._uow.clientes.obtener_por_id(cliente_id)
-        # 3. Validar reglas tributarias
-        self._validar_tipo_documento(tipo, cliente)
-        # 4. Obtener numeracion
+        # 3. Construir líneas y derivar operación 0101/0200
+        detalles = [self._construir_detalle(d) for d in detalles_data]
+        tipo_operacion = tipo_operacion_comprobante(
+            detalle.cod_tipo_afectacion for detalle in detalles
+        )
+        # 4. Validar receptor según comprobante y operación
+        self._validar_tipo_documento(tipo, cliente, tipo_operacion)
+        # 5. Obtener numeración
         serie, numero = self._uow.series.siguiente_correlativo(empresa_id, tipo)
-        # 5. Construir entidad
-        comprobante = Comprobante(...)
+        # 6. Construir entidad con tipo_operacion y moneda
+        comprobante = Comprobante(
+            ..., tipo_operacion=tipo_operacion, moneda=moneda, detalles=detalles
+        )
         comprobante.calcular_totales(self._tasa_igv)
-        # 6. Persistir
+        # 7. Persistir
         with self._uow:
             guardado = self._uow.comprobantes.guardar(comprobante)
             self._uow.commit()
-        # 7. Publicar evento
+        # 8. Publicar evento
         if self._events:
             self._events.publish(ComprobanteCreado(...))
         return guardado
 ```
+
+### Reglas tributarias transversales
+
+Las reglas del Catálogo 07 viven en `dominio/tributos.py` y son compartidas por
+la interfaz, los servicios y el generador XML:
+
+- `0101`: venta nacional; una factura exige RUC.
+- `0200`: exportación de bienes; se deriva cuando todas las líneas son `40`.
+- No se permite mezclar afectación `40` con líneas nacionales.
+- Las líneas gratuitas conservan base referencial XML, pero no incrementan los
+  totales comerciales.
+- `tipo_operacion`, `moneda` y `pais_codigo` se conservan en los mappers entre
+  modelos Django y entidades del dominio.
+
+El detalle operativo de exportación está en
+[EXPORTACION_SUNAT_40.md](EXPORTACION_SUNAT_40.md).
 
 ### 2. Infraestructura (`infraestructura/`)
 
@@ -267,7 +291,7 @@ REST_FRAMEWORK = {
 ## Testing
 
 - **Tests de dominio:** `dominio/tests/` - Sin Django, sin BD. Usan mocks de los repositorios.
-- **Tests de infraestructura:** `infraestructura/tests/` - Con BD SQLite, prueban mappers y repos.
+- **Tests de infraestructura:** `infraestructura/tests/` - Con la base de pruebas configurada por Django, prueban mappers y repos.
 - **Tests de interfaces:** `interfaces/tests/` - DRF APIClient, prueban HTTP endpoints.
 - **Tests de apps:** `apps/*/tests.py` - Tests legacy (compat).
 

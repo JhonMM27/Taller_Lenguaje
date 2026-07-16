@@ -38,6 +38,9 @@
         <div style="width:2px; height:32px; background:var(--gray-200); margin:0 5px;"></div>
 
         {% if comprobante.estado == 'BORRADOR' %}
+        <a href="{% url 'comprobantes:editar' comprobante.id %}" class="btn btn-outline">
+            <i class="bi bi-pencil"></i> Editar
+        </a>
         <form method="post" action="{% url 'comprobantes:emitir' comprobante.id %}" style="display:inline;">
             {% csrf_token %}
             <button type="submit" class="btn btn-warning">
@@ -57,10 +60,21 @@
         {% endif %}
 
         {% if comprobante.estado == 'RECHAZADO' %}
-        <form method="post" action="{% url 'comprobantes:reenviar' comprobante.id %}" style="display:inline;">
+            {% if comprobante.tiene_reemplazo %}
+            <a href="{% url 'comprobantes:detalle' comprobante.reemplazado_por.id %}" class="btn btn-outline">
+                <i class="bi bi-link-45deg"></i> Ver reemplazo
+            </a>
+            {% else %}
+            <button type="button" class="btn btn-warning"
+                    onclick="openEditModal('{% url 'comprobantes:corregir' comprobante.id %}')">
+                <i class="bi bi-file-earmark-plus"></i> Corregir y generar nuevo
+            </button>
+            {% endif %}
+        {% elif comprobante.estado == 'ERROR_ENVIO' %}
+        <form method="post" action="{% url 'comprobantes:reintentar' comprobante.id %}" style="display:inline;">
             {% csrf_token %}
             <button type="submit" class="btn btn-warning">
-                <i class="bi bi-arrow-clockwise"></i> Reenviar
+                <i class="bi bi-arrow-clockwise"></i> Reintentar envio
             </button>
         </form>
         {% endif %}
@@ -68,6 +82,13 @@
 </div>
 
 <div id="alerta-envio" class="alert d-none" style="margin-bottom:20px;"></div>
+
+{% if comprobante.reemplaza_a_id %}
+<div class="alert alert-info">
+    Este documento reemplaza al comprobante rechazado
+    <a href="{% url 'comprobantes:detalle' comprobante.reemplaza_a_id %}">{{ comprobante.reemplaza_a }}</a>.
+</div>
+{% endif %}
 
 <div style="display:grid; grid-template-columns: 1fr 340px; gap:24px; align-items: flex-start;">
     

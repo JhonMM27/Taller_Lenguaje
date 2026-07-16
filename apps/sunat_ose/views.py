@@ -19,6 +19,8 @@ from apps.sunat_ose.services import SunatEnvioService
 from apps.core.exceptions import (
     AppError, ComprobanteNoEncontrado, EstadoInvalido,
     FirmaDigitalInvalida, EnvioSunatFallido, TicketNoEncontrado,
+    TipoDocumentoInvalido,
+    ComprobanteRechazado, ErrorTecnicoEnvio,
 )
 
 import logging
@@ -42,16 +44,23 @@ class EnviarComprobanteView(View):
             return JsonResponse({'success': False, 'error': str(e), 'es_mock': es_mock}, status=404)
         except EstadoInvalido as e:
             return JsonResponse({'success': False, 'error': str(e), 'es_mock': es_mock}, status=400)
+        except TipoDocumentoInvalido as e:
+            return JsonResponse({'success': False, 'error': str(e), 'es_mock': es_mock}, status=400)
         except FirmaDigitalInvalida as e:
             return JsonResponse({
                 'success': False, 'error': str(e),
                 'codigo': 'FIRMA_INVALIDA', 'estado': 'ERROR_FIRMA', 'es_mock': es_mock,
             }, status=500)
-        except EnvioSunatFallido as e:
+        except ComprobanteRechazado as e:
             return JsonResponse({
                 'success': False, 'error': str(e),
                 'codigo': 'RECHAZADO', 'estado': 'RECHAZADO', 'es_mock': es_mock,
             }, status=400)
+        except ErrorTecnicoEnvio as e:
+            return JsonResponse({
+                'success': False, 'error': str(e),
+                'codigo': 'ERROR_ENVIO', 'estado': 'ERROR_ENVIO', 'es_mock': es_mock,
+            }, status=503)
         except AppError as e:
             logger.error(f"Error enviando comprobante {pk}: {str(e)}", exc_info=True)
             return JsonResponse({
@@ -120,8 +129,8 @@ def envio_masivo(request):
     if estado:
         comprobantes = comprobantes.filter(estado=estado)
     else:
-        # Por defecto, mostrar comprobantes listos para enviar (EMITIDO, BORRADOR y RECHAZADO)
-        comprobantes = comprobantes.filter(estado__in=['EMITIDO', 'BORRADOR', 'RECHAZADO'])
+        # Rechazos SUNAT requieren nueva numeracion; solo errores tecnicos se reintentan.
+        comprobantes = comprobantes.filter(estado__in=['EMITIDO', 'BORRADOR', 'ERROR_ENVIO'])
 
     comprobantes = comprobantes.order_by('-fecha', '-creado_en')
 

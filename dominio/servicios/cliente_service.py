@@ -27,6 +27,7 @@ class ClienteService:
             telefono=datos.get("telefono"),
             email=datos.get("email"),
             ubigeo=datos.get("ubigeo"),
+            pais_codigo=datos.get("pais_codigo", "PE"),
         )
         return self._repo.guardar(cliente)
 

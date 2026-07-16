@@ -1,215 +1,305 @@
 {% extends 'base.html' %}
 
-{% block title %}Importar Comprobantes desde CSV / Excel{% endblock %}
-{% block page_title %}Importación Masiva{% endblock %}
+{% block title %}Importar comprobantes{% endblock %}
+{% block page_title %}Importación masiva{% endblock %}
+
+{% block extra_css %}
+<style>
+    .import-page { max-width: 1480px; margin: 0 auto; min-width: 0; }
+    .import-header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:24px; }
+    .import-title { display:flex; align-items:center; gap:12px; margin:0; font-size:28px; }
+    .import-title-icon { width:44px; height:44px; border-radius:14px; display:grid; place-items:center; color:#fff; background:linear-gradient(135deg,var(--primary-500),var(--primary-700)); box-shadow:0 8px 20px rgba(79,70,229,.22); }
+    .import-subtitle { margin:8px 0 0 56px; color:var(--gray-500); }
+    .import-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,340px); gap:24px; align-items:start; }
+    .import-main, .import-aside { min-width:0; display:flex; flex-direction:column; gap:20px; }
+    .import-card { min-width:0; overflow:hidden; }
+    .import-card .card-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .import-card .card-body { min-width:0; }
+    .import-form-grid { display:grid; grid-template-columns:minmax(220px,360px) 1fr; gap:18px; align-items:end; margin-bottom:20px; }
+    .drop-zone { min-height:270px; border:2px dashed #cbd5e1; border-radius:18px; padding:32px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; background:linear-gradient(180deg,#f8fafc,#f1f5f9); transition:.2s ease; cursor:pointer; }
+    .drop-zone:hover, .drop-zone.dragging { border-color:var(--primary-500); background:var(--primary-50); transform:translateY(-1px); }
+    .drop-zone.has-file { border-style:solid; border-color:#22c55e; background:#f0fdf4; }
+    .drop-icon { width:72px; height:72px; border-radius:20px; display:grid; place-items:center; margin-bottom:18px; background:#fff; color:var(--primary-600); box-shadow:0 10px 30px rgba(15,23,42,.08); font-size:30px; }
+    .drop-zone.has-file .drop-icon { color:#16a34a; }
+    .drop-title { margin:0; font-size:19px; color:var(--gray-900); }
+    .drop-copy { margin:8px 0 20px; color:var(--gray-500); font-size:14px; }
+    .file-summary { width:min(100%,560px); display:none; align-items:center; gap:12px; margin-top:18px; padding:12px 14px; border:1px solid #bbf7d0; border-radius:12px; background:#fff; text-align:left; }
+    .file-summary.visible { display:flex; }
+    .file-summary i { color:#16a34a; font-size:23px; }
+    .file-name { font-weight:700; color:var(--gray-900); overflow-wrap:anywhere; }
+    .file-meta { color:var(--gray-500); font-size:12px; margin-top:2px; }
+    .file-error { display:none; margin-top:12px; color:#b91c1c; font-size:13px; font-weight:600; }
+    .file-error.visible { display:block; }
+    .import-actions { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:20px; flex-wrap:wrap; }
+    .security-note { color:var(--gray-500); font-size:12px; display:flex; align-items:center; gap:7px; }
+    .spec-list { display:grid; gap:0; }
+    .spec-item { display:grid; grid-template-columns:34px 1fr; gap:10px; padding:16px 18px; border-bottom:1px solid var(--gray-100); }
+    .spec-item:last-child { border-bottom:0; }
+    .spec-icon { width:32px; height:32px; border-radius:9px; display:grid; place-items:center; background:var(--primary-50); color:var(--primary-600); }
+    .spec-title { font-weight:700; font-size:13px; color:var(--gray-900); }
+    .spec-copy { margin:3px 0 0; font-size:12px; line-height:1.5; color:var(--gray-500); }
+    .columns-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:16px; }
+    .column-chip { padding:11px 12px; border:1px solid var(--gray-200); border-radius:10px; background:#fff; min-width:0; }
+    .column-chip code { color:var(--primary-700); font-weight:700; overflow-wrap:anywhere; }
+    .column-chip span { display:block; color:var(--gray-500); font-size:11px; margin-top:3px; }
+    .required-dot { color:#dc2626; }
+    .optional-tag { color:#64748b; font-size:10px; background:#f1f5f9; border-radius:999px; padding:2px 6px; margin-left:5px; }
+    .example-wrap { min-width:0; overflow-x:auto; margin-top:18px; border-radius:12px; background:#0f172a; }
+    .example-wrap pre { min-width:1050px; margin:0; padding:18px; color:#cbd5e1; font-size:12px; line-height:1.8; }
+    .example-wrap .example-row { color:#86efac; }
+    .history-wrap { min-width:0; overflow-x:auto; }
+    .history-table { width:100%; min-width:680px; border-collapse:collapse; }
+    .history-table th, .history-table td { padding:12px 14px; border-bottom:1px solid var(--gray-100); text-align:left; font-size:12px; }
+    .history-table th { color:var(--gray-500); font-weight:700; background:var(--gray-50); }
+    .status-pill { display:inline-flex; padding:4px 8px; border-radius:999px; font-size:10px; font-weight:800; }
+    .status-COMPLETADO { background:#dcfce7; color:#15803d; }
+    .status-ERROR { background:#fee2e2; color:#b91c1c; }
+    .status-PROCESANDO { background:#fef3c7; color:#a16207; }
+    @media (max-width:1100px) {
+        .import-layout { grid-template-columns:1fr; }
+        .import-aside { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
+    @media (max-width:720px) {
+        .import-header { flex-direction:column; }
+        .import-subtitle { margin-left:0; }
+        .import-form-grid, .import-aside { grid-template-columns:1fr; }
+        .drop-zone { min-height:240px; padding:24px 16px; }
+        .import-actions .btn { width:100%; justify-content:center; }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-header fade-in">
-    <div>
-        <h1 class="page-title">
-            <i class="bi bi-cloud-upload" style="color:var(--primary-600);margin-right:8px;"></i>
-            Importar Comprobantes
-        </h1>
-        <p class="page-subtitle">Carga masiva de facturas y boletas mediante archivos CSV o Excel</p>
-    </div>
-    <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Volver a la Lista
-    </a>
-</div>
+<div class="import-page">
+    <header class="import-header">
+        <div>
+            <h1 class="import-title">
+                <span class="import-title-icon"><i class="bi bi-cloud-arrow-up"></i></span>
+                Importar comprobantes
+            </h1>
+            <p class="import-subtitle">Carga facturas y boletas desde un archivo validado, sin perder trazabilidad.</p>
+        </div>
+        <a href="{% url 'comprobantes:lista' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Volver a comprobantes
+        </a>
+    </header>
 
-<div style="display:grid; grid-template-columns: 1fr 400px; gap:24px; align-items: flex-start;">
-    
-    <!-- Sección de carga -->
-    <div style="display:flex; flex-direction:column; gap:24px;">
-        <div class="card fade-in">
-            <div class="card-header">
-                <span class="card-title"><i class="bi bi-file-earmark-arrow-up"></i> Seleccionar Archivo</span>
-            </div>
-            <div class="card-body" style="padding:40px;">
-                <form method="POST" enctype="multipart/form-data" id="import-form">
-                    {% csrf_token %}
-                    <div id="drop-zone" style="border:2px dashed var(--gray-300); border-radius:var(--radius-md); padding:60px 40px; text-align:center; transition: all 0.2s; cursor:pointer; background:var(--gray-50);">
-                        <div style="width:80px; height:80px; background:white; border-radius:50%; box-shadow:var(--shadow-md); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; color:var(--primary-600);">
-                            <i class="bi bi-file-spreadsheet" style="font-size:32px;"></i>
+    <div class="import-layout">
+        <section class="import-main">
+            <article class="card import-card">
+                <div class="card-header">
+                    <span class="card-title"><i class="bi bi-file-earmark-spreadsheet"></i> Archivo de importación</span>
+                    <span style="font-size:12px;color:var(--gray-500);">Paso 1 de 2</span>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data" id="import-form" novalidate>
+                        {% csrf_token %}
+                        <div class="import-form-grid">
+                            <div class="form-group" style="margin:0;">
+                                <label for="empresa_id" class="form-label">Empresa emisora <span class="required-dot">*</span></label>
+                                <select id="empresa_id" name="empresa_id" class="form-select" required>
+                                    <option value="">Seleccione una empresa</option>
+                                    {% for empresa in empresas %}
+                                    <option value="{{ empresa.id }}" {% if empresa_default and empresa.id == empresa_default.id %}selected{% endif %}>{{ empresa.razon_social }} ({{ empresa.ruc }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div style="font-size:12px;color:var(--gray-500);line-height:1.5;">
+                                Las series indicadas en el archivo deben existir y estar activas para esta empresa.
+                            </div>
                         </div>
-                        <h4 style="font-size:18px; font-weight:700; color:var(--gray-900); margin-bottom:10px;">Arrastra tu archivo CSV o Excel aquí</h4>
-                        <p style="color:var(--gray-500); font-size:14px; margin-bottom:24px;">O haz clic para buscar en tu equipo (Máx 10MB)</p>
-                        
-                        <input type="file" name="archivo_csv" id="archivo_csv" accept=".csv,.xlsx,.xls" required style="display:none;">
-                        <button type="button" class="btn btn-primary" onclick="document.getElementById('archivo_csv').click()">
-                            <i class="bi bi-search"></i> Seleccionar Archivo
-                        </button>
-                        
-                        <div id="file-info" style="margin-top:20px; display:none; padding:12px; background:var(--primary-50); border-radius:var(--radius-sm); border:1px solid var(--primary-100);">
-                            <p style="color:var(--primary-700); font-weight:600; font-size:14px;" id="file-name"></p>
+
+                        <label for="archivo_csv" id="drop-zone" class="drop-zone" tabindex="0">
+                            <span class="drop-icon"><i class="bi bi-file-earmark-arrow-up"></i></span>
+                            <h2 class="drop-title">Arrastra tu CSV o XLSX aquí</h2>
+                            <p class="drop-copy">O haz clic para seleccionar un archivo de hasta 10 MB.</p>
+                            <span class="btn btn-primary"><i class="bi bi-folder2-open"></i> Seleccionar archivo</span>
+                            <input type="file" name="archivo_csv" id="archivo_csv" accept=".csv,.xlsx" required hidden>
+                            <span id="file-summary" class="file-summary">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>
+                                    <span id="file-name" class="file-name"></span>
+                                    <span id="file-meta" class="file-meta"></span>
+                                </span>
+                            </span>
+                            <span id="file-error" class="file-error"></span>
+                        </label>
+
+                        <div class="import-actions">
+                            <span class="security-note"><i class="bi bi-shield-check"></i> Cada fila se procesa en una transacción independiente.</span>
+                            <button type="submit" id="submit-import" class="btn btn-primary btn-lg" disabled>
+                                <i class="bi bi-play-circle"></i> Validar e importar
+                            </button>
                         </div>
-                    </div>
-
-                    <div style="margin-top:30px; display:flex; justify-content:flex-end;">
-                        <button type="submit" class="btn btn-primary btn-lg" style="padding: 0 40px; height:50px;">
-                            <i class="bi bi-rocket-takeoff"></i> Iniciar Importación
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <div class="card fade-in" style="animation-delay:0.1s;">
-            <div class="card-header">
-                <span class="card-title"><i class="bi bi-code-square"></i> Estructura del Archivo</span>
-            </div>
-            <div class="card-body">
-                <p style="font-size:13px; color:var(--gray-500); margin-bottom:15px;">La primera fila debe contener los encabezados exactos. Compatible con <strong>CSV</strong> (separador <code>;</code>) y <strong>Excel</strong> (.xlsx).</p>
-                
-                <!-- Pestañas: CSV / Excel -->
-                <div style="display:flex; gap:4px; margin-bottom:15px;">
-                    <button type="button" id="tab-csv" class="btn btn-sm" style="background:var(--primary-600);color:white;border:none;padding:6px 16px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;" onclick="mostrarTab('csv')">CSV</button>
-                    <button type="button" id="tab-excel" class="btn btn-sm" style="background:var(--gray-200);color:var(--gray-600);border:none;padding:6px 16px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;" onclick="mostrarTab('excel')">Excel</button>
+                    </form>
                 </div>
+            </article>
 
-                <!-- Ejemplo CSV -->
-                <div id="ejemplo-csv">
-                    <div style="background:var(--gray-900); padding:20px; border-radius:var(--radius-sm);">
-                        <code style="color:#d1d5db; font-family:monospace; font-size:12px; white-space:pre-wrap; display:block;">tipo;serie;numero;fecha;cliente_tipo_doc;cliente_num_doc;cliente_nombre;producto_codigo;producto_descripcion;cantidad;precio_unitario;categoria</code>
-                        <code style="color:#10b981; font-family:monospace; font-size:12px; white-space:pre-wrap; display:block; margin-top:8px;">01;F001;1;2026-04-25;6;20123456789;Empresa ABC S.A.;MED001;Paracetamol 500mg;10;15.50;FARMACIA</code>
-                    </div>
+            <article class="card import-card">
+                <div class="card-header">
+                    <span class="card-title"><i class="bi bi-layout-text-sidebar-reverse"></i> Estructura del archivo</span>
+                    <a href="{% url 'comprobantes:plantilla_importacion' %}" class="btn btn-outline btn-sm">
+                        <i class="bi bi-download"></i> Descargar plantilla CSV
+                    </a>
                 </div>
-
-                <!-- Ejemplo Excel -->
-                <div id="ejemplo-excel" style="display:none;">
-                    <div style="background:var(--gray-900); padding:20px; border-radius:var(--radius-sm);">
-                        <table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:11px;">
-                            <thead>
-                                <tr style="color:#60a5fa;border-bottom:1px solid #374151;">
-                                    <th style="padding:6px 8px;text-align:left;">tipo</th>
-                                    <th style="padding:6px 8px;text-align:left;">serie</th>
-                                    <th style="padding:6px 8px;text-align:right;">numero</th>
-                                    <th style="padding:6px 8px;text-align:left;">fecha</th>
-                                    <th style="padding:6px 8px;text-align:center;">cliente_tipo_doc</th>
-                                    <th style="padding:6px 8px;text-align:right;">cliente_num_doc</th>
-                                    <th style="padding:6px 8px;text-align:left;">cliente_nombre</th>
-                                    <th style="padding:6px 8px;text-align:left;">producto_codigo</th>
-                                    <th style="padding:6px 8px;text-align:left;">producto_descripcion</th>
-                                    <th style="padding:6px 8px;text-align:right;">cantidad</th>
-                                    <th style="padding:6px 8px;text-align:right;">precio_unitario</th>
-                                    <th style="padding:6px 8px;text-align:left;">categoria</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr style="color:#d1d5db;border-bottom:1px solid #1f2937;">
-                                    <td style="padding:6px 8px;">01</td>
-                                    <td style="padding:6px 8px;">F001</td>
-                                    <td style="padding:6px 8px;text-align:right;">1</td>
-                                    <td style="padding:6px 8px;">2026-04-25</td>
-                                    <td style="padding:6px 8px;text-align:center;">6</td>
-                                    <td style="padding:6px 8px;text-align:right;">20123456789</td>
-                                    <td style="padding:6px 8px;">Empresa ABC S.A.</td>
-                                    <td style="padding:6px 8px;">MED001</td>
-                                    <td style="padding:6px 8px;">Paracetamol 500mg</td>
-                                    <td style="padding:6px 8px;text-align:right;">10</td>
-                                    <td style="padding:6px 8px;text-align:right;">15.50</td>
-                                    <td style="padding:6px 8px;">FARMACIA</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <div class="card-body">
+                    <p style="margin:0;color:var(--gray-500);font-size:13px;">La primera fila debe contener estos encabezados. Los campos marcados con <span class="required-dot">*</span> son obligatorios.</p>
+                    <div class="columns-grid">
+                        <div class="column-chip"><code>tipo <span class="required-dot">*</span></code><span>01 factura, 03 boleta</span></div>
+                        <div class="column-chip"><code>serie <span class="required-dot">*</span></code><span>F001 o B001</span></div>
+                        <div class="column-chip"><code>numero <span class="required-dot">*</span></code><span>Entero mayor que cero</span></div>
+                        <div class="column-chip"><code>fecha <span class="required-dot">*</span></code><span>AAAA-MM-DD</span></div>
+                        <div class="column-chip"><code>cliente_tipo_doc <span class="required-dot">*</span></code><span>Catálogo SUNAT 06</span></div>
+                        <div class="column-chip"><code>cliente_num_doc <span class="required-dot">*</span></code><span>Documento del receptor</span></div>
+                        <div class="column-chip"><code>cliente_nombre <span class="required-dot">*</span></code><span>Nombre o razón social</span></div>
+                        <div class="column-chip"><code>producto_codigo <span class="required-dot">*</span></code><span>Código interno</span></div>
+                        <div class="column-chip"><code>producto_descripcion <span class="required-dot">*</span></code><span>Descripción comercial</span></div>
+                        <div class="column-chip"><code>cantidad <span class="required-dot">*</span></code><span>Mayor que cero</span></div>
+                        <div class="column-chip"><code>precio_unitario <span class="required-dot">*</span></code><span>Cero o mayor</span></div>
+                        <div class="column-chip"><code>categoria</code><span>Opcional</span></div>
+                        <div class="column-chip"><code>afectacion_igv</code><span>Opcional, por defecto 10</span></div>
+                        <div class="column-chip"><code>moneda</code><span>Opcional: PEN, USD, EUR</span></div>
+                        <div class="column-chip"><code>pais_codigo</code><span>Opcional, ISO-3166</span></div>
+                    </div>
+                    <div class="example-wrap" aria-label="Ejemplo CSV con desplazamiento horizontal">
+<pre>tipo;serie;numero;fecha;cliente_tipo_doc;cliente_num_doc;cliente_nombre;producto_codigo;producto_descripcion;cantidad;precio_unitario;categoria;afectacion_igv;moneda;pais_codigo
+<span class="example-row">01;F001;1;2026-07-16;6;20123456789;EMPRESA DEMO SAC;PROD001;Producto gravado;2;100.00;GENERAL;10;PEN;PE</span></pre>
                     </div>
                 </div>
+            </article>
+
+            {% if importaciones_recientes %}
+            <article class="card import-card">
+                <div class="card-header"><span class="card-title"><i class="bi bi-clock-history"></i> Importaciones recientes</span></div>
+                <div class="history-wrap">
+                    <table class="history-table">
+                        <thead><tr><th>Fecha</th><th>Archivo</th><th>Estado</th><th>Registros</th><th>Exitosos</th><th>Errores</th></tr></thead>
+                        <tbody>
+                        {% for item in importaciones_recientes %}
+                        <tr>
+                            <td>{{ item.fecha_importacion|date:'d/m/Y H:i' }}</td>
+                            <td>{{ item.archivo_csv.name|default:'Sin archivo' }}</td>
+                            <td><span class="status-pill status-{{ item.estado }}">{{ item.get_estado_display }}</span></td>
+                            <td>{{ item.total_registros }}</td><td>{{ item.importados_exitosos }}</td><td>{{ item.errores }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+            {% endif %}
+        </section>
+
+        <aside class="import-aside">
+            <article class="card import-card">
+                <div class="card-header"><span class="card-title"><i class="bi bi-info-circle"></i> Antes de importar</span></div>
+                <div class="spec-list">
+                    <div class="spec-item"><span class="spec-icon"><i class="bi bi-filetype-csv"></i></span><div><div class="spec-title">Formatos admitidos</div><p class="spec-copy">CSV separado por punto y coma o coma, y Excel XLSX. No se admite XLS antiguo.</p></div></div>
+                    <div class="spec-item"><span class="spec-icon"><i class="bi bi-receipt"></i></span><div><div class="spec-title">Una fila, un comprobante</div><p class="spec-copy">Cada fila crea un comprobante con una línea de producto.</p></div></div>
+                    <div class="spec-item"><span class="spec-icon"><i class="bi bi-person-check"></i></span><div><div class="spec-title">Clientes y productos</div><p class="spec-copy">Si no existen, se crean solo cuando toda la fila es válida.</p></div></div>
+                    <div class="spec-item"><span class="spec-icon"><i class="bi bi-calculator"></i></span><div><div class="spec-title">Tributos</div><p class="spec-copy">Se calcula IGV, IVAP, gratuidad o exportación según la afectación.</p></div></div>
+                </div>
+            </article>
+            <div class="alert alert-warning" style="margin:0;align-items:flex-start;">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <div><strong>Revise la numeración.</strong><br><span style="font-size:12px;">Los comprobantes importados quedan en BORRADOR y actualizan el correlativo de la serie.</span></div>
             </div>
-        </div>
+        </aside>
     </div>
-
-    <!-- Guía de columnas -->
-    <div style="display:flex; flex-direction:column; gap:24px;">
-        <div class="card fade-in" style="animation-delay:0.2s;">
-            <div class="card-header">
-                <span class="card-title"><i class="bi bi-info-circle"></i> Especificaciones</span>
-            </div>
-            <div class="card-body" style="padding:0;">
-                <div style="padding:16px; border-bottom:1px solid var(--gray-50);">
-                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-                        <span style="width:8px; height:8px; border-radius:50%; background:var(--primary-600);"></span>
-                        <span style="font-weight:700; font-size:13px; color:var(--gray-900);">Formatos</span>
-                    </div>
-                    <p style="font-size:12px; color:var(--gray-500); padding-left:18px;">Compatibles: <code>.csv</code> (separador <code>;</code>), <code>.xlsx</code> y <code>.xls</code>.</p>
-                </div>
-                <div style="padding:16px; border-bottom:1px solid var(--gray-50);">
-                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-                        <span style="width:8px; height:8px; border-radius:50%; background:var(--primary-600);"></span>
-                        <span style="font-weight:700; font-size:13px; color:var(--gray-900);">Tipos de Doc.</span>
-                    </div>
-                    <p style="font-size:12px; color:var(--gray-500); padding-left:18px;"><code>01</code> Factura, <code>03</code> Boleta.</p>
-                </div>
-                <div style="padding:16px;">
-                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-                        <span style="width:8px; height:8px; border-radius:50%; background:var(--primary-600);"></span>
-                        <span style="font-weight:700; font-size:13px; color:var(--gray-900);">Validación</span>
-                    </div>
-                    <p style="font-size:12px; color:var(--gray-500); padding-left:18px;">Si el producto o cliente no existen, el sistema los creará automáticamente.</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="alert alert-warning fade-in" style="animation-delay:0.3s; margin:0;">
-            <i class="bi bi-exclamation-triangle-fill" style="margin-right:8px;"></i>
-            <strong>¡Atención!</strong> La importación no se puede deshacer. Verifica los datos antes de cargar.
-        </div>
-    </div>
-
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
+(() => {
+    const form = document.getElementById('import-form');
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('archivo_csv');
+    const fileSummary = document.getElementById('file-summary');
     const fileName = document.getElementById('file-name');
-    const fileInfo = document.getElementById('file-info');
+    const fileMeta = document.getElementById('file-meta');
+    const fileError = document.getElementById('file-error');
+    const submit = document.getElementById('submit-import');
+    const empresa = document.getElementById('empresa_id');
+    const allowedExtensions = ['csv', 'xlsx'];
+    const maxBytes = 10 * 1024 * 1024;
 
-    ['dragover', 'dragleave', 'drop'].forEach(evt => {
-        dropZone.addEventListener(evt, (e) => {
-            e.preventDefault();
-            if (evt === 'dragover') dropZone.style.borderColor = 'var(--primary-600)';
-            else dropZone.style.borderColor = 'var(--gray-300)';
+    function formatBytes(bytes) {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function showError(message) {
+        fileError.textContent = message;
+        fileError.classList.add('visible');
+        fileSummary.classList.remove('visible');
+        dropZone.classList.remove('has-file');
+        submit.disabled = true;
+    }
+
+    function validateFile(file) {
+        fileError.classList.remove('visible');
+        if (!file) {
+            showError('Seleccione un archivo para continuar.');
+            return false;
+        }
+        const extension = file.name.split('.').pop().toLowerCase();
+        if (!allowedExtensions.includes(extension)) {
+            showError('Formato no permitido. Use CSV o XLSX.');
+            return false;
+        }
+        if (file.size > maxBytes) {
+            showError('El archivo supera el máximo permitido de 10 MB.');
+            return false;
+        }
+        fileName.textContent = file.name;
+        fileMeta.textContent = `${extension.toUpperCase()} · ${formatBytes(file.size)}`;
+        fileSummary.classList.add('visible');
+        dropZone.classList.add('has-file');
+        submit.disabled = !empresa.value;
+        return true;
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, event => {
+            event.preventDefault();
+            dropZone.classList.add('dragging');
         });
     });
-
-    dropZone.addEventListener('drop', (e) => {
-        const files = e.dataTransfer.files;
-        if (files.length) {
-            fileInput.files = files;
-            updateFileInfo(files[0].name);
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, event => {
+            event.preventDefault();
+            dropZone.classList.remove('dragging');
+        });
+    });
+    dropZone.addEventListener('drop', event => {
+        const file = event.dataTransfer.files[0];
+        if (!file) return;
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        fileInput.files = transfer.files;
+        validateFile(file);
+    });
+    fileInput.addEventListener('change', () => validateFile(fileInput.files[0]));
+    empresa.addEventListener('change', () => {
+        submit.disabled = !(empresa.value && validateFile(fileInput.files[0]));
+    });
+    dropZone.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            fileInput.click();
         }
     });
-
-    fileInput.addEventListener('change', (e) => {
-        if (fileInput.files.length) updateFileInfo(fileInput.files[0].name);
-    });
-
-    function updateFileInfo(name) {
-        fileName.innerText = `📄 Seleccionado: ${name}`;
-        fileInfo.style.display = 'block';
-        dropZone.style.background = 'var(--primary-50)';
-    }
-
-    function mostrarTab(tab) {
-        const csvEjemplo = document.getElementById('ejemplo-csv');
-        const excelEjemplo = document.getElementById('ejemplo-excel');
-        const tabCsv = document.getElementById('tab-csv');
-        const tabExcel = document.getElementById('tab-excel');
-
-        if (tab === 'csv') {
-            csvEjemplo.style.display = 'block';
-            excelEjemplo.style.display = 'none';
-            tabCsv.style.background = 'var(--primary-600)';
-            tabCsv.style.color = 'white';
-            tabExcel.style.background = 'var(--gray-200)';
-            tabExcel.style.color = 'var(--gray-600)';
-        } else {
-            csvEjemplo.style.display = 'none';
-            excelEjemplo.style.display = 'block';
-            tabExcel.style.background = 'var(--primary-600)';
-            tabExcel.style.color = 'white';
-            tabCsv.style.background = 'var(--gray-200)';
-            tabCsv.style.color = 'var(--gray-600)';
+    form.addEventListener('submit', event => {
+        if (!empresa.value || !validateFile(fileInput.files[0])) {
+            event.preventDefault();
+            if (!empresa.value) showError('Seleccione la empresa emisora.');
+            return;
         }
-    }
+        submit.disabled = true;
+        submit.innerHTML = '<i class="bi bi-arrow-repeat"></i> Procesando archivo...';
+    });
+})();
 </script>
 {% endblock %}

@@ -147,9 +147,15 @@
                             </a>
                             {% endif %}
                             {% if comp.estado == 'RECHAZADO' %}
-                            <form method="post" action="{% url 'comprobantes:reenviar' comp.id %}" style="display:inline;">
+                                {% if not comp.tiene_reemplazo %}
+                                <button type="button" onclick="openEditModal('{% url 'comprobantes:corregir' comp.id %}')" class="btn-icon danger" title="Corregir y generar nuevo" style="background:none;border:none;cursor:pointer;">
+                                    <i class="bi bi-file-earmark-plus"></i>
+                                </button>
+                                {% endif %}
+                            {% elif comp.estado == 'ERROR_ENVIO' %}
+                            <form method="post" action="{% url 'comprobantes:reintentar' comp.id %}" style="display:inline;">
                                 {% csrf_token %}
-                                <button type="submit" class="btn-icon danger" title="Reenviar" style="background:none; border:none; cursor:pointer; color:inherit;">
+                                <button type="submit" class="btn-icon danger" title="Reintentar envio" style="background:none; border:none; cursor:pointer; color:inherit;">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
                             </form>

@@ -7,7 +7,7 @@ Este documento describe la estrategia de testing del proyecto y cómo ejecutarla
 ```
 tests/
 ├── dominio/             # Tests sin Django ni BD
-├── infraestructura/     # Tests con BD SQLite
+├── infraestructura/     # Tests con la base de pruebas configurada por Django
 ├── interfaces/          # Tests de la API REST (DRF APIClient)
 └── apps/*/tests.py     # Tests legacy (compatibilidad)
 ```
@@ -31,6 +31,12 @@ tests/
 # Todos los tests
 pytest
 
+# Suite completa dentro del contenedor (requiere dependencias locales)
+docker compose exec -T backend python -m pytest -q
+
+# Instalar dependencias de prueba si la imagen solo contiene requirements/base.txt
+docker compose exec -T backend pip install --user -r requirements/local.txt
+
 # Solo dominio (SIN Django, SIN BD)
 pytest dominio/tests/ -p no:django
 
@@ -39,6 +45,12 @@ pytest infraestructura/tests/
 
 # Solo interfaces
 pytest interfaces/tests/
+
+# Regresiones SUNAT 3271/3272, gratuitos y exportación 0200
+pytest apps/sunat_ose/tests/test_xml_generator.py
+
+# Comando idempotente de los 19 productos
+pytest apps/productos/tests/test_comando_productos_sunat.py
 
 # Con cobertura
 pytest --cov=dominio --cov=infraestructura --cov=interfaces --cov=apps --cov-report=term-missing

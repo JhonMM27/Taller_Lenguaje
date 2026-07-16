@@ -30,6 +30,7 @@ from ..excepciones import (
     EmpresaNoEncontrada,
     EstadoInvalido,
     ProductoNoEncontrado,
+    ReglaNegocioViolada,
     TipoDocumentoInvalido,
 )
 from ..puertos.repositorios import (
@@ -37,6 +38,12 @@ from ..puertos.repositorios import (
     IComprobanteRepository,
     IProductoRepository,
     IUnitOfWork,
+)
+from ..tributos import (
+    TIPO_OPERACION_EXPORTACION_BIENES,
+    datos_afectacion_igv,
+    tipo_operacion_comprobante,
+    validar_moneda,
 )
 
 
@@ -81,6 +88,7 @@ class ComprobanteService:
         tipo: str,
         detalles_data: list[dict],
         creado_por_id: Optional[int] = None,
+        moneda: str = "PEN",
     ) -> Comprobante:
         """Crea un comprobante en estado BORRADOR con sus detalles.
 
@@ -92,11 +100,17 @@ class ComprobanteService:
         """
         empresa = self._obtener_empresa(empresa_id)
         cliente = self._uow.clientes.obtener_por_id(cliente_id)
-        self._validar_tipo_documento(tipo, cliente)
-
         detalles = [
             self._construir_detalle(d) for d in detalles_data
         ]
+        try:
+            tipo_operacion = tipo_operacion_comprobante(
+                detalle.cod_tipo_afectacion for detalle in detalles
+            )
+            moneda = validar_moneda(moneda)
+        except ValueError as exc:
+            raise ReglaNegocioViolada(str(exc)) from exc
+        self._validar_tipo_documento(tipo, cliente, tipo_operacion)
 
         with self._uow:
             # siguiente_correlativo usa select_for_update → debe correr dentro de una transacción
@@ -110,6 +124,8 @@ class ComprobanteService:
                 numero=numero,
                 fecha=fecha,
                 tipo=tipo,
+                tipo_operacion=tipo_operacion,
+                moneda=moneda,
                 estado=ESTADO_BORRADOR,
                 detalles=detalles,
             )
@@ -260,17 +276,43 @@ class ComprobanteService:
     def _obtener_empresa(self, empresa_id: int):
         return self._uow.empresas.obtener_por_id(empresa_id)
 
-    def _validar_tipo_documento(self, tipo: str, cliente) -> None:
-        """Validacion estructural del documento segun su tipo.
-
-        No restringe el tipo de comprobante vs tipo_doc. Solo valida
-        que la longitud del documento coincida con su tipo (8 digitos
-        DNI, 11 RUC, etc.). Esto permite emitir facturas con cualquier
-        tipo de documento y boletas con cualquier tipo.
-        """
+    def _validar_tipo_documento(
+        self, tipo: str, cliente, tipo_operacion: str = "0101"
+    ) -> None:
+        """Valida el documento del receptor y su compatibilidad tributaria."""
         from ..entidades.cliente import LONGITUDES_DOC, TIPOS_DOC_VALIDOS
         esperado = LONGITUDES_DOC.get(cliente.tipo_doc)
-        if esperado and len(cliente.num_doc) != esperado:
+        if tipo_operacion == TIPO_OPERACION_EXPORTACION_BIENES:
+            if tipo != TIPO_FACTURA:
+                raise TipoDocumentoInvalido(
+                    "La exportacion de bienes 0200 debe emitirse como factura tipo 01."
+                )
+            if cliente.tipo_doc == "6" or cliente.tipo_doc not in ("0", "4", "7", "A"):
+                raise TipoDocumentoInvalido(
+                    "La exportacion requiere un receptor no domiciliado con documento extranjero."
+                )
+            if str(getattr(cliente, "pais_codigo", "PE") or "PE").upper() == "PE":
+                raise TipoDocumentoInvalido(
+                    "El receptor de una exportacion debe tener un pais de residencia distinto de PE."
+                )
+        elif tipo == TIPO_FACTURA and cliente.tipo_doc != "6":
+            if (
+                cliente.tipo_doc in ("0", "4", "7", "A")
+                and str(getattr(cliente, "pais_codigo", "PE") or "PE").upper() != "PE"
+            ):
+                raise TipoDocumentoInvalido(
+                    "El receptor es extranjero. Para emitirle una factura de exportacion "
+                    "seleccione exclusivamente productos con afectacion IGV 40; el sistema "
+                    "generara automaticamente la operacion 0200."
+                )
+            raise TipoDocumentoInvalido(
+                "SUNAT exige RUC (tipo 6) para el receptor de una factura. "
+                "Si el cliente solo tiene DNI, emita una boleta (tipo 03)."
+            )
+        if esperado and (
+            not str(cliente.num_doc).isdigit()
+            or len(cliente.num_doc) != esperado
+        ):
             nombres = {
                 "1": "DNI",
                 "4": "Carnet de Extranjeria",
@@ -298,14 +340,19 @@ class ComprobanteService:
             data.get("precio_unitario", producto.precio_unitario)
         ))
 
+        codigo_afectacion = str(
+            data.get("cod_tipo_afectacion") or producto.cod_tipo_afectacion
+        )
+        datos_afectacion_igv(codigo_afectacion)  # valida contra catalogo SUNAT 07
+
         return DetalleComprobante(
             id=None,
             producto_id=producto_id,
             cantidad=cantidad,
             precio_unitario=precio,
             descuento=Decimal(str(data.get("descuento", 0))),
-            afecto_igv=producto.afecto_igv,
-            cod_tipo_afectacion=producto.cod_tipo_afectacion,
+            afecto_igv=codigo_afectacion in ("10", "17"),
+            cod_tipo_afectacion=codigo_afectacion,
             unidad_medida=producto.unidad_medida,
             descripcion=producto.descripcion,
             codigo_producto=producto.codigo or "",

@@ -103,9 +103,9 @@
         
         const modalId = 'selector' + type.charAt(0).toUpperCase() + type.slice(1) + 'Modal';
         const searchInput = document.getElementById('search' + type.charAt(0).toUpperCase() + type.slice(1) + 'Input');
-        if (initialQuery) {
-            searchInput.value = initialQuery;
-        }
+        // Cada apertura comienza con la consulta escrita en la fila actual.
+        // Evita que una búsqueda anterior oculte SUNAT-40 al cambiar de cliente.
+        searchInput.value = initialQuery || '';
         
         openModal(modalId);
         searchSelector(type); // Initial load
@@ -116,13 +116,33 @@
 
     function searchSelector(type) {
         const query = document.getElementById('search' + type.charAt(0).toUpperCase() + type.slice(1) + 'Input').value;
-        const url = `/comprobantes/buscar-${type}s/?q=` + encodeURIComponent(query);
+        const params = new URLSearchParams({q: query});
+        if (type === 'producto') {
+            const cliente = document.querySelector(
+                '#nuevoComprobanteModal input[name="cliente_id"]'
+            );
+            const tiposExtranjeros = ['0', '4', '7', 'A'];
+            const esExtranjero = Boolean(cliente?.value)
+                && tiposExtranjeros.includes(cliente.dataset.tipoDoc || '')
+                && (cliente.dataset.pais || 'PE').toUpperCase() !== 'PE';
+            if (esExtranjero) params.set('afectacion', '40');
+            else if (cliente?.value) params.set('excluir_afectacion', '40');
+        }
+        const url = `/comprobantes/buscar-${type}s/?${params.toString()}`;
         
         fetch(url)
             .then(response => response.json())
             .then(data => {
                 const tbody = document.getElementById('body' + type.charAt(0).toUpperCase() + type.slice(1) + 'Selector');
                 tbody.innerHTML = '';
+
+                if (data.results.length === 0) {
+                    const mensaje = type === 'producto' && url.includes('afectacion=40')
+                        ? 'No hay productos activos con afectación 40. Ejecute el comando de productos SUNAT.'
+                        : 'No se encontraron resultados.';
+                    tbody.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--gray-500);">${mensaje}</td></tr>`;
+                    return;
+                }
                 
                 data.results.forEach(item => {
                     const tr = document.createElement('tr');
@@ -143,7 +163,7 @@
                             <td>${item.num_doc}</td>
                             <td>${item.razon_social}</td>
                             <td style="text-align:right;">
-                                <button type="button" class="btn btn-primary btn-sm" onclick="selectItem('cliente', '${item.id}', '${item.razon_social}', '${item.codigo}')">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="selectItem('cliente', '${item.id}', '${item.razon_social}', '${item.codigo}', null, null, '${item.tipo_doc}', '${item.pais_codigo}')">
                                     Seleccionar
                                 </button>
                             </td>
@@ -154,7 +174,7 @@
                             <td>${item.descripcion}</td>
                             <td>S/ ${item.precio}</td>
                             <td style="text-align:right;">
-                                <button type="button" class="btn btn-primary btn-sm" onclick="selectItem('producto', '${item.id}', '${item.descripcion}', '${item.codigo}', '${item.precio}')">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="selectItem('producto', '${item.id}', '${item.descripcion}', '${item.codigo}', '${item.precio}', '${item.afectacion}')">
                                     Seleccionar
                                 </button>
                             </td>
@@ -165,7 +185,7 @@
             });
     }
 
-    function selectItem(type, id, name, codigo, extra = null) {
+    function selectItem(type, id, name, codigo, extra = null, afectacion = null, tipoDoc = null, pais = null) {
         if (currentSelectorRow) {
             // Logic for dynamic rows (products in comprobantes)
             const row = currentSelectorRow;
@@ -178,11 +198,18 @@
             if (extra && row.querySelector('input[name="precio_unitario"]')) {
                 row.querySelector('input[name="precio_unitario"]').value = extra;
             }
+            if (afectacion && row.querySelector('input[name="cod_tipo_afectacion"]')) {
+                row.querySelector('input[name="cod_tipo_afectacion"]').value = afectacion;
+            }
         } else {
             // Logic for static fields
             const targetEl = document.getElementById(currentSelectorTargetId);
             if (targetEl) {
                 targetEl.value = id;
+                if (type === 'cliente') {
+                    targetEl.dataset.tipoDoc = tipoDoc || '';
+                    targetEl.dataset.pais = pais || 'PE';
+                }
                 // Dispatch change event to trigger dependencies (like checkRequirements)
                 targetEl.dispatchEvent(new Event('change'));
             }
@@ -219,7 +246,11 @@
             .then(data => {
                 if (data.results.length > 0) {
                     const item = data.results.find(i => i.codigo === code) || data.results[0];
-                    selectItem(type, item.id, item.razon_social || item.descripcion, item.codigo, item.precio);
+                    selectItem(
+                        type, item.id, item.razon_social || item.descripcion,
+                        item.codigo, item.precio, item.afectacion,
+                        item.tipo_doc, item.pais_codigo
+                    );
                 } else {
                     alert('No se encontró ningún ' + type + ' con ese código');
                 }

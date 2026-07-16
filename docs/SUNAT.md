@@ -2,6 +2,17 @@
 
 Esta guía explica cómo configurar y usar la integración con SUNAT/OSE en el sistema.
 
+## Guías funcionales
+
+- [Exportación de bienes con SUNAT-40](EXPORTACION_SUNAT_40.md)
+
+## Afectaciones gratuitas
+
+- En códigos `11-16`, `21` y `31-37`, el precio es referencial y no incrementa el total pagable.
+- La base referencial se informa en `LineExtensionAmount` y `TaxableAmount` para evitar los errores SUNAT `3271` y `3272`.
+- Los códigos `11-16` informan IGV referencial dentro del subtotal `9996`, pero no lo suman al impuesto cobrado.
+- El XML agrega automáticamente la leyenda `1002`.
+
 ## Modos de operación
 
 El sistema soporta dos modos:
@@ -11,7 +22,7 @@ El sistema soporta dos modos:
 | **Mock** | `SUNAT_OSE_MOCK=True` | Desarrollo y testing. Simula respuestas del OSE. |
 | **Real** | `SUNAT_OSE_MOCK=False` | Producción. Conecta con SUNAT Beta o un OSE certificador. |
 
-## Configuración Mock (por defecto)
+## Configuración Mock
 
 ```env
 SUNAT_OSE_MOCK=True
@@ -132,10 +143,15 @@ python manage.py shell
        │
        │ Si falla
        ▼
-   Comprobante en estado RECHAZADO
+   RECHAZADO (CDR tributario) o ERROR_ENVIO (fallo técnico)
 ```
 
 ## Estados SUNAT
+
+> Regla vigente: `RECHAZADO` significa rechazo tributario definitivo para esa
+> numeracion y requiere crear un comprobante nuevo. `ERROR_ENVIO` identifica un
+> fallo tecnico sin CDR de rechazo y es el unico estado que permite reintentar.
+> Los comprobantes `BORRADOR` pueden editarse; los `ACEPTADO` se corrigen con NC/ND.
 
 | Estado | Significado | Acciones posibles |
 |--------|-------------|-------------------|
@@ -143,7 +159,8 @@ python manage.py shell
 | `EMITIDO` | XML firmado, listo para enviar | Enviar, Regresar a BORRADOR |
 | `ENVIADO` | Enviado al OSE, esperando CDR | Consultar ticket |
 | `ACEPTADO` | CDR recibido, válido SUNAT | Anular (vía NC) |
-| `RECHAZADO` | OSE rechazó | Reenviar, Anular |
+| `RECHAZADO` | SUNAT/OSE rechazó con CDR; la numeración quedó utilizada | Corregir y generar un comprobante nuevo |
+| `ERROR_ENVIO` | Fallo técnico sin CDR de rechazo | Reintentar con la misma numeración |
 | `ANULADO_PARCIAL` | Anulado parcialmente vía NC | — |
 | `ANULADO_TOTAL` | Anulado totalmente vía NC | — |
 
@@ -172,26 +189,31 @@ No se ha enviado el comprobante aún, o el ticket fue invalidado por el OSE.
 
 | Código | Tipo | Cliente |
 |--------|------|---------|
-| `01` | Factura | RUC |
+| `01` | Factura nacional | RUC |
+| `01` + operación `0200` | Factura de exportación | Receptor no domiciliado, documento extranjero de 1-15 caracteres y país distinto de `PE` |
 | `03` | Boleta | DNI / CE / Pasaporte |
 | `07` | Nota de Crédito | (referencia) |
 | `08` | Nota de Débito | (referencia) |
 
+> Los 11 dígitos corresponden exclusivamente al tipo `6 - RUC peruano`.
+> Para exportación, los tipos `0`, `4`, `7` y `A` aceptan documentos de 1 a 15
+> caracteres sin espacios; no deben rellenarse con ceros para llegar a 11.
+
 ## Cálculo de IGV
 
-```python
-subtotal = sum(precio * cantidad) para cada linea
-igv = sum(subtotal * 0.18) para cada linea afecto_igv=True
-total = subtotal + igv
-```
-
-Las líneas con `afecto_igv=False` (exoneradas, inafectas) no suman al IGV.
+| Afectación | Base comercial | Impuesto | Total pagable |
+|---|---:|---:|---:|
+| `10` Gravada | Precio neto | 18% IGV | Base + IGV |
+| `17` IVAP | Precio neto | 4% IVAP | Base + IVAP |
+| `20`, `30`, `40` | Precio neto | 0 | Base |
+| `11-16`, `21`, `31-37` | 0; se conserva base referencial XML | IGV solo referencial para `11-16` | 0 |
 
 ## Recursos
 
 - [SUNAT - Comprobantes Electrónicos](https://cpe.sunat.gob.pe/)
-- [Catálogo de códigos SUNAT](https://cpe.sunat.gob.pe/sites/default/files/inline-images/2019/08/07/catalogo_20190807.pdf)
-- [Especificación UBL 2.1](http://docs.oasis-open.org/ubl/UBL-2.1.html)
+- [SUNAT - Guías, anexos y reglas de validación vigentes](https://cpe.sunat.gob.pe/guias-y-manuales)
+- [SUNAT - Guía XML de factura UBL 2.1](https://cpe.sunat.gob.pe/sites/default/files/inline-files/guia%2Bxml%2Bfactura%2Bversion%202-1%2B1%2B0%20%282%29_0%20%282%29.pdf)
+- [OASIS - Especificación UBL 2.1](https://docs.oasis-open.org/ubl/UBL-2.1.html)
 - [SignXML](https://github.com/XML-Security/signxml)
 
 ## Soporte

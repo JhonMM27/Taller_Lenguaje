@@ -63,6 +63,8 @@ class ComprobanteSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'empresa', 'empresa_ruc', 'cliente', 'cliente_nombre',
             'serie', 'numero', 'fecha', 'tipo', 'estado',
+            'tipo_operacion', 'moneda',
+            'reemplaza_a',
             'subtotal', 'igv', 'total', 'xml_firmado', 'detalles',
             'creado_en', 'actualizado_en',
         ]
@@ -74,6 +76,7 @@ class ComprobanteCreateSerializer(serializers.Serializer):
     cliente_id = serializers.IntegerField()
     fecha = serializers.DateField()
     tipo = serializers.ChoiceField(choices=['01', '03'])
+    moneda = serializers.ChoiceField(choices=['PEN', 'USD', 'EUR'], default='PEN')
     detalles = serializers.ListField(
         child=DetalleComprobanteInputSerializer(), allow_empty=False
     )
@@ -81,6 +84,17 @@ class ComprobanteCreateSerializer(serializers.Serializer):
 
 class ComprobanteReenviarSerializer(serializers.Serializer):
     motivo = serializers.CharField(required=False, allow_blank=True)
+
+
+class ComprobanteEdicionSerializer(serializers.Serializer):
+    cliente_id = serializers.IntegerField()
+    fecha = serializers.DateField()
+    moneda = serializers.ChoiceField(
+        choices=['PEN', 'USD', 'EUR'], required=False
+    )
+    detalles = serializers.ListField(
+        child=DetalleComprobanteInputSerializer(), allow_empty=False
+    )
 
 
 # ============================================================

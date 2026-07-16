@@ -52,16 +52,6 @@ form-select) y grillas CSS nativas inline.
                     {% endfor %}
                 </select>
             </div>
-            <div class="form-group" style="margin-bottom:0;">
-                <label for="tipo_operacion" class="form-label">Tipo de Operación</label>
-                <select name="tipo_operacion" id="tipo_operacion" class="form-select">
-                    <option value="GRAVADA" {% if producto.tipo_operacion == 'GRAVADA' %}selected{% endif %}>Gravada</option>
-                    <option value="EXONERADA" {% if producto.tipo_operacion == 'EXONERADA' %}selected{% endif %}>Exonerada</option>
-                    <option value="INAFECTA" {% if producto.tipo_operacion == 'INAFECTA' %}selected{% endif %}>Inafecta</option>
-                    <option value="GRATUITA" {% if producto.tipo_operacion == 'GRATUITA' %}selected{% endif %}>Operación Gratuita</option>
-                    <option value="EXPORTACION" {% if producto.tipo_operacion == 'EXPORTACION' %}selected{% endif %}>Exportación</option>
-                </select>
-            </div>
         </div>
 
         <!-- ── Fila 2: Descripción ── -->
@@ -97,19 +87,11 @@ form-select) y grillas CSS nativas inline.
             <div class="form-group" style="margin-bottom:0;">
                 <label for="cod_tipo_afectacion" class="form-label">Afectación IGV</label>
                 <select name="cod_tipo_afectacion" id="cod_tipo_afectacion" class="form-select">
-                    <option value="10" {% if producto.cod_tipo_afectacion == '10' %}selected{% endif %}>10 - Gravado</option>
-                    <option value="11" {% if producto.cod_tipo_afectacion == '11' %}selected{% endif %}>11 - Gravado - Consignación</option>
-                    <option value="14" {% if producto.cod_tipo_afectacion == '14' %}selected{% endif %}>14 - Transacciones gratuitas</option>
-                    <option value="20" {% if producto.cod_tipo_afectacion == '20' %}selected{% endif %}>20 - Exonerado</option>
-                    <option value="30" {% if producto.cod_tipo_afectacion == '30' %}selected{% endif %}>30 - Inafecto</option>
-                    <option value="40" {% if producto.cod_tipo_afectacion == '40' %}selected{% endif %}>40 - Exportación</option>
+                    {% include "productos/_afectacion_igv_options.html" %}
                 </select>
             </div>
             <div style="padding-bottom:12px;">
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                    <input type="checkbox" name="afecto_igv" id="afecto_igv" {% if producto.afecto_igv %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--primary-600);cursor:pointer;">
-                    <span class="form-label" style="margin-bottom:0;">Afecto IGV</span>
-                </label>
+                <small class="text-muted">El tributo y la tasa se determinan automáticamente. En códigos gratuitos, el precio es referencial y no se cobra.</small>
             </div>
         </div>
 

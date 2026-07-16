@@ -252,7 +252,9 @@
      * @param {HTMLSelectElement} select - El selector de tipo de documento
      */
     function updateDocValidation(select) {
-        const input = select.closest('form').querySelector('input[name="num_doc"]');
+        const form = select.closest('form');
+        const input = form.querySelector('input[name="num_doc"]');
+        const help = form.querySelector('[data-document-help]');
         // Reset min/max properties temporarily to prevent IndexSizeError in browsers
         input.removeAttribute('minlength');
         input.removeAttribute('maxlength');
@@ -262,18 +264,28 @@
             input.maxLength = 8;
             input.pattern = "[0-9]{8}";
             input.title = "El DNI debe tener 8 dígitos";
+            input.placeholder = "12345678";
+            if (help) help.textContent = "DNI peruano: exactamente 8 dígitos.";
         } else if (select.value === '6') { // RUC
             input.minLength = 11;
             input.maxLength = 11;
             input.pattern = "[0-9]{11}";
             input.title = "El RUC debe tener 11 dígitos";
+            input.placeholder = "20123456789";
+            if (help) help.textContent = "RUC peruano: exactamente 11 dígitos. No use este tipo para un comprador extranjero sin RUC peruano.";
         } else {
             input.minLength = 1;
             input.maxLength = 15;
-            input.pattern = ".*";
-            input.title = "Documento de identidad";
+            input.pattern = "\\S{1,15}";
+            input.title = "Documento extranjero de 1 a 15 caracteres, sin espacios";
+            input.placeholder = select.value === '7' ? "Número de pasaporte" : "ABC123";
+            if (help) help.textContent = "Documento extranjero: de 1 a 15 caracteres, sin espacios. No necesita tener 11 dígitos.";
         }
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('select[name="tipo_doc"]').forEach(updateDocValidation);
+    });
 
     // Cerrar modal al hacer clic fuera
     window.onclick = function(event) {

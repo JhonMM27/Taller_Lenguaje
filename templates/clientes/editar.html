@@ -38,8 +38,9 @@
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="tipo_doc" class="form-label">Tipo de Documento <span style="color:var(--danger);">*</span></label>
                     <select name="tipo_doc" id="tipo_doc" required class="form-select" onchange="updateDocValidation(this)">
+                        <option value="0" {% if cliente.tipo_doc == '0' %}selected{% endif %}>Doc. tributario extranjero (1-15 caracteres)</option>
                         <option value="1" {% if cliente.tipo_doc == '1' %}selected{% endif %}>DNI</option>
-                        <option value="6" {% if cliente.tipo_doc == '6' %}selected{% endif %}>RUC</option>
+                        <option value="6" {% if cliente.tipo_doc == '6' %}selected{% endif %}>RUC peruano (11 dígitos)</option>
                         <option value="4" {% if cliente.tipo_doc == '4' %}selected{% endif %}>Carnet de Extranjería</option>
                         <option value="7" {% if cliente.tipo_doc == '7' %}selected{% endif %}>Pasaporte</option>
                         <option value="A" {% if cliente.tipo_doc == 'A' %}selected{% endif %}>Cédula de Identidad</option>
@@ -50,14 +51,21 @@
                     <input type="text" name="num_doc" id="num_doc" required 
                            maxlength="{% if cliente.tipo_doc == '6' %}11{% elif cliente.tipo_doc == '1' %}8{% else %}15{% endif %}" 
                            minlength="{% if cliente.tipo_doc == '6' %}11{% elif cliente.tipo_doc == '1' %}8{% else %}1{% endif %}"
-                           pattern="{% if cliente.tipo_doc == '6' %}[0-9]{11}{% elif cliente.tipo_doc == '1' %}[0-9]{8}{% else %}.*{% endif %}"
-                           title="{% if cliente.tipo_doc == '6' %}El RUC debe tener 11 dígitos{% elif cliente.tipo_doc == '1' %}El DNI debe tener 8 dígitos{% else %}Documento de identidad{% endif %}"
+                           pattern="{% if cliente.tipo_doc == '6' %}[0-9]{11}{% elif cliente.tipo_doc == '1' %}[0-9]{8}{% else %}\S{1,15}{% endif %}"
+                           title="{% if cliente.tipo_doc == '6' %}El RUC debe tener 11 dígitos{% elif cliente.tipo_doc == '1' %}El DNI debe tener 8 dígitos{% else %}Documento extranjero de 1 a 15 caracteres, sin espacios{% endif %}"
                            value="{{ cliente.num_doc }}" class="form-control">
+                    <small class="text-muted" data-document-help></small>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="ubigeo" class="form-label">Ubigeo</label>
                     <input type="text" name="ubigeo" id="ubigeo" maxlength="6"
                            value="{{ cliente.ubigeo|default:'' }}" class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="pais_codigo" class="form-label">País ISO</label>
+                    <input type="text" name="pais_codigo" id="pais_codigo" maxlength="2" minlength="2"
+                           pattern="[A-Za-z]{2}" value="{{ cliente.pais_codigo|default:'PE' }}" class="form-control">
+                    <small class="text-muted">Para una exportación SUNAT-40 debe indicar un país distinto de PE.</small>
                 </div>
             </div>
 

@@ -20,6 +20,7 @@ class ClienteService:
             telefono=data.get('telefono', ''),
             email=data.get('email', ''),
             ubigeo=data.get('ubigeo', ''),
+            pais_codigo=data.get('pais_codigo', 'PE'),
             creado_por=usuario,
         )
         cliente.save()

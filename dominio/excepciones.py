@@ -98,6 +98,16 @@ class EnvioSunatFallido(DomainError):
     pass
 
 
+class ComprobanteRechazado(EnvioSunatFallido):
+    """SUNAT/OSE rechazo el contenido y consumio la numeracion."""
+    pass
+
+
+class ErrorTecnicoEnvio(EnvioSunatFallido):
+    """Fallo transitorio sin rechazo tributario ni consumo confirmado."""
+    pass
+
+
 class TicketNoEncontrado(RecursoNoEncontrado):
     """No existe un ticket SUNAT para este comprobante."""
     pass

@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
+from ..tributos import datos_afectacion_igv
+
 from ..excepciones import (
     ComprobanteNoAceptado,
     EstadoInvalido,
@@ -57,9 +59,16 @@ class DetalleNotaCredito:
 
     def calcular_subtotal(self, tasa_igv: Decimal) -> Decimal:
         base = (self.precio_unitario - self.descuento) * self.cantidad
+        datos_tributo = datos_afectacion_igv(self.cod_tipo_afectacion)
+        if datos_tributo["gratuito"]:
+            self.subtotal = Decimal("0.00")
+            self.igv_linea = Decimal("0.00")
+            return self.subtotal
+
         self.subtotal = base.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        if self.afecto_igv:
-            self.igv_linea = (base * tasa_igv).quantize(
+        tasa = datos_tributo["tasa"] / Decimal("100")
+        if tasa:
+            self.igv_linea = (base * tasa).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
         else:

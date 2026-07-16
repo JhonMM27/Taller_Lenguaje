@@ -11,12 +11,13 @@ class ClienteSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'tipo_doc', 'num_doc', 'razon_social', 'codigo',
             'direccion', 'telefono', 'email', 'ubigeo',
+            'pais_codigo',
             'creado_en', 'actualizado_en',
         ]
 
 
 class ClienteCreateSerializer(serializers.Serializer):
-    tipo_doc = serializers.ChoiceField(choices=['1', '4', '6', '7', 'A'])
+    tipo_doc = serializers.ChoiceField(choices=['0', '1', '4', '6', '7', 'A'])
     num_doc = serializers.CharField(max_length=15)
     razon_social = serializers.CharField(max_length=200)
     codigo = serializers.CharField(max_length=10, required=False, allow_blank=True)
@@ -24,6 +25,7 @@ class ClienteCreateSerializer(serializers.Serializer):
     telefono = serializers.CharField(max_length=20, required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True)
     ubigeo = serializers.CharField(max_length=6, required=False, allow_blank=True)
+    pais_codigo = serializers.CharField(max_length=2, required=False, default='PE')
 
 
 class ProductoSerializer(serializers.ModelSerializer):
