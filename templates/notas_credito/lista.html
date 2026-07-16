@@ -453,17 +453,23 @@ function buscarComprobanteModal() {
     if (fechaHasta) url += '&fecha_hasta=' + fechaHasta;
 
     fetch(url)
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) {
+                throw new Error('HTTP ' + r.status);
+            }
+            return r.json();
+        })
         .then(data => {
             const tbody = document.getElementById('resultados_busqueda_body');
             tbody.innerHTML = '';
 
-            if (data.results.length === 0) {
+            const results = data.results || [];
+            if (results.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--gray-400);">No se encontraron comprobantes</td></tr>';
                 return;
             }
 
-            data.results.forEach(comp => {
+            results.forEach(comp => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td style="font-family:monospace;font-weight:600;color:var(--gray-900);">${comp.numero_completo}</td>
@@ -479,8 +485,12 @@ function buscarComprobanteModal() {
                 `;
                 tbody.appendChild(tr);
             });
+        })
+        .catch(err => {
+            const tbody = document.getElementById('resultados_busqueda_body');
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--danger);">Error al buscar comprobantes: ' + (err.message || 'desconocido') + '</td></tr>';
         });
-}
+    }
 
 // ═══════════════════════════════════════════════════════════════
 // SELECCIONAR COMPROBANTE
