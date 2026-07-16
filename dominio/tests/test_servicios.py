@@ -297,12 +297,34 @@ class TestComprobanteService:
         assert c.total == Decimal("236")
         assert c.numero == 1
 
-    def test_factura_con_dni_lanza_tipo_doc_invalido(self, uow, cliente_dni):
+    def test_factura_con_dni_acepta(self, uow, cliente_dni):
+        """Factura con cliente DNI ahora se acepta (validacion flexible)."""
         uow._clientes = MockClienteRepo(cliente=cliente_dni)
+        svc = ComprobanteService(uow)
+        c = svc.crear(
+            empresa_id=1, cliente_id=2, fecha=date.today(),
+            tipo=TIPO_FACTURA,
+            detalles_data=[{"producto_id": 1, "cantidad": 1}],
+        )
+        assert c.tipo == TIPO_FACTURA
+        assert c.cliente_id == 2
+
+    def test_validacion_longitud_dni_invalido(self, uow):
+        """DNI con longitud incorrecta debe lanzar TipoDocumentoInvalido."""
+        # Cliente mock con DNI invalido (bypass __post_init__ usando un
+        # objeto que no es dataclass).
+        class ClienteMockInvalido:
+            id = 99
+            tipo_doc = '1'
+            num_doc = '12345'  # longitud invalida para DNI (debe ser 8)
+            razon_social = 'TEST MALO'
+        cliente_malo = ClienteMockInvalido()
+
+        uow._clientes = MockClienteRepo(cliente=cliente_malo)
         svc = ComprobanteService(uow)
         with pytest.raises(TipoDocumentoInvalido):
             svc.crear(
-                empresa_id=1, cliente_id=2, fecha=date.today(),
+                empresa_id=1, cliente_id=99, fecha=date.today(),
                 tipo=TIPO_FACTURA,
                 detalles_data=[{"producto_id": 1, "cantidad": 1}],
             )

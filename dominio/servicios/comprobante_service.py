@@ -261,16 +261,27 @@ class ComprobanteService:
         return self._uow.empresas.obtener_por_id(empresa_id)
 
     def _validar_tipo_documento(self, tipo: str, cliente) -> None:
-        """Reglas tributarias: factura -> RUC; boleta -> DNI/CE/Pasaporte."""
-        if tipo == TIPO_FACTURA and cliente.tipo_doc != "6":
+        """Validacion estructural del documento segun su tipo.
+
+        No restringe el tipo de comprobante vs tipo_doc. Solo valida
+        que la longitud del documento coincida con su tipo (8 digitos
+        DNI, 11 RUC, etc.). Esto permite emitir facturas con cualquier
+        tipo de documento y boletas con cualquier tipo.
+        """
+        from ..entidades.cliente import LONGITUDES_DOC, TIPOS_DOC_VALIDOS
+        esperado = LONGITUDES_DOC.get(cliente.tipo_doc)
+        if esperado and len(cliente.num_doc) != esperado:
+            nombres = {
+                "1": "DNI",
+                "4": "Carnet de Extranjeria",
+                "6": "RUC",
+                "7": "Pasaporte",
+                "A": "Cedula de Identidad",
+            }
             raise TipoDocumentoInvalido(
-                "Para emitir una factura el cliente debe tener RUC (tipo_doc=6). "
-                f"El cliente {cliente.razon_social} tiene tipo_doc={cliente.tipo_doc}."
-            )
-        if tipo == TIPO_BOLETA and cliente.tipo_doc not in ("1", "4", "7", "A"):
-            raise TipoDocumentoInvalido(
-                "Para emitir una boleta el cliente debe tener DNI, CE o Pasaporte. "
-                f"El cliente {cliente.razon_social} tiene tipo_doc={cliente.tipo_doc}."
+                f"El {nombres.get(cliente.tipo_doc, cliente.tipo_doc)} "
+                f"debe tener exactamente {esperado} digitos. "
+                f"Recibido: {len(cliente.num_doc)}."
             )
 
     def _construir_detalle(self, data: dict) -> DetalleComprobante:

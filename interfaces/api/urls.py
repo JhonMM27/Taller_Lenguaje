@@ -25,6 +25,7 @@ from interfaces.api.nota_credito_views import NotaCreditoViewSet
 from interfaces.api.cliente_views import ClienteViewSet
 from interfaces.api.producto_views import ProductoViewSet
 from interfaces.api.health import HealthView
+from apps.reportes.views import ReporteVentasPeriodoView, DashboardView
 
 
 router = DefaultRouter()
@@ -45,4 +46,6 @@ urlpatterns = [
     path('docs/swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('docs/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     path('health/', HealthView.as_view(), name='health'),
+    path('reportes/ventas-por-periodo/', ReporteVentasPeriodoView.as_view(), name='reporte_ventas_periodo'),
+    path('reportes/dashboard/', DashboardView.as_view(), name='api_dashboard'),
 ]

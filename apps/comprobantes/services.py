@@ -5,6 +5,10 @@ Las views viejas hacen `from apps.comprobantes.services import ComprobanteServic
 Para no romperlas, este modulo expone una clase-compatible que delega al
 servicio del dominio via DI y devuelve modelos Django ORM (manteniendo
 la firma original).
+
+IMPORTANTE: emitir()/reenviar() NO usan el repositorio hexagonal para
+guardar, porque el hexagonal borra los detalles. Usamos Django ORM directo
+para preservar los detalles existentes.
 """
 import logging
 
@@ -74,29 +78,65 @@ class ComprobanteService:
     def emitir(comprobante_id):
         """
         Cambia estado BORRADOR -> EMITIDO y genera el XML firmado.
+        IMPORTANTE: usa Django ORM directo para preservar los detalles.
         """
-        ent = get_comprobante_service().emitir(comprobante_id=comprobante_id)
-        # Generar XML firmado en el modelo Django
-        modelo = _modelo_desde_entidad(ent)
-        if modelo is not None:
-            xml_firmado = _generar_y_firmar_xml(modelo)
-            if xml_firmado:
-                modelo.xml_firmado = xml_firmado
-                modelo.save(update_fields=['xml_firmado'])
+        from apps.comprobantes.models import Comprobante as CompModel
+        modelo = (
+            CompModel.objects
+            .select_related('cliente', 'empresa', 'serie')
+            .get(pk=comprobante_id, activo=True)
+        )
+
+        if modelo.estado != 'BORRADOR':
+            from dominio.excepciones import EstadoInvalido
+            raise EstadoInvalido(
+                f"Solo se pueden emitir comprobantes en BORRADOR. "
+                f"Estado actual: {modelo.estado}"
+            )
+
+        # Generar y firmar XML
+        xml_firmado = _generar_y_firmar_xml(modelo)
+
+        # Actualizar modelo (sin tocar detalles)
+        update_fields = ['estado']
+        modelo.estado = 'EMITIDO'
+        if xml_firmado:
+            modelo.xml_firmado = xml_firmado
+            update_fields.append('xml_firmado')
+        modelo.save(update_fields=update_fields)
+
         return modelo
 
     @staticmethod
     def reenviar(comprobante_id):
         """
         Regenera XML de un comprobante RECHAZADO y cambia estado a ENVIADO.
+        IMPORTANTE: usa Django ORM directo para preservar los detalles.
         """
-        ent = get_comprobante_service().reenviar(comprobante_id=comprobante_id)
-        modelo = _modelo_desde_entidad(ent)
-        if modelo is not None:
-            xml_firmado = _generar_y_firmar_xml(modelo)
-            if xml_firmado:
-                modelo.xml_firmado = xml_firmado
-                modelo.save(update_fields=['xml_firmado'])
+        from apps.comprobantes.models import Comprobante as CompModel
+        modelo = (
+            CompModel.objects
+            .select_related('cliente', 'empresa', 'serie')
+            .get(pk=comprobante_id, activo=True)
+        )
+
+        if modelo.estado != 'RECHAZADO':
+            from dominio.excepciones import EstadoInvalido
+            raise EstadoInvalido(
+                f"Solo se pueden reenviar comprobantes RECHAZADOS. "
+                f"Estado actual: {modelo.estado}"
+            )
+
+        # Regenerar XML firmado
+        xml_firmado = _generar_y_firmar_xml(modelo)
+
+        update_fields = ['estado']
+        modelo.estado = 'ENVIADO'
+        if xml_firmado:
+            modelo.xml_firmado = xml_firmado
+            update_fields.append('xml_firmado')
+        modelo.save(update_fields=update_fields)
+
         return modelo
 
     @staticmethod
@@ -108,14 +148,22 @@ class ComprobanteService:
 
     @staticmethod
     def cambiar_estado(comprobante_id, nuevo_estado):
-        from interfaces.container import get_uow, get_comprobante_service
-        service = get_comprobante_service()
-        comp_ent = service.obtener(comprobante_id=comprobante_id)
-        comp_ent.cambiar_estado(nuevo_estado)
-        with get_uow():
-            get_uow().comprobantes.guardar(comp_ent)
-            get_uow().commit()
-        return _modelo_desde_entidad(comp_ent)
+        from apps.comprobantes.models import Comprobante as CompModel
+        modelo = (
+            CompModel.objects
+            .select_related('cliente', 'empresa', 'serie')
+            .get(pk=comprobante_id, activo=True)
+        )
+        from dominio.excepciones import EstadoInvalido
+        transiciones = CompModel.TRANSICIONES_VALIDAS.get(modelo.estado, [])
+        if nuevo_estado not in transiciones:
+            raise EstadoInvalido(
+                f"No se puede pasar de {modelo.estado} a {nuevo_estado}. "
+                f"Transiciones validas: {transiciones}"
+            )
+        modelo.estado = nuevo_estado
+        modelo.save(update_fields=['estado'])
+        return modelo
 
 
 class NumeracionService:

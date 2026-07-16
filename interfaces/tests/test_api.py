@@ -122,7 +122,8 @@ class TestComprobanteAPI:
         data = response.json()
         assert data["tipo"] == "01"
 
-    def test_crear_factura_con_dni_retorna_400(self, admin_user, empresa, cliente_dni, producto):
+    def test_crear_factura_con_dni_ahora_acepta(self, admin_user, empresa, cliente_dni, producto):
+        """La validacion flexible permite DNI para factura (solo valida longitud)."""
         client = APIClient()
         client.force_authenticate(user=admin_user)
         response = client.post("/api/comprobantes/", {
@@ -134,10 +135,10 @@ class TestComprobanteAPI:
                 {"producto_id": producto.id, "cantidad": "1"}
             ],
         }, format="json")
-        assert response.status_code == 400
+        assert response.status_code == 201
         data = response.json()
-        assert "error" in data
-        assert "RUC" in data["error"]
+        assert data["tipo"] == "01"
+        assert data["cliente"] == cliente_dni.id
 
     def test_listar_comprobantes(self, admin_user, empresa, cliente_ruc, producto):
         # Primero crear
