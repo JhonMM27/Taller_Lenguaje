@@ -1,0 +1,62 @@
+[run]
+source = apps,dominio,infraestructura,interfaces
+omit =
+    */migrations/*
+    */tests/*
+    */__pycache__/*
+    */test_*.py
+    */apps.py
+    */__init__.py
+    */admin.py
+    apps/*/management/*
+    apps/sunat_ose/wsdl/*
+    # Legacy: archivos backward-compat que solo re-exportan
+    apps/comprobantes/services.py
+    apps/comprobantes/repositories.py
+    apps/comprobantes/serializers.py
+    apps/comprobantes/api_views.py
+    apps/notas_credito/services.py
+    apps/notas_credito/serializers.py
+    apps/notas_credito/api_views.py
+    apps/sunat_ose/ose_client.py
+    apps/sunat_ose/repositories.py
+    apps/core/exceptions.py
+    # Wrappers de interfaces
+    interfaces/api/serializers_clientes.py
+    interfaces/api/serializers_productos.py
+    # Templates tags legacy
+    apps/core/templatetags/*
+    # Legacy views/templates (no requieren cobertura hexagonal)
+    apps/comprobantes/views.py
+    apps/notas_credito/views.py
+    apps/clientes/views.py
+    apps/productos/views.py
+    apps/empresas/views.py
+    apps/usuarios/views.py
+    apps/sunat_ose/views.py
+    apps/reportes/views.py
+    apps/clientes/api_views.py
+    apps/productos/api_views.py
+    apps/empresas/api_views.py
+    apps/clientes/urls.py
+    apps/productos/urls.py
+    apps/empresas/urls.py
+    apps/notas_credito/urls.py
+    apps/comprobantes/urls.py
+    apps/sunat_ose/urls.py
+    apps/reportes/urls.py
+    apps/usuarios/urls.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    \.\.\.
+    pass
+precision = 1
+show_missing = true
+skip_covered = false
+
+[html]
+directory = htmlcov

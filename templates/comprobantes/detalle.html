@@ -38,9 +38,12 @@
         <div style="width:2px; height:32px; background:var(--gray-200); margin:0 5px;"></div>
 
         {% if comprobante.estado == 'BORRADOR' %}
-        <a href="{% url 'comprobantes:emitir' comprobante.id %}" class="btn btn-warning">
-            <i class="bi bi-check-circle"></i> Emitir
-        </a>
+        <form method="post" action="{% url 'comprobantes:emitir' comprobante.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-warning">
+                <i class="bi bi-check-circle"></i> Emitir
+            </button>
+        </form>
         {% elif comprobante.estado == 'EMITIDO' %}
         <button type="button" class="btn btn-primary" id="btn-enviar-sunat" onclick="enviarSunat()">
             <i class="bi bi-send"></i> Enviar a SUNAT
@@ -54,9 +57,12 @@
         {% endif %}
 
         {% if comprobante.estado == 'RECHAZADO' %}
-        <a href="{% url 'comprobantes:reenviar' comprobante.id %}" class="btn btn-warning">
-            <i class="bi bi-arrow-clockwise"></i> Reenviar
-        </a>
+        <form method="post" action="{% url 'comprobantes:reenviar' comprobante.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-warning">
+                <i class="bi bi-arrow-clockwise"></i> Reenviar
+            </button>
+        </form>
         {% endif %}
     </div>
 </div>

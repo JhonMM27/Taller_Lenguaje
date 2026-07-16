@@ -1,77 +1,40 @@
 """
-Repository Pattern para el módulo SUNAT/OSE.
+Backward-compatibility: shim que re-exporta el repositorio de log legacy.
 
-Abstrae el acceso al log de envíos SUNAT.
-Facilita mock en tests y desacopla la persistencia.
+El servicio legacy `SunatEnvioService` usa este repositorio para registrar
+logs de envios a SUNAT.
 """
+from decimal import Decimal
+from typing import Optional
 
-from typing import Protocol, Optional
-from django.db.models import QuerySet
-
-from apps.comprobantes.models import Comprobante, LogEnvioSUNAT
-from apps.core.exceptions import RecursoNoEncontrado
-
-
-# ──────────────────────────────────────────────────────────────
-# Puerto (Interface)
-# ──────────────────────────────────────────────────────────────
-
-class ILogSunatRepository(Protocol):
-    """Interface para el repositorio de logs de SUNAT."""
-
-    def registrar_envio(
-        self,
-        comprobante: Comprobante,
-        estado_respuesta: str,
-        codigo_respuesta: str,
-        descripcion: str,
-        uuid: str = '',
-        cdr_xml: str = '',
-    ) -> LogEnvioSUNAT:
-        """Registra un log de envío a SUNAT."""
-        ...
-
-    def obtener_por_comprobante(self, comprobante_id: int) -> QuerySet:
-        """Obtiene todos los logs de un comprobante."""
-        ...
-
-    def obtener_cdr(self, comprobante_id: int) -> Optional[LogEnvioSUNAT]:
-        """Obtiene el CDR más reciente de un comprobante."""
-        ...
-
-
-# ──────────────────────────────────────────────────────────────
-# Adaptador (Implementación Django ORM)
-# ──────────────────────────────────────────────────────────────
 
 class LogSunatRepositoryDjango:
-    """Implementación del repositorio de logs SUNAT usando Django ORM."""
+    """Wrapper legacy que persiste logs usando Django ORM directamente."""
 
     def registrar_envio(
         self,
-        comprobante: Comprobante,
+        comprobante,
         estado_respuesta: str,
         codigo_respuesta: str,
         descripcion: str,
         uuid: str = '',
         cdr_xml: str = '',
-    ) -> LogEnvioSUNAT:
-        return LogEnvioSUNAT.objects.create(
-            comprobante=comprobante,
+    ):
+        from apps.comprobantes.models import LogEnvioSUNAT
+        LogEnvioSUNAT.objects.create(
+            comprobante_id=comprobante.id,
             estado_respuesta=estado_respuesta,
             codigo_respuesta=codigo_respuesta,
             descripcion=descripcion,
-            uuid=uuid,
-            cdr_xml=cdr_xml,
+            uuid=uuid or None,
+            cdr_xml=cdr_xml or None,
         )
 
-    def obtener_por_comprobante(self, comprobante_id: int) -> QuerySet:
-        return LogEnvioSUNAT.objects.filter(
+    def obtener_por_comprobante(self, comprobante_id: int):
+        from apps.comprobantes.models import LogEnvioSUNAT
+        return list(LogEnvioSUNAT.objects.filter(
             comprobante_id=comprobante_id
-        ).order_by('-fecha_envio')
+        ).order_by("-fecha_envio"))
 
-    def obtener_cdr(self, comprobante_id: int) -> Optional[LogEnvioSUNAT]:
-        return LogEnvioSUNAT.objects.filter(
-            comprobante_id=comprobante_id,
-            cdr_xml__isnull=False,
-        ).exclude(cdr_xml='').first()
+
+__all__ = ["LogSunatRepositoryDjango"]

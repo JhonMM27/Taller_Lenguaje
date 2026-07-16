@@ -1,6 +1,6 @@
-"""
+﻿"""
 SUNAT OSE Client - Para entorno BETA/DESARROLLO
-Usa zeep con WSDL local para máxima compatibilidad y seguridad.
+Usa zeep con WSDL local para m├íxima compatibilidad y seguridad.
 """
 
 import logging
@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 
 class OSEClient:
     """
-    Cliente SOAP para comunicación con SUNAT/OSE usando zeep con WSDL local.
+    Cliente SOAP para comunicaci├│n con SUNAT/OSE usando zeep con WSDL local.
 
     Usa un archivo WSDL local (wsdl/billService.wsdl) para evitar dependencia
-    de red en la inicialización y resolver problemas de autenticación en el handshake.
+    de red en la inicializaci├│n y resolver problemas de autenticaci├│n en el handshake.
 
     Importante: El WSDL usa <wsdl:import location="billService_ns1.wsdl"/> con
     ruta relativa. Zeep necesita un URI file:/// (no un path Windows directo)
@@ -33,9 +33,9 @@ class OSEClient:
 
         Args:
             wsdl_path: Path al archivo WSDL local. Si None, usa WSDL local por defecto.
-            ruc: RUC de la empresa (11 dígitos).
+            ruc: RUC de la empresa (11 d├¡gitos).
             usuario: Usuario SOL (solo el sufijo, ej: JAVISIS1).
-            password: Contraseña SOL.
+            password: Contrase├▒a SOL.
             service_url: URL del servicio SOAP (endpoint). Si None, usa la del WSDL local.
         Raises:
             RuntimeError: Si Zeep no puede cargar el WSDL, con el error real detallado.
@@ -93,7 +93,7 @@ class OSEClient:
 
     def send_bill(self, zip_content, file_name):
         """
-        Envía un comprobante individual al OSE via SOAP sendBill.
+        Env├¡a un comprobante individual al OSE via SOAP sendBill.
 
         Args:
             zip_content (bytes | str): Contenido del ZIP (bytes o base64 string).
@@ -101,7 +101,7 @@ class OSEClient:
                              RUC-TIPO-SERIE-NUMERO.zip (ej: 20103129061-01-F001-00000001.zip)
         Returns:
             dict: {status, applicationResponse, faultcode, faultstring}
-                  status=0 indica éxito. applicationResponse contiene el CDR base64.
+                  status=0 indica ├®xito. applicationResponse contiene el CDR base64.
         """
         logger.info(f"Enviando comprobante: {file_name}")
 
@@ -131,7 +131,7 @@ class OSEClient:
 
     def get_status(self, ticket):
         """
-        Consulta el estado de un ticket asíncrono (lotes sendPack).
+        Consulta el estado de un ticket as├¡ncrono (lotes sendPack).
 
         Args:
             ticket (str): Ticket devuelto por sendPack.
@@ -157,7 +157,7 @@ class OSEClient:
 
     def get_status_cdr(self, ticket):
         """
-        Obtiene el CDR (Constancia de Recepción) de un ticket aceptado.
+        Obtiene el CDR (Constancia de Recepci├│n) de un ticket aceptado.
 
         Args:
             ticket (str): Ticket previamente consultado con getStatus.
@@ -183,13 +183,13 @@ class OSEClient:
 
     def send_pack(self, zip_content, file_name):
         """
-        Envía un lote de comprobantes al OSE via SOAP sendPack.
+        Env├¡a un lote de comprobantes al OSE via SOAP sendPack.
 
-        A diferencia de sendBill, sendPack es asíncrono: retorna un ticket
+        A diferencia de sendBill, sendPack es as├¡ncrono: retorna un ticket
         que debe consultarse posteriormente con getStatus().
 
         Args:
-            zip_content (bytes | str): ZIP con múltiples XML firmados.
+            zip_content (bytes | str): ZIP con m├║ltiples XML firmados.
             file_name (str): Nombre del ZIP de lote.
         Returns:
             dict: {status, ticket, faultcode, faultstring}
@@ -257,10 +257,10 @@ class MockOSEClient:
                 'ticket': None,
                 'faultcode': '2000',
                 'faultstring': random.choice([
-                    "Error de negocio: Numeración duplicada",
-                    "Error de estructura: Formato inválido de XML",
-                    "Error de datos: RUC no existe en padrón",
-                    "Error de validación: Fecha fuera de rango",
+                    "Error de negocio: Numeraci├│n duplicada",
+                    "Error de estructura: Formato inv├ílido de XML",
+                    "Error de datos: RUC no existe en padr├│n",
+                    "Error de validaci├│n: Fecha fuera de rango",
                 ])
             }
 
@@ -287,7 +287,7 @@ class MockOSEClient:
         time.sleep(random.uniform(0.3, 1.0))
 
         # Retornar un ZIP mock real codificado en base64 y decodificado a bytes
-        mock_cdr_b64 = 'UEsDBBQAAgAIALmpp1wAAAAAAgAAAAAAAAAGAAAAZHVtbXkvAwBQSwMEFAACAAgAuamnXMoE/RkXBQAAUw8AACIAAABSLTIwMTAzMTI5MDYxLTAxLUYwMDEtMDAwMDAwMDMueG1stVdbU9s4FH7vr9CEh+521khOyAVPSDcQ0kkLLCWh7auwlUSLLbmSHML++j2SY8dJzZR0Z4EH+eg737nqSPTfr5MYrZjSXIqzhn9MGoiJUEZcLM4a97Ox12u8H7zpUxUM0zTmITUAvGM6lUIzBMpCnzUyJQJJNdeBoAnTgU5ZyOcbcJA9xIEOlyyhwVpHwUSsJA+Z12zk6gFVBzLUeLJlY2tzIN2FTBIpLteGCZsF+ARKJozekoYP4S+RngM8rCWkv0Y4XCwUW1DD6kgjKMXSmDTA+Onp6fipdSzVAjcJIZicYsBEmi+OCrSWNC3xuSF9DFtW7hTtAjOxYrFMGS6NgPFSja11bBzYirVHReQZDrGURoo4dSaoeTHOlKmsGuzUouti9Qvi9Uux+vjb9dXUURVYYGHrtMZp2MhiqjzYVUzb4uvGoA8dFNwfX5UNoYs2r9nLJZXeEbAyg/6ULyCCTJVH5BV1gWNm1Vg0EXM5eINQ/4IKKSBPMf/H5eqamaWM0DBeSMXNMnkxBT6xtBBX6IX+iTj6CmjbQDaHDey4Sw9fTUpOCl+9RCp2pDT19JK2/eaG8o7NmYLpwdD93cSmC4Qgnikq9FyqROeCquinZndSVDRj5OnC+9z0gaSvSRAQ4n3P+yO+YNocmDHIyFE1TyXPFxpnbPB02Vp8usXj6/nH6PZRYjl97FydExy1fXK9Yt3Rd/ydf/08//u6e3UxfPo2HY/TSUoeo9Hpanq+Wj5015/Mx+Xwy62aGP2586GVafn57KyPq1ZsfXBZIGg1vNtr1Y7INd7dKr6C04ce2TN6e84MvYWjCuOMKfMWCWlQlr7LaSpa/U/s2XH2v7XJ6Ygamq+sVn7mgfkGxkCEwq1ow58bBIYK/76yY5tonTE1ZYrTuCqxxIfTV3QdV857kyUPTB3OtqNdNVC4i7eZwWW2tnmEdf1MwT8Onx9EetCHu8qKvuR3+mQ0aB6TPv5B6nAXmTYy2UwXEPoFdH/DoS2g2+01SbPXIr12N4eWuzbIkS0RADoeaXukNyMkcH8baAnZaszguhjUwJzcwYo7fpd7Y31ncwfuCJp+4LeCNtkFb7hpGFSyvonFSqb3Y8NZJboSKNXzLVXmOZe55SSC4pS3WUnTJH4Lfpun7faWCL+sVWzkXWgV3KriSb6D95D4Jefg8HND4zLAoTE0XCauk+y+bRklaLydCXnn3E0GR3s5sLLcUI0S/pkxXJPnGwnVOmm2W8hDlzGCx4NE8OKES5hGEoUykYgaxR8ykP8Zc23ABcQ0YEKpFAuNPAbNyc34rwA5mt+EjGSAGi7T+QNz9pzCyyFieKPfQCsaSwUg+x5J2eZJAhUA8SIgfuP3TaKl2XGTnPY2bgIRDHyJIgYfcDxCHnOJ5lzDFe2ELOFaKpgHKMySNGYQikAgt3eIjRHGMX2I4fUDUZb+W/7Sf2q7dGENuc4YRpF9mTi/Rs58aLaBvOTxf03spVIQBRMopijmgtEA+WiWq8ESbuWatM/o+nLNkjR/llNtJ9frs9/di8X2DBMRU//PecO1Bu5YyPjqEJvEmiQd/9U2a0yMJDQLQIvpVPhSfrnJtTlwYGIMTwuP5D+tYrBtt3eGoC3BYG/6OZlDjZgOFXcVG1xRNKYhHFGKBLijJNqx......
+        mock_cdr_b64 = 'UEsDBAoAAAAAAAAAAAAAAAAAAAAAAAAAAAAJAAAAdHVtbXkvUEsDBBQAAAAIAAAAAAAAAAAAAAAAAAAAZHVtbXkvAwBQSwECFgUABQAAAAAAAB9BQAAAAA='
         mock_cdr = base64.b64decode(mock_cdr_b64)
 
         return {
@@ -319,8 +319,8 @@ class MockOSEClient:
                 'faultcode': '3000',
                 'faultstring': random.choice([
                     "Error de lote: Archivos duplicados",
-                    "Error de lote: Fecha de emisión不一致",
-                    "Error de lote: Estructura ZIP inválida",
+                    "Error de lote: Fecha de emisi├│nõ©ìõ©ÇÞç┤",
+                    "Error de lote: Estructura ZIP inv├ílida",
                 ])
             }
 

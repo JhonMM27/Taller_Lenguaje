@@ -276,31 +276,35 @@ def descargar_excel_comprobante(request, pk):
 @login_required
 def reenviar_comprobante(request, pk):
     """View delgada: delega al ComprobanteService.reenviar()."""
+    if request.method != 'POST':
+        return redirect('comprobantes:detalle', pk=pk)
     try:
         comprobante = ComprobanteService.reenviar(pk)
         messages.success(request, f'Comprobante {comprobante} reenviado exitosamente')
-        return redirect('comprobantes:detalle', pk=pk)
     except EstadoInvalido as e:
-        return HttpResponse(str(e), status=400)
+        messages.error(request, str(e))
     except ComprobanteNoEncontrado as e:
-        return HttpResponse(str(e), status=404)
+        messages.error(request, str(e))
     except AppError as e:
-        return HttpResponse(str(e), status=500)
+        messages.error(request, str(e))
+    return redirect('comprobantes:detalle', pk=pk)
 
 
 @login_required
 def emitir_comprobante(request, pk):
     """View delgada: delega al ComprobanteService.emitir()."""
+    if request.method != 'POST':
+        return redirect('comprobantes:detalle', pk=pk)
     try:
         comprobante = ComprobanteService.emitir(pk)
         messages.success(request, f'Comprobante {comprobante} emitido exitosamente')
-        return redirect('comprobantes:detalle', pk=pk)
     except EstadoInvalido as e:
-        return HttpResponse(str(e), status=400)
+        messages.error(request, str(e))
     except ComprobanteNoEncontrado as e:
-        return HttpResponse(str(e), status=404)
+        messages.error(request, str(e))
     except AppError as e:
-        return HttpResponse(str(e), status=500)
+        messages.error(request, str(e))
+    return redirect('comprobantes:detalle', pk=pk)
 
 
 # ==============================================================================

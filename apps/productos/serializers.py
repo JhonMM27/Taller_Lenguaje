@@ -8,6 +8,31 @@ class CategoriaProductoSerializer(drf_serializers.ModelSerializer):
         model = CategoriaProducto
         fields = '__all__'
 
+    def to_internal_value(self, data):
+        """Normaliza el checkbox 'activo' desde el form HTML.
+
+        Los checkboxes HTML solo envian el valor cuando estan marcados.
+        Si no llega, asumimos False (categoria inactiva).
+        Si llega como 'on'/'true'/'1', lo convertimos a True.
+        """
+        if hasattr(data, 'dict'):
+            normalized_data = data.dict()
+        else:
+            normalized_data = dict(data)
+
+        if 'activo' in normalized_data:
+            val = normalized_data['activo']
+            if isinstance(val, bool):
+                pass
+            elif val in ('on', 'true', '1', True):
+                normalized_data['activo'] = True
+            else:
+                normalized_data['activo'] = False
+        else:
+            normalized_data['activo'] = False
+
+        return super().to_internal_value(normalized_data)
+
 
 class ProductoSerializer(drf_serializers.ModelSerializer):
     categoria_nombre = drf_serializers.CharField(source='categoria.nombre', read_only=True)

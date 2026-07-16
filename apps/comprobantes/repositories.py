@@ -1,163 +1,116 @@
 """
-Repository Pattern para el módulo de Comprobantes.
+Backward-compatibility: repositorios que retornan modelos Django.
 
-Abstrae el acceso a datos. El Service usa la interfaz (Protocol),
-no el ORM directamente. Facilita mock en tests y desacopla la persistencia.
+Las views/servicios legacy (`apps.sunat_ose.services`, etc.) esperan que
+`obtener_por_id` retorne un MODELO Django (con `.empresa`, `.cliente`, etc.),
+no una entidad de dominio.
+
+Estos wrappers NO son el repositorio hexagonal; son shims que usan
+Django ORM directamente para preservar la API legacy.
 """
-
-from typing import Protocol, Optional
 from decimal import Decimal
-from django.db.models import Max, QuerySet
+from typing import Optional
 
-from apps.comprobantes.models import Comprobante, SerieComprobante, DetalleComprobante
-from apps.core.exceptions import ComprobanteNoEncontrado, SerieNoEncontrada
-
-
-# ──────────────────────────────────────────────────────────────
-# Puertos (Interfaces) — Protocol
-# ──────────────────────────────────────────────────────────────
-
-class IComprobanteRepository(Protocol):
-    """Interface para el repositorio de comprobantes."""
-
-    def obtener_por_id(self, comprobante_id: int) -> Comprobante:
-        """Obtiene un comprobante por su ID. Lanza ComprobanteNoEncontrado si no existe."""
-        ...
-
-    def listar_por_filtros(
-        self,
-        tipo: str = '',
-        estado: str = '',
-        fecha_desde: str = '',
-        fecha_hasta: str = '',
-        cliente_id: int = None,
-        ruc_cliente: str = '',
-        limit: int = 50,
-    ) -> QuerySet:
-        """Lista comprobantes con filtros opcionales."""
-        ...
-
-    def guardar(self, comprobante: Comprobante) -> None:
-        """Persiste un comprobante."""
-        ...
-
-    def obtener_siguiente_numero(self, serie: SerieComprobante) -> int:
-        """Obtiene el siguiente número correlativo para una serie."""
-        ...
-
-    def buscar_por_serie_numero(self, serie: str, numero: int) -> list:
-        """Busca comprobantes por serie y número."""
-        ...
-
-
-class ISerieRepository(Protocol):
-    """Interface para el repositorio de series de comprobante."""
-
-    def obtener_o_crear(self, empresa_id: int, tipo: str) -> tuple:
-        """Obtiene o crea una serie con select_for_update."""
-        ...
-
-
-# ──────────────────────────────────────────────────────────────
-# Adaptadores (Implementaciones Django ORM)
-# ──────────────────────────────────────────────────────────────
 
 class ComprobanteRepositoryDjango:
-    """Implementación del repositorio de comprobantes usando Django ORM."""
+    """Wrapper legacy: retorna modelos Django ORM."""
 
-    def obtener_por_id(self, comprobante_id: int) -> Comprobante:
+    def obtener_por_id(self, comprobante_id: int):
+        from apps.comprobantes.models import Comprobante as CompModel
         try:
-            return Comprobante.objects.select_related(
+            return CompModel.objects.select_related(
                 'cliente', 'empresa', 'serie'
             ).get(pk=comprobante_id, activo=True)
-        except Comprobante.DoesNotExist:
+        except CompModel.DoesNotExist as exc:
+            from dominio.excepciones import ComprobanteNoEncontrado
             raise ComprobanteNoEncontrado(
                 f"Comprobante {comprobante_id} no existe"
-            )
+            ) from exc
 
-    def listar_por_filtros(
+    def listar(
         self,
+        empresa_id: Optional[int] = None,
+        cliente_id: Optional[int] = None,
         tipo: str = '',
         estado: str = '',
-        fecha_desde: str = '',
-        fecha_hasta: str = '',
-        cliente_id: int = None,
+        fecha_desde=None,
+        fecha_hasta=None,
         ruc_cliente: str = '',
         limit: int = 50,
-    ) -> QuerySet:
-        queryset = Comprobante.objects.select_related(
-            'cliente', 'empresa', 'serie'
-        ).filter(activo=True)
-
+    ):
+        from apps.comprobantes.models import Comprobante as CompModel
+        qs = CompModel.objects.select_related('cliente', 'empresa', 'serie')
+        qs = qs.filter(activo=True)
+        if empresa_id is not None:
+            qs = qs.filter(empresa_id=empresa_id)
+        if cliente_id is not None:
+            qs = qs.filter(cliente_id=cliente_id)
         if tipo:
-            queryset = queryset.filter(tipo=tipo)
+            qs = qs.filter(tipo=tipo)
         if estado:
-            queryset = queryset.filter(estado=estado)
+            qs = qs.filter(estado=estado)
         if fecha_desde:
-            queryset = queryset.filter(fecha__gte=fecha_desde)
+            qs = qs.filter(fecha__gte=fecha_desde)
         if fecha_hasta:
-            queryset = queryset.filter(fecha__lte=fecha_hasta)
-        if cliente_id:
-            queryset = queryset.filter(cliente_id=cliente_id)
+            qs = qs.filter(fecha__lte=fecha_hasta)
         if ruc_cliente:
-            queryset = queryset.filter(cliente__num_doc__icontains=ruc_cliente)
+            qs = qs.filter(cliente__num_doc__icontains=ruc_cliente)
+        return list(qs.order_by('-fecha', '-creado_en')[:limit])
 
-        return queryset.order_by('-fecha', '-creado_en')[:limit]
-
-    def guardar(self, comprobante: Comprobante) -> None:
+    def guardar(self, comprobante) -> None:
+        """Guarda un modelo Django (acepta modelo, no entidad)."""
         comprobante.save()
 
-    def obtener_siguiente_numero(self, serie: SerieComprobante) -> int:
-        max_numero = Comprobante.objects.filter(
-            serie=serie
-        ).aggregate(Max('numero'))['numero__max'] or 0
-        return max(serie.correlativo_actual, max_numero) + 1
+    def eliminar_soft(self, comprobante_id: int, usuario_id: Optional[int] = None) -> None:
+        from apps.comprobantes.models import Comprobante as CompModel
+        m = CompModel.objects.filter(pk=comprobante_id).first()
+        if m:
+            m.eliminar(usuario=None)
 
-    def buscar_por_serie_numero(self, serie: str, numero: int) -> list:
-        comprobantes = Comprobante.objects.filter(
-            serie__serie=serie,
-            numero=numero,
-            activo=True,
-        ).select_related('cliente', 'empresa', 'serie')
-
-        return [
-            {
-                'id': comp.id,
-                'numero': f"{comp.serie.serie}-{comp.numero:08d}",
-                'cliente': comp.cliente.razon_social,
-                'ruc': comp.cliente.num_doc,
-                'fecha': comp.fecha.strftime('%Y-%m-%d'),
-                'total': float(comp.total),
-                'estado': comp.estado,
-            }
-            for comp in comprobantes
-        ]
+    def existe_serie_numero(self, serie_id: int, numero: int) -> bool:
+        from apps.comprobantes.models import Comprobante as CompModel
+        return CompModel.objects.filter(
+            serie_id=serie_id, numero=numero, activo=True
+        ).exists()
 
 
 class SerieRepositoryDjango:
-    """Implementación del repositorio de series usando Django ORM."""
+    """Wrapper legacy para series."""
 
-    SERIE_DEFAULTS = {
-        '01': 'F001',
-        '03': 'B001',
-        '07': 'FC01',
-        '08': 'FD01',
-    }
-
-    def obtener_o_crear(self, empresa_id: int, tipo: str) -> tuple:
-        from apps.empresas.models import Empresa
-        empresa = Empresa.objects.get(id=empresa_id)
-
-        serie_obj, created = SerieComprobante.objects.select_for_update().get_or_create(
-            empresa=empresa,
+    def obtener_o_crear(self, empresa_id: int, tipo: str):
+        from apps.comprobantes.models import SerieComprobante as SerieModel
+        defaults_serie = {
+            '01': 'F001',
+            '03': 'B001',
+            '07': 'FC01',
+            '08': 'FD01',
+        }
+        serie_obj, created = SerieModel.objects.select_for_update().get_or_create(
+            empresa_id=empresa_id,
             tipo=tipo,
+            activo=True,
             defaults={
-                'serie': self.SERIE_DEFAULTS.get(tipo, 'X001'),
+                'serie': defaults_serie.get(tipo, 'X001'),
                 'correlativo_actual': 0,
-            }
+            },
         )
-
-        if not created:
-            serie_obj.refresh_from_db()
-
         return serie_obj, created
+
+    def siguiente_correlativo(self, empresa_id: int, tipo: str):
+        from apps.comprobantes.models import SerieComprobante as SerieModel
+        from apps.comprobantes.models import Comprobante as CompModel
+        from django.db.models import Max
+        serie_obj, _ = self.obtener_o_crear(empresa_id, tipo)
+        max_numero_real = CompModel.objects.filter(
+            serie_id=serie_obj.id
+        ).aggregate(Max('numero'))['numero__max'] or 0
+        siguiente = max(serie_obj.correlativo_actual, max_numero_real) + 1
+        serie_obj.correlativo_actual = siguiente
+        serie_obj.save(update_fields=['correlativo_actual'])
+        return serie_obj, siguiente
+
+    def guardar(self, serie) -> None:
+        serie.save()
+
+
+__all__ = ['ComprobanteRepositoryDjango', 'SerieRepositoryDjango']
